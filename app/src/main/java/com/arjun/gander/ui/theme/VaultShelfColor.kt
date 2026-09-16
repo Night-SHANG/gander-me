@@ -16,7 +16,6 @@ internal val FluentLightBorderSubtle = Color(0xFFE5E5E5)
 
 internal val FluentDarkBackground = Color(0xFF202020)
 internal val FluentDarkSurface = Color(0xFF2B2B2B)
-internal val FluentDarkSurfaceRaised = Color(0xFF323232)
 internal val FluentDarkSurfaceMuted = Color(0xFF292929)
 internal val FluentDarkText = Color(0xFFF5F5F5)
 internal val FluentDarkTextMuted = Color(0xFFC7C7C7)
