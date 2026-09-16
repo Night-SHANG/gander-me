@@ -17,6 +17,7 @@ class LocalizationContractTest {
         val REPO = File("..")
         val FALLBACK = File(REPO, "app/src/main/res/values/strings.xml")
         val SIMPLIFIED_CHINESE = File(REPO, "app/src/main/res/values-zh-rCN/strings.xml")
+        val FORMAT_TOKEN = Regex("""%%|%(?:\d+\$)?[a-zA-Z]""")
     }
 
     @Test
@@ -25,8 +26,8 @@ class LocalizationContractTest {
             .that(SIMPLIFIED_CHINESE.exists())
             .isTrue()
 
-        val fallback = stringNames(FALLBACK, skipNotTranslatable = true)
-        val chinese = stringNames(SIMPLIFIED_CHINESE, skipNotTranslatable = false)
+        val fallback = stringValues(FALLBACK, skipNotTranslatable = true).keys
+        val chinese = stringValues(SIMPLIFIED_CHINESE, skipNotTranslatable = false).keys
         val missing = fallback - chinese
 
         assertWithMessage("Missing Simplified Chinese strings: ${missing.sorted()}")
@@ -38,8 +39,8 @@ class LocalizationContractTest {
     fun simplifiedChineseDoesNotInventUnknownStringKeys() {
         assertThat(SIMPLIFIED_CHINESE.exists()).isTrue()
 
-        val fallback = stringNames(FALLBACK, skipNotTranslatable = false)
-        val chinese = stringNames(SIMPLIFIED_CHINESE, skipNotTranslatable = false)
+        val fallback = stringValues(FALLBACK, skipNotTranslatable = false).keys
+        val chinese = stringValues(SIMPLIFIED_CHINESE, skipNotTranslatable = false).keys
         val unknown = chinese - fallback
 
         assertWithMessage("Chinese-only string keys should be declared in the fallback locale: ${unknown.sorted()}")
@@ -47,14 +48,31 @@ class LocalizationContractTest {
             .isEmpty()
     }
 
-    private fun stringNames(file: File, skipNotTranslatable: Boolean): Set<String> {
+    @Test
+    fun simplifiedChinesePreservesFormatPlaceholders() {
+        val fallback = stringValues(FALLBACK, skipNotTranslatable = true)
+        val chinese = stringValues(SIMPLIFIED_CHINESE, skipNotTranslatable = false)
+
+        val mismatches = fallback.mapNotNull { (name, fallbackText) ->
+            val chineseText = chinese[name] ?: return@mapNotNull null
+            val expected = FORMAT_TOKEN.findAll(fallbackText).map { it.value }.sorted().toList()
+            val actual = FORMAT_TOKEN.findAll(chineseText).map { it.value }.sorted().toList()
+            if (expected == actual) null else "$name expected=$expected actual=$actual"
+        }
+
+        assertWithMessage("Translated format placeholders must match the fallback locale: $mismatches")
+            .that(mismatches)
+            .isEmpty()
+    }
+
+    private fun stringValues(file: File, skipNotTranslatable: Boolean): Map<String, String> {
         val document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file)
         val nodes = document.getElementsByTagName("string")
-        return buildSet {
+        return buildMap {
             for (index in 0 until nodes.length) {
                 val element = nodes.item(index) as Element
                 if (skipNotTranslatable && element.getAttribute("translatable") == "false") continue
-                add(element.getAttribute("name"))
+                put(element.getAttribute("name"), element.textContent)
             }
         }
     }
