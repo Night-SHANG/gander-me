@@ -176,3 +176,7 @@ Confirm no permission additions, no viewer renderer edits, no hard-coded new vis
 - [ ] **Step 5: Open a pull request against `main`**
 
 GitHub Actions will run the repository's existing viewer tests, unit tests, lint, debug build and release build. Per project workflow, stop after CI is triggered and do not poll the run; continue only when the maintainer returns with the result.
+
+---
+
+CI trigger note: repository Actions were enabled after PR #1 was opened, so this documentation-only commit intentionally retriggers the pull-request workflow without changing runtime behavior.
