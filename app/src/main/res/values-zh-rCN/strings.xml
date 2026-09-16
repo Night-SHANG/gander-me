@@ -36,7 +36,7 @@
     <string name="page_out_of_range">请输入 1 到 %1$d 之间的页码</string>
     <string name="go">跳转</string>
     <string name="scroll_position">%1$d%%</string>
-    <string name="scroll_position_spoken">已浏览文档的 %1$d%%</string>
+    <string name="scroll_position_spoken">文档已浏览百分之 %1$d</string>
     <string name="open_with_hint">提示：在文件管理器中点击任意文件，然后选择“打开方式 &gt; Gander”。</string>
     <string name="back">返回</string>
     <string name="about_gander">关于 Gander</string>
