@@ -3,6 +3,7 @@ import com.android.build.api.artifact.SingleArtifact
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -81,6 +82,13 @@ android {
         jvmTarget = "17"
     }
 
+    // VaultShelf's new application shell is Compose. The mature Gander browser and
+    // viewer stay on their existing View/XML implementation so this change does not
+    // destabilise the rendering path while the new product grows around it.
+    buildFeatures {
+        compose = true
+    }
+
     lint {
         // Warnings are frozen into the baseline below, so that a new one fails the
         // build while the existing ones stay visible in the report rather than
@@ -111,15 +119,14 @@ android {
             // assets directory. Without this it gets none of them, and every test
             // that inflates a layout or reads viewer/ fails on a missing resource.
             isIncludeAndroidResources = true
-            // ReleaseHygieneTest reads the changelog, the ProGuard rules and the
-            // store listing straight off the disk, where Gradle cannot see them.
-            // Declared as inputs, an edit to any of them on its own reruns the
-            // tests instead of leaving them up to date and unrun.
+            // ReleaseHygieneTest and the VaultShelf localization contract read files
+            // straight off the disk, where Gradle cannot infer every input.
             all { test ->
                 test.inputs.files(
                     rootProject.file("CHANGELOG.md"),
                     file("proguard-rules.pro"),
                     rootProject.fileTree("fastlane/metadata/android") { include("**/*.txt") },
+                    fileTree("src/main/res") { include("values*/strings.xml") },
                 ).withPropertyName("releaseMetadata")
             }
         }
@@ -212,6 +219,16 @@ dependencies {
     // Video and audio playback
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
+
+    // Keep this milestone on the Compose 1.11 generation. Compose 1.12 requires
+    // compileSdk 37 / AGP 9, while Gander currently builds on SDK 36 / AGP 8.11.
+    val composeBom = platform("androidx.compose:compose-bom:2026.06.00")
+    implementation(composeBom)
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.google.truth:truth:1.4.5")
