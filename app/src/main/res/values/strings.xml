@@ -98,6 +98,38 @@
     <string name="save_copy">Save a copy</string>
     <string name="save_copy_done">Copy saved</string>
     <string name="save_copy_failed">The copy could not be saved</string>
+
+    <!-- VaultShelf application shell. All new UI copy belongs in resources so every
+         feature ships with locale coverage from its first commit. -->
+    <string name="vaultshelf_app_name">VaultShelf</string>
+    <string name="vaultshelf_home_title">Your shelf</string>
+    <string name="vaultshelf_home_subtitle">Documents, books and private files, organized in one place.</string>
+    <string name="vaultshelf_nav_home">Home</string>
+    <string name="vaultshelf_nav_library">Library</string>
+    <string name="vaultshelf_nav_files">Files</string>
+    <string name="vaultshelf_nav_vault">Vault</string>
+    <string name="vaultshelf_nav_settings">Settings</string>
+    <string name="vaultshelf_quick_access">Quick access</string>
+    <string name="vaultshelf_open_documents">Open documents</string>
+    <string name="vaultshelf_open_documents_detail">Browse local files with the existing offline document viewer.</string>
+    <string name="vaultshelf_library_card">Reading library</string>
+    <string name="vaultshelf_library_card_detail">A home for novels, EPUB books and reading progress.</string>
+    <string name="vaultshelf_vault_card">Private vault</string>
+    <string name="vaultshelf_vault_card_detail">Sensitive files will live behind a dedicated encrypted boundary.</string>
+    <string name="vaultshelf_offline_badge">Offline by design</string>
+    <string name="vaultshelf_offline_detail">Document viewing stays on this device and requires no storage or internet permission.</string>
+    <string name="vaultshelf_action_browse_files">Browse files</string>
+    <string name="vaultshelf_files_title">Files</string>
+    <string name="vaultshelf_files_detail">Use the proven Gander browser and viewer while VaultShelf grows around it.</string>
+    <string name="vaultshelf_open_file_browser">Open file browser</string>
+    <string name="vaultshelf_library_title">Library</string>
+    <string name="vaultshelf_library_placeholder">Library indexing, book metadata and novel reading will be added in later milestones.</string>
+    <string name="vaultshelf_vault_title">Private vault</string>
+    <string name="vaultshelf_vault_placeholder">Encryption, PIN or biometric unlock and private storage will be added as a dedicated module.</string>
+    <string name="vaultshelf_settings_title">Settings</string>
+    <string name="vaultshelf_settings_placeholder">Appearance, reading and privacy settings will live here.</string>
+    <string name="vaultshelf_foundation_status">Foundation ready</string>
+
     <string name="url_author" translatable="false">https://arjun.maniyani.com/</string>
     <string name="url_source" translatable="false">https://github.com/mokshablr/gander</string>
     <string name="url_site" translatable="false">https://arjun.maniyani.com/gander/</string>
