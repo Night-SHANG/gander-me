@@ -17,11 +17,11 @@ import java.io.Closeable
 import java.io.File
 import java.net.URI
 import java.net.URLDecoder
-import java.util.zip.ZipFile
 import me.ag2s.epublib.domain.EpubBook
 import me.ag2s.epublib.domain.Resource
 import me.ag2s.epublib.domain.TOCReference
 import me.ag2s.epublib.epub.EpubReader
+import me.ag2s.epublib.util.zip.AndroidZipFile
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -39,7 +39,7 @@ data class EpubReaderPosition(
 )
 
 class LegadoEpubDocument private constructor(
-    private val zipFile: ZipFile,
+    private val zipFile: AndroidZipFile,
     private val epubBook: EpubBook,
     val title: String,
     val chapters: List<EpubSourceChapter>,
@@ -126,7 +126,7 @@ class LegadoEpubDocument private constructor(
         )
 
         fun open(file: File): Result<LegadoEpubDocument> = runCatching {
-            val zip = ZipFile(file)
+            val zip = AndroidZipFile(file)
             try {
                 val book = EpubReader().readEpubLazy(zip, "utf-8")
                 val tocTitles = buildTocTitleMap(book.tableOfContents.tocReferences)
