@@ -6,6 +6,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
+import androidx.core.view.isVisible
 import com.arjun.gander.epub.EpubReaderSession
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryRepository
@@ -239,7 +240,7 @@ class EpubReaderActivity : AppCompatActivity() {
     }
 
     private fun toggleChrome() {
-        setChromeVisible(topChrome.visibility != View.VISIBLE)
+        setChromeVisible(!topChrome.isVisible)
     }
 
     private fun setChromeVisible(visible: Boolean) {
@@ -257,7 +258,7 @@ class EpubReaderActivity : AppCompatActivity() {
     }
 
     private fun keepChromeVisible() {
-        if (topChrome.visibility == View.VISIBLE) scheduleChromeHide()
+        if (topChrome.isVisible) scheduleChromeHide()
     }
 
     private fun scheduleChromeHide() {
