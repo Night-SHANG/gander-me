@@ -70,6 +70,9 @@ class ReadView @JvmOverloads constructor(
     var touchY: Float = 0f
     var isAbortAnim = false
 
+    var pageBackgroundColor: Int = Color.WHITE
+        private set
+
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     val pageSlopSquare2: Int = touchSlop * touchSlop
 
@@ -96,6 +99,7 @@ class ReadView @JvmOverloads constructor(
         addView(prevPage, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(curPage, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(nextPage, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        setBackgroundColor(pageBackgroundColor)
         setWillNotDraw(false)
         setPageAnimation(PageAnim.slidePageAnim)
     }
@@ -117,13 +121,16 @@ class ReadView @JvmOverloads constructor(
         textColor: Int,
         titleColor: Int = textColor,
         selectionColor: Int = Color.argb(72, 0, 95, 184),
+        backgroundColor: Int = Color.WHITE,
     ) {
         layoutConfig = config
         this.textColor = textColor
         this.titleColor = titleColor
         this.selectionColor = selectionColor
+        this.pageBackgroundColor = backgroundColor
+        setBackgroundColor(backgroundColor)
         listOf(prevPage, curPage, nextPage).forEach {
-            it.configure(config, textColor, titleColor, selectionColor)
+            it.configure(config, textColor, titleColor, selectionColor, backgroundColor)
         }
         invalidateRecorders()
     }
