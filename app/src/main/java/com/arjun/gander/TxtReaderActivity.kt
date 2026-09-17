@@ -2,8 +2,13 @@ package com.arjun.gander
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,14 +23,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,18 +38,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
 import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.library.TxtChapter
 import com.arjun.gander.library.TxtChapterParser
+import com.arjun.gander.library.TxtReadingBlock
+import com.arjun.gander.library.TxtReadingFlow
 import com.arjun.gander.ui.theme.VaultShelfTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
@@ -53,6 +65,9 @@ class TxtReaderActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.getInsetsController(window, window.decorView)
+            .hide(WindowInsetsCompat.Type.statusBars())
+
         val bookId = intent.getStringExtra(EXTRA_BOOK_ID)
         val repository = LocalLibraryRepository(applicationContext)
 
@@ -92,6 +107,7 @@ private sealed interface ReaderLoadState {
         val book: LibraryBook,
         val text: String,
         val chapters: List<TxtChapter>,
+        val blocks: List<TxtReadingBlock>,
     ) : ReaderLoadState
 }
 
@@ -108,10 +124,12 @@ private fun TxtReaderScreen(
             val book = repository.getBook(bookId) ?: error("Book metadata missing")
             val text = repository.readText(bookId)
             val updatedBook = repository.updateProgress(bookId, book.readingOffset) ?: book
+            val chapters = TxtChapterParser.parse(text)
             ReaderLoadState.Ready(
                 book = updatedBook,
                 text = text,
-                chapters = TxtChapterParser.parse(text),
+                chapters = chapters,
+                blocks = TxtReadingFlow.build(text, chapters),
             )
         }.getOrElse { ReaderLoadState.Error }
     }
@@ -130,9 +148,7 @@ private fun TxtReaderScreen(
 @Composable
 private fun ReaderLoadingScreen() {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -143,9 +159,7 @@ private fun ReaderLoadingScreen() {
 @Composable
 private fun ReaderMessageScreen(onBack: () -> Unit) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -171,18 +185,20 @@ private fun ReadyReader(
     val preferences = remember {
         context.getSharedPreferences("vaultshelf_reader", android.content.Context.MODE_PRIVATE)
     }
-    val initialChapter = remember(state.book.id, state.book.readingOffset, state.chapters) {
-        TxtChapterParser.chapterIndexForOffset(state.chapters, state.book.readingOffset)
-    }
-    var chapterIndex by rememberSaveable(state.book.id) { mutableStateOf(initialChapter) }
-    var currentOffset by rememberSaveable(state.book.id) { mutableStateOf(state.book.readingOffset) }
     var fontSize by rememberSaveable(state.book.id) {
         mutableStateOf(preferences.getFloat("font_size_sp", DEFAULT_FONT_SIZE))
     }
+    var currentOffset by rememberSaveable(state.book.id) { mutableIntStateOf(state.book.readingOffset) }
     var showContents by rememberSaveable { mutableStateOf(false) }
+    var chromeVisible by rememberSaveable { mutableStateOf(false) }
+    var chromeEpoch by rememberSaveable { mutableIntStateOf(0) }
+    var readerSize by remember { mutableStateOf(IntSize.Zero) }
 
-    val safeChapterIndex = chapterIndex.coerceIn(0, state.chapters.lastIndex)
-    val chapter = state.chapters[safeChapterIndex]
+    val blocks = state.blocks
+    val initialIndex = remember(blocks, state.book.readingOffset) {
+        TxtReadingFlow.indexForOffset(blocks, state.book.readingOffset)
+    }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
     val progress = if (state.book.totalCharacters <= 0) {
         0
     } else {
@@ -190,74 +206,146 @@ private fun ReadyReader(
             state.book.totalCharacters.toFloat()) * 100f).toInt().coerceIn(0, 100)
     }
 
-    fun moveToChapter(index: Int) {
-        val safeIndex = index.coerceIn(0, state.chapters.lastIndex)
-        val offset = state.chapters[safeIndex].contentStartOffset
-        currentOffset = offset
-        chapterIndex = safeIndex
-        scope.launch { repository.updateProgress(state.book.id, offset) }
+    fun revealChrome() {
+        chromeVisible = true
+        chromeEpoch++
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            ReaderTopBar(
+    LaunchedEffect(chromeVisible, chromeEpoch) {
+        if (chromeVisible) {
+            delay(CHROME_AUTO_HIDE_MS)
+            chromeVisible = false
+        }
+    }
+
+    LaunchedEffect(listState, blocks) {
+        if (blocks.isNotEmpty()) {
+            snapshotFlow { listState.firstVisibleItemIndex }
+                .distinctUntilChanged()
+                .collect { index ->
+                    blocks.getOrNull(index)?.let { block ->
+                        currentOffset = block.startOffset
+                        repository.updateProgress(state.book.id, block.startOffset)
+                    }
+                }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { readerSize = it }
+            .pointerInput(blocks, readerSize, chromeVisible) {
+                detectTapGestures { point ->
+                    val width = readerSize.width.takeIf { it > 0 } ?: return@detectTapGestures
+                    when {
+                        point.x < width * 0.27f -> {
+                            scope.launch {
+                                listState.animateScrollBy(-listState.layoutInfo.viewportSize.height * 0.9f)
+                            }
+                        }
+                        point.x > width * 0.73f -> {
+                            scope.launch {
+                                listState.animateScrollBy(listState.layoutInfo.viewportSize.height * 0.9f)
+                            }
+                        }
+                        else -> {
+                            if (chromeVisible) chromeVisible = false else revealChrome()
+                        }
+                    }
+                }
+            },
+    ) {
+        if (blocks.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(20.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.vaultshelf_reader_empty_chapter),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 22.dp, vertical = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp),
+            ) {
+                itemsIndexed(
+                    items = blocks,
+                    key = { _, block -> "${block.startOffset}:${block::class.simpleName}" },
+                ) { _, block ->
+                    when (block) {
+                        is TxtReadingBlock.ChapterHeading -> Text(
+                            text = block.displayText,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+                        )
+                        is TxtReadingBlock.Paragraph -> Text(
+                            text = block.displayText,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontSize = fontSize.sp,
+                            lineHeight = (fontSize * 1.65f).sp,
+                        )
+                    }
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = chromeVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
+            ReaderTopChrome(
                 title = state.book.title,
                 progress = progress,
                 onBack = onBack,
             )
-        },
-        bottomBar = {
-            ReaderControls(
-                chapterIndex = safeChapterIndex,
-                chapterCount = state.chapters.size,
-                onPrevious = { moveToChapter(safeChapterIndex - 1) },
-                onNext = { moveToChapter(safeChapterIndex + 1) },
-                onContents = { showContents = true },
+        }
+
+        AnimatedVisibility(
+            visible = chromeVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            ReaderBottomChrome(
+                onContents = {
+                    revealChrome()
+                    showContents = true
+                },
                 onDecreaseFont = {
                     fontSize = (fontSize - 1f).coerceAtLeast(MIN_FONT_SIZE)
                     preferences.edit().putFloat("font_size_sp", fontSize).apply()
+                    revealChrome()
                 },
                 onIncreaseFont = {
                     fontSize = (fontSize + 1f).coerceAtMost(MAX_FONT_SIZE)
                     preferences.edit().putFloat("font_size_sp", fontSize).apply()
+                    revealChrome()
                 },
             )
-        },
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            Text(
-                text = chapter.title ?: stringResource(R.string.vaultshelf_reader_start),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-            )
-            key(safeChapterIndex) {
-                ReaderChapterContent(
-                    text = state.text,
-                    chapter = chapter,
-                    initialOffset = currentOffset,
-                    fontSize = fontSize,
-                    onOffsetChanged = { offset ->
-                        currentOffset = offset
-                        scope.launch { repository.updateProgress(state.book.id, offset) }
-                    },
-                )
-            }
         }
     }
 
     if (showContents) {
         ChapterContentsDialog(
             chapters = state.chapters,
-            selectedIndex = safeChapterIndex,
-            onSelect = {
+            selectedIndex = TxtChapterParser.chapterIndexForOffset(state.chapters, currentOffset),
+            onSelect = { chapterIndex ->
                 showContents = false
-                moveToChapter(it)
+                val offset = state.chapters[chapterIndex].startOffset
+                currentOffset = offset
+                scope.launch {
+                    listState.scrollToItem(TxtReadingFlow.indexForOffset(blocks, offset))
+                    repository.updateProgress(state.book.id, offset)
+                }
             },
             onDismiss = { showContents = false },
         )
@@ -265,20 +353,17 @@ private fun ReadyReader(
 }
 
 @Composable
-private fun ReaderTopBar(
+private fun ReaderTopChrome(
     title: String,
     progress: Int,
     onBack: () -> Unit,
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        shadowElevation = 2.dp,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+        shadowElevation = 8.dp,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = onBack) {
@@ -288,9 +373,7 @@ private fun ReaderTopBar(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 maxLines = 1,
             )
             Text(
@@ -303,118 +386,27 @@ private fun ReaderTopBar(
 }
 
 @Composable
-private fun ReaderChapterContent(
-    text: String,
-    chapter: TxtChapter,
-    initialOffset: Int,
-    fontSize: Float,
-    onOffsetChanged: (Int) -> Unit,
-) {
-    val paragraphs = remember(text, chapter) { TxtChapterParser.paragraphs(text, chapter) }
-    val initialParagraph = remember(paragraphs, initialOffset) {
-        paragraphs.indexOfLast { it.startOffset <= initialOffset }.coerceAtLeast(0)
-    }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialParagraph)
-
-    LaunchedEffect(listState, paragraphs) {
-        if (paragraphs.isNotEmpty()) {
-            snapshotFlow { listState.firstVisibleItemIndex }
-                .distinctUntilChanged()
-                .collect { index ->
-                    paragraphs.getOrNull(index)?.let { onOffsetChanged(it.startOffset) }
-                }
-        }
-    }
-
-    if (paragraphs.isEmpty()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = stringResource(R.string.vaultshelf_reader_empty_chapter),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    } else {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            itemsIndexed(
-                items = paragraphs,
-                key = { _, paragraph -> paragraph.startOffset },
-            ) { _, paragraph ->
-                Text(
-                    text = paragraph.text,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = fontSize.sp,
-                    lineHeight = (fontSize * 1.65f).sp,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReaderControls(
-    chapterIndex: Int,
-    chapterCount: Int,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
+private fun ReaderBottomChrome(
     onContents: () -> Unit,
     onDecreaseFont: () -> Unit,
     onIncreaseFont: () -> Unit,
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        shadowElevation = 4.dp,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+        shadowElevation = 10.dp,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onPrevious, enabled = chapterIndex > 0) {
-                    Text(stringResource(R.string.vaultshelf_reader_previous_chapter))
-                }
-                Text(
-                    text = stringResource(
-                        R.string.vaultshelf_reader_chapter_position,
-                        chapterIndex + 1,
-                        chapterCount,
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = onNext, enabled = chapterIndex < chapterCount - 1) {
-                    Text(stringResource(R.string.vaultshelf_reader_next_chapter))
-                }
+            TextButton(onClick = onContents) {
+                Text(stringResource(R.string.vaultshelf_reader_contents))
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                TextButton(onClick = onContents) {
-                    Text(stringResource(R.string.vaultshelf_reader_contents))
-                }
-                TextButton(onClick = onDecreaseFont) {
-                    Text(stringResource(R.string.vaultshelf_reader_font_smaller))
-                }
-                TextButton(onClick = onIncreaseFont) {
-                    Text(stringResource(R.string.vaultshelf_reader_font_larger))
-                }
+            TextButton(onClick = onDecreaseFont) {
+                Text(stringResource(R.string.vaultshelf_reader_font_smaller))
+            }
+            TextButton(onClick = onIncreaseFont) {
+                Text(stringResource(R.string.vaultshelf_reader_font_larger))
             }
         }
     }
@@ -462,3 +454,4 @@ private fun ChapterContentsDialog(
 private const val DEFAULT_FONT_SIZE = 19f
 private const val MIN_FONT_SIZE = 14f
 private const val MAX_FONT_SIZE = 30f
+private const val CHROME_AUTO_HIDE_MS = 3_500L
