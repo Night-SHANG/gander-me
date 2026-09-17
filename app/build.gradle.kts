@@ -224,6 +224,7 @@ dependencies {
     // compileSdk 37 / AGP 9, while Gander currently builds on SDK 36 / AGP 8.11.
     val composeBom = platform("androidx.compose:compose-bom:2026.06.00")
     implementation(composeBom)
+    implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
