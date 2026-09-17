@@ -30,9 +30,9 @@ dependencies {
     implementation("androidx.annotation:annotation:1.9.1")
     implementation("androidx.core:core-ktx:1.15.0")
 
-    // Legado's standalone EPUB/local-book parser module. Pin to the exact upstream
-    // commit audited for this reader migration instead of following a moving branch.
-    implementation("com.github.LegadoTeam.legado:book:62003ce732a7e30602754d28996da7f98b9ea296")
+    // Legado's standalone EPUB/local-book parser sources are vendored under
+    // src/main/java/me/ag2s from upstream commit
+    // 62003ce732a7e30602754d28996da7f98b9ea296.
     // Match the jsoup release used by the pinned Legado source tree.
     implementation("org.jsoup:jsoup:1.23.2")
 
