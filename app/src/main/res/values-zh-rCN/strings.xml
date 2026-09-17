@@ -105,6 +105,12 @@
     <string name="vaultshelf_reader_contents">目录</string>
     <string name="vaultshelf_reader_empty_chapter">这一章没有可显示的正文。</string>
     <string name="vaultshelf_epub_no_contents">这本 EPUB 没有提供目录。</string>
+    <string name="vaultshelf_epub_line_compact">行距：紧凑</string>
+    <string name="vaultshelf_epub_line_normal">行距：标准</string>
+    <string name="vaultshelf_epub_line_relaxed">行距：宽松</string>
+    <string name="vaultshelf_epub_margin_narrow">页边距：窄</string>
+    <string name="vaultshelf_epub_margin_normal">页边距：标准</string>
+    <string name="vaultshelf_epub_margin_wide">页边距：宽</string>
     <string name="vaultshelf_epub_theme_light">浅色</string>
     <string name="vaultshelf_epub_theme_sepia">护眼</string>
     <string name="vaultshelf_epub_theme_dark">深色</string>
