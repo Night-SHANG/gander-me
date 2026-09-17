@@ -22,7 +22,7 @@ android {
     }
 
     testOptions {
-        unitTests.isIncludeAndroidResources = false
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -32,4 +32,5 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.google.truth:truth:1.4.5")
+    testImplementation("org.robolectric:robolectric:4.16.1")
 }
