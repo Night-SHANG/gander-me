@@ -10,9 +10,9 @@ import io.legado.app.ui.book.read.page.entities.TextChapter
 /**
  * Reader data contract extracted from Legado.
  *
- * The original implementation reads pageIndex from Legado's global ReadBook singleton.
- * VaultShelf supplies it explicitly so the reader core stays independent of book-source,
- * networking and application-global state.
+ * The original implementation reads and mutates global ReadBook state. VaultShelf exposes the
+ * same navigation operations through this interface so the mature reader core can run without
+ * Legado's book-source/network singleton.
  */
 interface DataSource {
     val pageIndex: Int
@@ -22,7 +22,10 @@ interface DataSource {
     val prevChapter: TextChapter?
     val isScroll: Boolean
 
+    fun setPageIndex(index: Int)
     fun hasNextChapter(): Boolean
     fun hasPrevChapter(): Boolean
+    fun moveToNextChapter(): Boolean
+    fun moveToPrevChapter(toLastPage: Boolean): Boolean
     fun upContent(relativePosition: Int = 0, resetPageOffset: Boolean = true)
 }
