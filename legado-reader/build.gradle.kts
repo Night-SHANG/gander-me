@@ -32,7 +32,8 @@ dependencies {
 
     // Legado's standalone EPUB/local-book parser module. Pin to the exact upstream
     // commit audited for this reader migration instead of following a moving branch.
-    implementation("com.github.LegadoTeam.legado:book:62003ce732")
+    implementation("com.github.LegadoTeam.legado:book:62003ce732a7e30602754d28996da7f98b9ea296")
+    // Match the jsoup release used by the pinned Legado source tree.
     implementation("org.jsoup:jsoup:1.23.2")
 
     testImplementation("junit:junit:4.13.2")
