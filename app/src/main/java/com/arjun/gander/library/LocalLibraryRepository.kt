@@ -1,9 +1,11 @@
 package com.arjun.gander.library
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.arjun.gander.R
+import com.arjun.gander.epub.EpubLibraryMetadataReader
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -41,7 +43,26 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     }
 
     override suspend fun importEpub(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
-        importFile(uri, BookFormat.EPUB, "epub") { 0 }
+        val imported = importFile(uri, BookFormat.EPUB, "epub") { 0 }
+        val storedFile = bookFileInternal(imported)
+        val metadata = EpubLibraryMetadataReader.read(appContext, storedFile).getOrNull()
+            ?: return@withContext imported
+
+        val coverFileName = metadata.cover?.let { cover ->
+            val name = "${imported.id}.cover.png"
+            val file = File(libraryDirectory(), name)
+            val saved = runCatching {
+                file.outputStream().buffered().use { output ->
+                    cover.compress(Bitmap.CompressFormat.PNG, 100, output)
+                }
+            }.getOrDefault(false)
+            if (saved && file.isFile) name else null
+        }
+        val updated = imported.copy(
+            title = metadata.title ?: imported.title,
+            coverFileName = coverFileName,
+        )
+        if (saveBook(updated)) updated else imported
     }
 
     private fun importFile(
@@ -107,10 +128,24 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         bookFileInternal(book)
     }
 
+    override suspend fun coverFile(id: String): File? = withContext(Dispatchers.IO) {
+        val book = getBook(id) ?: return@withContext null
+        val fileName = book.coverFileName ?: return@withContext null
+        File(libraryDirectory(), fileName).takeIf { it.isFile }
+    }
+
     private fun bookFileInternal(book: LibraryBook): File {
         val file = File(libraryDirectory(), book.storedFileName)
         if (!file.isFile) throw FileNotFoundException("Imported book file is missing")
         return file
+    }
+
+    override suspend fun renameBook(id: String, title: String): LibraryBook? = withContext(Dispatchers.IO) {
+        val current = getBook(id) ?: return@withContext null
+        val normalized = title.trim()
+        if (normalized.isEmpty()) return@withContext current
+        val updated = current.copy(title = normalized)
+        if (saveBook(updated)) updated else current
     }
 
     override suspend fun updateProgress(id: String, readingOffset: Int): LibraryBook? = withContext(Dispatchers.IO) {
@@ -140,6 +175,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     override suspend fun deleteBook(id: String): Boolean = withContext(Dispatchers.IO) {
         val current = getBook(id) ?: return@withContext false
         File(libraryDirectory(), current.storedFileName).delete()
+        current.coverFileName?.let { File(libraryDirectory(), it).delete() }
         preferences.edit().remove(bookKey(id)).commit()
     }
 
@@ -187,6 +223,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         .put("readingOffset", book.readingOffset)
         .put("readingLocatorJson", book.readingLocatorJson ?: JSONObject.NULL)
         .put("publicationProgression", book.publicationProgression ?: JSONObject.NULL)
+        .put("coverFileName", book.coverFileName ?: JSONObject.NULL)
         .toString()
 
     private fun decodeBook(json: String): LibraryBook {
@@ -200,6 +237,8 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         } else {
             null
         }
+        val coverFileName = value.optString("coverFileName")
+            .takeIf { it.isNotBlank() && it != "null" }
         return LibraryBook(
             id = value.getString("id"),
             title = value.getString("title"),
@@ -212,6 +251,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             readingOffset = value.optInt("readingOffset", 0),
             readingLocatorJson = locatorJson,
             publicationProgression = publicationProgression,
+            coverFileName = coverFileName,
         )
     }
 

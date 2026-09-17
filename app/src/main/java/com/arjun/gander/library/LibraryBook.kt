@@ -17,6 +17,7 @@ data class LibraryBook(
     val readingOffset: Int,
     val readingLocatorJson: String? = null,
     val publicationProgression: Float? = null,
+    val coverFileName: String? = null,
 ) {
     val progressFraction: Float
         get() = when (format) {

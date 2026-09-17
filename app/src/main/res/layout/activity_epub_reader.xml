@@ -1,24 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    tools:ignore="MergeRootFrame">
+
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/epub_reader_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <TextView
+        android:id="@+id/epub_reader_error"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:padding="24dp"
+        android:text="@string/vaultshelf_reader_load_failed"
+        android:textAppearance="?attr/textAppearanceBodyLarge"
+        android:visibility="gone" />
 
     <LinearLayout
+        android:id="@+id/epub_reader_top_chrome"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="?attr/colorSurface"
+        android:elevation="8dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingTop="8dp"
+        android:paddingStart="8dp"
+        android:paddingTop="6dp"
         android:paddingEnd="12dp"
-        android:paddingBottom="6dp">
+        android:paddingBottom="6dp"
+        android:visibility="gone">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/epub_reader_back"
+            style="?attr/materialIconButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minWidth="0dp"
+            android:contentDescription="@string/back"
             android:text="@string/back" />
 
         <TextView
@@ -28,8 +50,8 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:textAppearance="?attr/textAppearanceTitleMedium" />
 
         <TextView
@@ -40,19 +62,25 @@
     </LinearLayout>
 
     <HorizontalScrollView
+        android:id="@+id/epub_reader_bottom_chrome"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="?attr/colorSurface"
+        android:elevation="8dp"
         android:fillViewport="true"
-        android:scrollbars="none">
+        android:scrollbars="none"
+        android:visibility="gone">
 
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="8dp">
+            android:paddingStart="10dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="6dp">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/epub_reader_contents"
@@ -106,21 +134,4 @@
         </LinearLayout>
     </HorizontalScrollView>
 
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/epub_reader_container"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
-    <TextView
-        android:id="@+id/epub_reader_error"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:padding="24dp"
-        android:text="@string/vaultshelf_reader_load_failed"
-        android:textAppearance="?attr/textAppearanceBodyLarge"
-        android:visibility="gone" />
-
-</LinearLayout>
+</FrameLayout>

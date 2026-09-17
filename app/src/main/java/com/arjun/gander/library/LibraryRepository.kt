@@ -16,6 +16,10 @@ interface LibraryRepository {
 
     suspend fun bookFile(id: String): File
 
+    suspend fun coverFile(id: String): File?
+
+    suspend fun renameBook(id: String, title: String): LibraryBook?
+
     suspend fun updateProgress(id: String, readingOffset: Int): LibraryBook?
 
     suspend fun updateEpubProgress(
