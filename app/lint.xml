@@ -21,9 +21,7 @@
     <!--
         Gander's custom audio transport intentionally includes Media3's rewind/forward
         controller layouts so PlayerControlView can supply the seek amount and matching
-        controls. This was already an accepted baseline exception with Media3 1.5.1;
-        Readium 3.1.2 resolves Media3 1.7.1 and changes only the version embedded in the
-        lint message. Keep the existing exception scoped to this one legacy layout instead
+        controls. Keep the existing exception scoped to this one legacy layout instead
         of weakening PrivateResource checks project-wide.
     -->
     <issue id="PrivateResource">
