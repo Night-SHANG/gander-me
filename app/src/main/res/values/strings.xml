@@ -69,6 +69,9 @@
     <string name="vaultshelf_app_name">VaultShelf</string>
     <string name="vaultshelf_home_title">Your shelf</string>
     <string name="vaultshelf_home_subtitle">Documents, books and private files, organized in one place.</string>
+    <string name="vaultshelf_home_recent">Recent reading</string>
+    <string name="vaultshelf_home_recent_empty">Books you start reading will appear here.</string>
+    <string name="vaultshelf_home_open_library">Open library</string>
     <string name="vaultshelf_nav_home">Home</string>
     <string name="vaultshelf_nav_library">Library</string>
     <string name="vaultshelf_nav_files">Files</string>
@@ -91,12 +94,30 @@
     <string name="vaultshelf_library_title">Library</string>
     <string name="vaultshelf_library_subtitle">Imported TXT and EPUB books are copied into VaultShelf so reading no longer depends on the original file location.</string>
     <string name="vaultshelf_library_import_book">Import book</string>
+    <string name="vaultshelf_library_import_short">Import</string>
     <string name="vaultshelf_library_import_failed">This book could not be imported. VaultShelf currently accepts TXT and EPUB.</string>
     <string name="vaultshelf_library_empty_title">Your library is empty</string>
     <string name="vaultshelf_library_empty_detail">Import a local TXT or EPUB book to start a private on-device reading shelf.</string>
     <string name="vaultshelf_library_progress">Read %1$d%%</string>
-    <string name="vaultshelf_library_continue_reading">Continue</string>
+    <string name="vaultshelf_library_continue_reading">Continue reading</string>
     <string name="vaultshelf_library_start_reading">Start reading</string>
+    <string name="vaultshelf_library_book_count">%1$d books</string>
+    <string name="vaultshelf_library_view_grid">Grid</string>
+    <string name="vaultshelf_library_view_list">List</string>
+    <string name="vaultshelf_library_rename">Rename</string>
+    <string name="vaultshelf_library_rename_title">Rename book</string>
+    <string name="vaultshelf_library_rename_label">Book title</string>
+    <string name="vaultshelf_library_rename_confirm">Save</string>
+    <string name="vaultshelf_library_info">Book info</string>
+    <string name="vaultshelf_library_info_format">Format: %1$s</string>
+    <string name="vaultshelf_library_info_size">Size: %1$s</string>
+    <string name="vaultshelf_library_delete">Delete from library</string>
+    <string name="vaultshelf_library_delete_title">Delete this book?</string>
+    <string name="vaultshelf_library_delete_message">VaultShelf will delete its private copy of “%1$s”. The original file you imported is not changed.</string>
+    <string name="vaultshelf_library_delete_confirm">Delete</string>
+    <string name="vaultshelf_library_list_meta">%1$s · %2$s · %3$d%%</string>
+    <string name="vaultshelf_library_cover_description">Cover for %1$s</string>
+    <string name="vaultshelf_library_more_symbol" translatable="false">⋯</string>
     <string name="vaultshelf_untitled_book">Untitled book</string>
     <string name="vaultshelf_format_txt" translatable="false">TXT</string>
     <string name="vaultshelf_format_epub" translatable="false">EPUB</string>
