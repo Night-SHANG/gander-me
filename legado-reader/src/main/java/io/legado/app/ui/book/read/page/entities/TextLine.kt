@@ -17,10 +17,16 @@ data class TextLine(
     val isTitle: Boolean = false,
     var isReadAloud: Boolean = false,
     var isImage: Boolean = false,
+    var imageSource: String? = null,
+    var imageLeft: Float = 0f,
+    var imageWidth: Float = 0f,
+    var imageHeight: Float = 0f,
 ) {
     val charSize: Int get() = textChars.size
-    val lineStart: Float get() = textChars.firstOrNull()?.start ?: 0f
-    val lineEnd: Float get() = textChars.lastOrNull()?.end ?: 0f
+    val lineStart: Float
+        get() = if (isImage) imageLeft else textChars.firstOrNull()?.start ?: 0f
+    val lineEnd: Float
+        get() = if (isImage) imageLeft + imageWidth else textChars.lastOrNull()?.end ?: 0f
 
     fun updateTopBottom(paddingTop: Int, y: Float, textPaint: TextPaint) {
         val metrics = textPaint.fontMetrics
