@@ -210,7 +210,7 @@ androidComponents.onVariants { variant ->
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
-    // GPL-3.0 TXT novel-reading core adapted from Legado / 阅读 3.0.
+    // GPL-3.0 TXT/EPUB novel-reading core adapted from Legado / 阅读 3.0.
     implementation(project(":legado-reader"))
 
     implementation("androidx.core:core-ktx:1.15.0")
@@ -225,12 +225,6 @@ dependencies {
     // Video and audio playback
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
-
-    // EPUB parsing and rendering. Keep the three modules on the same 3.1.2 release;
-    // newer Readium generations require a project-wide Android toolchain migration.
-    implementation("org.readium.kotlin-toolkit:readium-shared:3.1.2")
-    implementation("org.readium.kotlin-toolkit:readium-streamer:3.1.2")
-    implementation("org.readium.kotlin-toolkit:readium-navigator:3.1.2")
 
     // Keep this milestone on the Compose 1.11 generation. Compose 1.12 requires
     // compileSdk 37 / AGP 9, while Gander currently builds on SDK 36 / AGP 8.11.
