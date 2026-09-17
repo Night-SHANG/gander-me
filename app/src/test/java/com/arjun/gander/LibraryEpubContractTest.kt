@@ -2,6 +2,7 @@ package com.arjun.gander
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.content.edit
 import androidx.test.core.app.ApplicationProvider
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
@@ -20,9 +21,7 @@ class LibraryEpubContractTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("vaultshelf_library", Context.MODE_PRIVATE)
-            .edit()
-            .clear()
-            .commit()
+            .edit { clear() }
         File(context.filesDir, "library").deleteRecursively()
     }
 
@@ -49,12 +48,12 @@ class LibraryEpubContractTest {
     @Test
     fun oldTxtMetadataStillDecodesWithoutEpubFields() = runBlocking {
         context.getSharedPreferences("vaultshelf_library", Context.MODE_PRIVATE)
-            .edit()
-            .putString(
-                "book:legacy",
-                """{"id":"legacy","title":"Legacy","storedFileName":"legacy.txt","format":"TXT","sizeBytes":12,"totalCharacters":100,"addedAtEpochMillis":1,"lastOpenedAtEpochMillis":2,"readingOffset":25}""",
-            )
-            .commit()
+            .edit {
+                putString(
+                    "book:legacy",
+                    """{"id":"legacy","title":"Legacy","storedFileName":"legacy.txt","format":"TXT","sizeBytes":12,"totalCharacters":100,"addedAtEpochMillis":1,"lastOpenedAtEpochMillis":2,"readingOffset":25}""",
+                )
+            }
 
         val book = LocalLibraryRepository(context).getBook("legacy")
 
