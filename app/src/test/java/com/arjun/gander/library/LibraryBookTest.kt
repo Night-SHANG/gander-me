@@ -40,4 +40,23 @@ class LibraryBookTest {
         assertThat(book.progressFraction).isEqualTo(0f)
         assertThat(book.progressPercent).isEqualTo(0)
     }
+
+    @Test
+    fun txtUsesPublicationProgressWhenUnifiedReadiumReaderHasSavedOne() {
+        val book = LibraryBook(
+            id = "book",
+            title = "Book",
+            storedFileName = "book.txt",
+            format = BookFormat.TXT,
+            sizeBytes = 10L,
+            totalCharacters = 1000,
+            addedAtEpochMillis = 0L,
+            lastOpenedAtEpochMillis = 0L,
+            readingOffset = 100,
+            publicationProgression = 0.62f,
+        )
+
+        assertThat(book.progressFraction).isEqualTo(0.62f)
+        assertThat(book.progressPercent).isEqualTo(62)
+    }
 }
