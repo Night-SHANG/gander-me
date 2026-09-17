@@ -37,6 +37,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.arjun.gander.R
+import com.arjun.gander.library.LibraryRepository
+import com.arjun.gander.ui.library.LibraryScreen
 
 private enum class VaultShelfDestination(@StringRes val labelRes: Int) {
     HOME(R.string.vaultshelf_nav_home),
@@ -48,6 +50,7 @@ private enum class VaultShelfDestination(@StringRes val labelRes: Int) {
 
 @Composable
 fun VaultShelfShell(
+    libraryRepository: LibraryRepository,
     onOpenFiles: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -74,9 +77,8 @@ fun VaultShelfShell(
                 onOpenVault = { selectedName = VaultShelfDestination.VAULT.name },
             )
 
-            VaultShelfDestination.LIBRARY -> FoundationScreen(
-                titleRes = R.string.vaultshelf_library_title,
-                detailRes = R.string.vaultshelf_library_placeholder,
+            VaultShelfDestination.LIBRARY -> LibraryScreen(
+                repository = libraryRepository,
                 modifier = Modifier.padding(innerPadding),
             )
 

@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.ui.theme.VaultShelfTheme
 
@@ -19,12 +20,14 @@ class VaultShelfActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val libraryRepository = LocalLibraryRepository(applicationContext)
 
         val root = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 VaultShelfTheme {
                     VaultShelfShell(
+                        libraryRepository = libraryRepository,
                         onOpenFiles = {
                             startActivity(Intent(this@VaultShelfActivity, MainActivity::class.java))
                         },
