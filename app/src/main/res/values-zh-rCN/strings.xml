@@ -113,19 +113,9 @@
     <string name="vaultshelf_reader_progress">%1$d%%</string>
     <string name="vaultshelf_reader_start">正文</string>
     <string name="vaultshelf_reader_contents">目录</string>
-    <string name="vaultshelf_reader_empty_chapter">这一章没有可显示的正文。</string>
-    <string name="vaultshelf_epub_no_contents">这本 EPUB 没有提供目录。</string>
-    <string name="vaultshelf_epub_line_compact">行距：紧凑</string>
-    <string name="vaultshelf_epub_line_normal">行距：标准</string>
-    <string name="vaultshelf_epub_line_relaxed">行距：宽松</string>
-    <string name="vaultshelf_epub_margin_narrow">页边距：窄</string>
-    <string name="vaultshelf_epub_margin_normal">页边距：标准</string>
-    <string name="vaultshelf_epub_margin_wide">页边距：宽</string>
     <string name="vaultshelf_epub_theme_light">浅色</string>
     <string name="vaultshelf_epub_theme_sepia">护眼</string>
     <string name="vaultshelf_epub_theme_dark">深色</string>
-    <string name="vaultshelf_epub_mode_paged">翻页</string>
-    <string name="vaultshelf_epub_mode_scroll">滚动</string>
 
     <string name="vaultshelf_vault_title">私人保险库</string>
     <string name="vaultshelf_vault_placeholder">后续将以独立模块加入文件加密、PIN 或生物识别解锁以及私人存储。</string>
