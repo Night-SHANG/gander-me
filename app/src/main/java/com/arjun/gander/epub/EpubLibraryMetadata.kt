@@ -42,7 +42,7 @@ object EpubLibraryMetadataReader {
 
         try {
             EpubLibraryMetadata(
-                title = publication.metadata.title.takeIf { it.isNotBlank() },
+                title = publication.metadata.title?.takeIf { it.isNotBlank() },
                 cover = publication.coverFitting(Size(COVER_WIDTH, COVER_HEIGHT)),
             )
         } finally {
