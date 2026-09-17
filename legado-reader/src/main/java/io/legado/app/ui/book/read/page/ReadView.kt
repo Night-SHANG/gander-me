@@ -1,5 +1,5 @@
 /*
- * TXT-only adaptation of Legado / 阅读 3.0 ReadView.
+ * TXT/EPUB adaptation of Legado / 阅读 3.0 ReadView.
  * Sources:
  * - https://github.com/LegadoTeam/legado
  * - https://github.com/TsaiYongChuan/legado
@@ -61,6 +61,16 @@ class ReadView @JvmOverloads constructor(
     val curPage = PageView(context)
     val nextPage = PageView(context)
 
+    var imageProvider: ReaderImageProvider? = null
+        set(value) {
+            field = value
+            prevPage.imageProvider = value
+            curPage.imageProvider = value
+            nextPage.imageProvider = value
+            invalidateRecorders()
+            invalidate()
+        }
+
     val defaultAnimationSpeed = 300
     var startX: Float = 0f
     var startY: Float = 0f
@@ -71,7 +81,6 @@ class ReadView @JvmOverloads constructor(
     var isAbortAnim = false
 
     var pageBackgroundColor: Int = Color.WHITE
-        private set
 
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     val pageSlopSquare2: Int = touchSlop * touchSlop
