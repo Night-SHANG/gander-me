@@ -1,6 +1,7 @@
 package com.arjun.gander
 
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
@@ -11,11 +12,14 @@ import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryRepository
 import com.arjun.gander.library.LocalLibraryRepository
 import com.google.android.material.button.MaterialButton
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
@@ -32,6 +36,7 @@ class EpubReaderActivity : AppCompatActivity() {
     private var session: EpubReaderSession? = null
     private var navigator: EpubNavigatorFragment? = null
     private var bookId: String? = null
+    private var chromeHideJob: Job? = null
 
     private var fontSize = DEFAULT_FONT_SIZE
     private var lineHeightIndex = DEFAULT_LINE_HEIGHT_INDEX
@@ -43,15 +48,14 @@ class EpubReaderActivity : AppCompatActivity() {
     private lateinit var progressView: TextView
     private lateinit var containerView: View
     private lateinit var errorView: TextView
+    private lateinit var topChrome: View
+    private lateinit var bottomChrome: View
     private lateinit var lineHeightButton: MaterialButton
     private lateinit var pageMarginsButton: MaterialButton
     private lateinit var themeButton: MaterialButton
     private lateinit var flowButton: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Readium fragments need a factory during Android state restoration. The publication is
-        // deliberately not retained across process death, so install Readium's safe dummy factory
-        // and return to the shelf instead of letting FragmentManager instantiate an invalid reader.
         if (savedInstanceState != null) {
             supportFragmentManager.fragmentFactory = EpubNavigatorFragment.createDummyFactory()
         }
@@ -67,6 +71,7 @@ class EpubReaderActivity : AppCompatActivity() {
         bindViews()
         restorePreferences()
         bindControls()
+        setChromeVisible(false)
 
         val requestedBookId = bookId
         if (requestedBookId.isNullOrBlank()) {
@@ -84,6 +89,8 @@ class EpubReaderActivity : AppCompatActivity() {
         progressView = findViewById(R.id.epub_reader_progress)
         containerView = findViewById(R.id.epub_reader_container)
         errorView = findViewById(R.id.epub_reader_error)
+        topChrome = findViewById(R.id.epub_reader_top_chrome)
+        bottomChrome = findViewById(R.id.epub_reader_bottom_chrome)
         lineHeightButton = findViewById(R.id.epub_reader_line_height)
         pageMarginsButton = findViewById(R.id.epub_reader_page_margins)
         themeButton = findViewById(R.id.epub_reader_theme)
@@ -92,28 +99,35 @@ class EpubReaderActivity : AppCompatActivity() {
 
     private fun bindControls() {
         findViewById<MaterialButton>(R.id.epub_reader_back).setOnClickListener { finish() }
-        findViewById<MaterialButton>(R.id.epub_reader_contents).setOnClickListener { showContents() }
+        findViewById<MaterialButton>(R.id.epub_reader_contents).setOnClickListener {
+            keepChromeVisible()
+            showContents()
+        }
         findViewById<MaterialButton>(R.id.epub_reader_font_smaller).setOnClickListener {
             fontSize = (fontSize - FONT_STEP).coerceAtLeast(MIN_FONT_SIZE)
             savePreferences()
             applyPreferences()
+            keepChromeVisible()
         }
         findViewById<MaterialButton>(R.id.epub_reader_font_larger).setOnClickListener {
             fontSize = (fontSize + FONT_STEP).coerceAtMost(MAX_FONT_SIZE)
             savePreferences()
             applyPreferences()
+            keepChromeVisible()
         }
         lineHeightButton.setOnClickListener {
             lineHeightIndex = (lineHeightIndex + 1) % LINE_HEIGHTS.size
             savePreferences()
             updateControlLabels()
             applyPreferences()
+            keepChromeVisible()
         }
         pageMarginsButton.setOnClickListener {
             pageMarginsIndex = (pageMarginsIndex + 1) % PAGE_MARGINS.size
             savePreferences()
             updateControlLabels()
             applyPreferences()
+            keepChromeVisible()
         }
         themeButton.setOnClickListener {
             readerTheme = when (readerTheme) {
@@ -124,12 +138,14 @@ class EpubReaderActivity : AppCompatActivity() {
             savePreferences()
             updateControlLabels()
             applyPreferences()
+            keepChromeVisible()
         }
         flowButton.setOnClickListener {
             scrollMode = !scrollMode
             savePreferences()
             updateControlLabels()
             applyPreferences()
+            keepChromeVisible()
         }
         updateControlLabels()
     }
@@ -174,6 +190,8 @@ class EpubReaderActivity : AppCompatActivity() {
 
         containerView.visibility = View.VISIBLE
         errorView.visibility = View.GONE
+        installReadingTapHandling(currentNavigator)
+
         activityScope.launch {
             currentNavigator.currentLocator.collectLatest { locator ->
                 val progression = locator.locations.totalProgression?.toFloat()
@@ -185,6 +203,86 @@ class EpubReaderActivity : AppCompatActivity() {
                     publicationProgression = progression,
                 )
             }
+        }
+    }
+
+    private fun installReadingTapHandling(currentNavigator: EpubNavigatorFragment) {
+        val readerView = currentNavigator.requireView()
+        val touchSlop = 18f * resources.displayMetrics.density
+        var downX = 0f
+        var downY = 0f
+
+        readerView.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    false
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    val isTap = abs(event.x - downX) <= touchSlop &&
+                        abs(event.y - downY) <= touchSlop
+                    if (!isTap) return@setOnTouchListener false
+
+                    view.performClick()
+                    val width = view.width.takeIf { it > 0 } ?: return@setOnTouchListener false
+                    val zone = event.x / width.toFloat()
+
+                    when {
+                        !scrollMode && zone < LEFT_TAP_ZONE -> {
+                            currentNavigator.goBackward(animated = true)
+                            setChromeVisible(false)
+                            true
+                        }
+
+                        !scrollMode && zone > RIGHT_TAP_ZONE -> {
+                            currentNavigator.goForward(animated = true)
+                            setChromeVisible(false)
+                            true
+                        }
+
+                        zone in CENTER_TAP_START..CENTER_TAP_END -> {
+                            toggleChrome()
+                            true
+                        }
+
+                        else -> false
+                    }
+                }
+
+                else -> false
+            }
+        }
+    }
+
+    private fun toggleChrome() {
+        setChromeVisible(topChrome.visibility != View.VISIBLE)
+    }
+
+    private fun setChromeVisible(visible: Boolean) {
+        chromeHideJob?.cancel()
+        if (visible) {
+            topChrome.visibility = View.VISIBLE
+            bottomChrome.visibility = View.VISIBLE
+            topChrome.alpha = 1f
+            bottomChrome.alpha = 1f
+            scheduleChromeHide()
+        } else {
+            topChrome.visibility = View.GONE
+            bottomChrome.visibility = View.GONE
+        }
+    }
+
+    private fun keepChromeVisible() {
+        if (topChrome.visibility == View.VISIBLE) scheduleChromeHide()
+    }
+
+    private fun scheduleChromeHide() {
+        chromeHideJob?.cancel()
+        chromeHideJob = activityScope.launch {
+            delay(CHROME_TIMEOUT_MS)
+            setChromeVisible(false)
         }
     }
 
@@ -222,6 +320,7 @@ class EpubReaderActivity : AppCompatActivity() {
             .setItems(labels) { _, which ->
                 val locator = currentSession.publication.locatorFromLink(entries[which].link)
                 if (locator != null) navigator?.go(locator)
+                setChromeVisible(false)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -235,6 +334,7 @@ class EpubReaderActivity : AppCompatActivity() {
     }
 
     private fun showError() {
+        setChromeVisible(false)
         containerView.visibility = View.GONE
         errorView.visibility = View.VISIBLE
     }
@@ -295,6 +395,7 @@ class EpubReaderActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        chromeHideJob?.cancel()
         activityScope.cancel()
         navigator = null
         super.onDestroy()
@@ -319,6 +420,11 @@ class EpubReaderActivity : AppCompatActivity() {
         private const val FONT_STEP = 0.1
         private const val DEFAULT_LINE_HEIGHT_INDEX = 1
         private const val DEFAULT_PAGE_MARGINS_INDEX = 1
+        private const val CHROME_TIMEOUT_MS = 3_500L
+        private const val LEFT_TAP_ZONE = 0.25f
+        private const val RIGHT_TAP_ZONE = 0.75f
+        private const val CENTER_TAP_START = 0.25f
+        private const val CENTER_TAP_END = 0.75f
         private val LINE_HEIGHTS = doubleArrayOf(1.2, 1.5, 1.8)
         private val PAGE_MARGINS = doubleArrayOf(0.6, 1.0, 1.4)
     }
