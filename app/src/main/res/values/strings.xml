@@ -78,7 +78,7 @@
     <string name="vaultshelf_open_documents">Open documents</string>
     <string name="vaultshelf_open_documents_detail">Browse local files with the existing offline document viewer.</string>
     <string name="vaultshelf_library_card">Reading library</string>
-    <string name="vaultshelf_library_card_detail">Import TXT novels, keep reading progress and continue where you left off.</string>
+    <string name="vaultshelf_library_card_detail">Import TXT and EPUB books, keep reading progress and continue where you left off.</string>
     <string name="vaultshelf_vault_card">Private vault</string>
     <string name="vaultshelf_vault_card_detail">Sensitive files will live behind a dedicated encrypted boundary.</string>
     <string name="vaultshelf_offline_badge">Offline by design</string>
@@ -89,16 +89,17 @@
     <string name="vaultshelf_open_file_browser">Open file browser</string>
 
     <string name="vaultshelf_library_title">Library</string>
-    <string name="vaultshelf_library_subtitle">Imported TXT books are copied into VaultShelf so reading no longer depends on the original file location.</string>
-    <string name="vaultshelf_library_import_txt">Import TXT</string>
-    <string name="vaultshelf_library_import_failed">This TXT file could not be imported.</string>
+    <string name="vaultshelf_library_subtitle">Imported TXT and EPUB books are copied into VaultShelf so reading no longer depends on the original file location.</string>
+    <string name="vaultshelf_library_import_book">Import book</string>
+    <string name="vaultshelf_library_import_failed">This book could not be imported. VaultShelf currently accepts TXT and EPUB.</string>
     <string name="vaultshelf_library_empty_title">Your library is empty</string>
-    <string name="vaultshelf_library_empty_detail">Import a local TXT novel to start a private on-device reading shelf.</string>
+    <string name="vaultshelf_library_empty_detail">Import a local TXT or EPUB book to start a private on-device reading shelf.</string>
     <string name="vaultshelf_library_progress">Read %1$d%%</string>
     <string name="vaultshelf_library_continue_reading">Continue</string>
     <string name="vaultshelf_library_start_reading">Start reading</string>
     <string name="vaultshelf_untitled_book">Untitled book</string>
     <string name="vaultshelf_format_txt" translatable="false">TXT</string>
+    <string name="vaultshelf_format_epub" translatable="false">EPUB</string>
 
     <string name="vaultshelf_reader_title">Reader</string>
     <string name="vaultshelf_reader_load_failed">This book could not be opened.</string>
@@ -111,6 +112,12 @@
     <string name="vaultshelf_reader_font_smaller" translatable="false">A−</string>
     <string name="vaultshelf_reader_font_larger" translatable="false">A+</string>
     <string name="vaultshelf_reader_empty_chapter">Nothing to read in this chapter.</string>
+    <string name="vaultshelf_epub_no_contents">This EPUB does not provide a table of contents.</string>
+    <string name="vaultshelf_epub_theme_light">Light</string>
+    <string name="vaultshelf_epub_theme_sepia">Sepia</string>
+    <string name="vaultshelf_epub_theme_dark">Dark</string>
+    <string name="vaultshelf_epub_mode_paged">Paged</string>
+    <string name="vaultshelf_epub_mode_scroll">Scroll</string>
 
     <string name="vaultshelf_vault_title">Private vault</string>
     <string name="vaultshelf_vault_placeholder">Encryption, PIN or biometric unlock and private storage will be added as a dedicated module.</string>
