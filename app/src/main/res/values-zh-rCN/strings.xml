@@ -74,7 +74,7 @@
     <string name="vaultshelf_nav_settings">设置</string>
     <string name="vaultshelf_quick_access">快速访问</string>
     <string name="vaultshelf_open_documents">打开文档</string>
-    <string name="vaultshelf_library_card">小说与阅读书库</string>
+    <string name="vaultshelf_library_card">书库</string>
     <string name="vaultshelf_vault_card">私人保险库</string>
     <string name="vaultshelf_offline_badge">离线优先</string>
     <string name="vaultshelf_action_browse_files">浏览文件</string>
