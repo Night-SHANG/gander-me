@@ -6,12 +6,14 @@ vendored (not fetched at runtime) because the app has no network access at all.
 
 `scripts/fetch-viewer-libs.sh` re-downloads every file below from its upstream.
 
-This table is the provenance record. The *shipped* notice is
-`app/src/main/assets/licences.md`, reachable from the app's About dialog, and it
-carries the full licence texts because Apache-2.0 §4(a) and the MIT and BSD
-notice clauses require them to travel with the binary rather than sit in a repo.
-Adding, dropping or upgrading a library here means editing that file in the same
-commit.
+This table is the provenance record. The app's top-level notice is
+`app/src/main/assets/viewer-licences.md`, which identifies VaultShelf, Legado and the
+Gander heritage. The complete notices and licence texts for the bundled document
+viewer libraries live in `app/src/main/assets/viewer-licences.md` and ship in
+the APK as well. Apache-2.0 §4(a) and the MIT/BSD notice clauses require these
+notices to travel with the binary rather than only sit in the repository.
+Adding, dropping or upgrading a viewer library here means updating
+`viewer-licences.md` in the same commit.
 
 | File | Project | Version | License | Upstream |
 | --- | --- | --- | --- | --- |
@@ -82,7 +84,7 @@ PDFium's BSD-3-Clause notice followed by the Apache-2.0 text. Mozilla's own
 wrapper notices are the two `LICENSE_PDFJS_*` files. All four are attribution
 licences whose notices have to travel with the binaries, which is why they are
 fetched into `wasm/` beside them and repeated in
-`app/src/main/assets/licences.md`.
+`app/src/main/assets/viewer-licences.md`.
 
 ## Before upgrading pdf.js
 
