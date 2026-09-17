@@ -29,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -186,7 +187,7 @@ private fun ReadyReader(
         context.getSharedPreferences("vaultshelf_reader", android.content.Context.MODE_PRIVATE)
     }
     var fontSize by rememberSaveable(state.book.id) {
-        mutableStateOf(preferences.getFloat("font_size_sp", DEFAULT_FONT_SIZE))
+        mutableFloatStateOf(preferences.getFloat("font_size_sp", DEFAULT_FONT_SIZE))
     }
     var currentOffset by rememberSaveable(state.book.id) { mutableIntStateOf(state.book.readingOffset) }
     var showContents by rememberSaveable { mutableStateOf(false) }
