@@ -40,12 +40,18 @@ class VaultShelfManifestTest {
     }
 
     @Test
-    fun importedBookReaderIsNotExported() {
-        val reader = activities().singleOrNull { it.name == ".TxtReaderActivity" }
+    fun importedBookReadersAreNotExported() {
+        val activities = activities()
+        val txtReader = activities.singleOrNull { it.name == ".TxtReaderActivity" }
+        val epubReader = activities.singleOrNull { it.name == ".EpubReaderActivity" }
 
-        assertWithMessage("TxtReaderActivity must be declared").that(reader).isNotNull()
-        assertThat(reader!!.exported).isFalse()
-        assertThat(reader.actions).isEmpty()
+        assertWithMessage("TxtReaderActivity must be declared").that(txtReader).isNotNull()
+        assertThat(txtReader!!.exported).isFalse()
+        assertThat(txtReader.actions).isEmpty()
+
+        assertWithMessage("EpubReaderActivity must be declared").that(epubReader).isNotNull()
+        assertThat(epubReader!!.exported).isFalse()
+        assertThat(epubReader.actions).isEmpty()
     }
 
     private fun activities(): List<ActivityContract> {

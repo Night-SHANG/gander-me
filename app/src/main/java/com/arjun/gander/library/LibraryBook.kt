@@ -15,12 +15,18 @@ data class LibraryBook(
     val addedAtEpochMillis: Long,
     val lastOpenedAtEpochMillis: Long,
     val readingOffset: Int,
+    val readingLocatorJson: String? = null,
+    val publicationProgression: Float? = null,
 ) {
     val progressFraction: Float
-        get() = if (totalCharacters <= 0) {
-            0f
-        } else {
-            readingOffset.coerceIn(0, totalCharacters).toFloat() / totalCharacters.toFloat()
+        get() = when (format) {
+            BookFormat.TXT -> if (totalCharacters <= 0) {
+                0f
+            } else {
+                readingOffset.coerceIn(0, totalCharacters).toFloat() / totalCharacters.toFloat()
+            }
+
+            BookFormat.EPUB -> (publicationProgression ?: 0f).coerceIn(0f, 1f)
         }
 
     val progressPercent: Int

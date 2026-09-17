@@ -1,6 +1,9 @@
 package com.arjun.gander.ui.library
 
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,8 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.arjun.gander.EpubReaderActivity
 import com.arjun.gander.R
 import com.arjun.gander.TxtReaderActivity
+import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
 import kotlinx.coroutines.launch
@@ -70,7 +75,13 @@ fun LibraryScreen(
         if (uri != null) {
             importFailed = false
             scope.launch {
-                runCatching { repository.importTxt(uri) }
+                runCatching {
+                    when (detectBookFormat(context, uri)) {
+                        BookFormat.TXT -> repository.importTxt(uri)
+                        BookFormat.EPUB -> repository.importEpub(uri)
+                        null -> error("Unsupported library format")
+                    }
+                }
                     .onSuccess { books = repository.listBooks() }
                     .onFailure { importFailed = true }
             }
@@ -107,11 +118,11 @@ fun LibraryScreen(
                 )
             }
             Button(
-                onClick = { importLauncher.launch(arrayOf("text/plain")) },
+                onClick = { importLauncher.launch(IMPORT_MIME_TYPES) },
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
             ) {
-                Text(stringResource(R.string.vaultshelf_library_import_txt))
+                Text(stringResource(R.string.vaultshelf_library_import_book))
             }
         }
 
@@ -137,7 +148,7 @@ fun LibraryScreen(
             }
 
             books.isEmpty() -> EmptyLibrary(
-                onImport = { importLauncher.launch(arrayOf("text/plain")) },
+                onImport = { importLauncher.launch(IMPORT_MIME_TYPES) },
                 modifier = Modifier.padding(20.dp),
             )
 
@@ -151,10 +162,14 @@ fun LibraryScreen(
                         book = book,
                         sizeLabel = Formatter.formatShortFileSize(context, book.sizeBytes),
                         onOpen = {
-                            readerLauncher.launch(
-                                Intent(context, TxtReaderActivity::class.java)
-                                    .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id),
-                            )
+                            val intent = when (book.format) {
+                                BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
+                                    .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
+
+                                BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
+                                    .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+                            }
+                            readerLauncher.launch(intent)
                         },
                     )
                 }
@@ -188,7 +203,7 @@ private fun EmptyLibrary(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Button(onClick = onImport, shape = RoundedCornerShape(8.dp)) {
-                Text(stringResource(R.string.vaultshelf_library_import_txt))
+                Text(stringResource(R.string.vaultshelf_library_import_book))
             }
         }
     }
@@ -226,7 +241,12 @@ private fun BookCard(
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = stringResource(R.string.vaultshelf_format_txt),
+                    text = stringResource(
+                        when (book.format) {
+                            BookFormat.TXT -> R.string.vaultshelf_format_txt
+                            BookFormat.EPUB -> R.string.vaultshelf_format_epub
+                        },
+                    ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 12.dp),
@@ -253,7 +273,7 @@ private fun BookCard(
                 TextButton(onClick = onOpen) {
                     Text(
                         stringResource(
-                            if (book.readingOffset > 0) {
+                            if (book.progressFraction > 0f) {
                                 R.string.vaultshelf_library_continue_reading
                             } else {
                                 R.string.vaultshelf_library_start_reading
@@ -265,3 +285,29 @@ private fun BookCard(
         }
     }
 }
+
+private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
+    when (context.contentResolver.getType(uri)?.lowercase()) {
+        "application/epub+zip" -> return BookFormat.EPUB
+        "text/plain" -> return BookFormat.TXT
+    }
+
+    val displayName = context.contentResolver.query(
+        uri,
+        arrayOf(OpenableColumns.DISPLAY_NAME),
+        null,
+        null,
+        null,
+    )?.use { cursor ->
+        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+    } ?: uri.lastPathSegment
+
+    return when (displayName?.substringAfterLast('.', missingDelimiterValue = "")?.lowercase()) {
+        "txt" -> BookFormat.TXT
+        "epub" -> BookFormat.EPUB
+        else -> null
+    }
+}
+
+private val IMPORT_MIME_TYPES = arrayOf("text/plain", "application/epub+zip")

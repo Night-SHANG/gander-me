@@ -1,6 +1,7 @@
 package com.arjun.gander.library
 
 import android.net.Uri
+import java.io.File
 
 interface LibraryRepository {
     suspend fun listBooks(): List<LibraryBook>
@@ -9,9 +10,19 @@ interface LibraryRepository {
 
     suspend fun importTxt(uri: Uri): LibraryBook
 
+    suspend fun importEpub(uri: Uri): LibraryBook
+
     suspend fun readText(id: String): String
 
+    suspend fun bookFile(id: String): File
+
     suspend fun updateProgress(id: String, readingOffset: Int): LibraryBook?
+
+    suspend fun updateEpubProgress(
+        id: String,
+        locatorJson: String,
+        publicationProgression: Float?,
+    ): LibraryBook?
 
     suspend fun deleteBook(id: String): Boolean
 }
