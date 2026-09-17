@@ -39,6 +39,15 @@ class VaultShelfManifestTest {
         assertThat(viewer.actions).contains("android.intent.action.SEND")
     }
 
+    @Test
+    fun importedBookReaderIsNotExported() {
+        val reader = activities().singleOrNull { it.name == ".TxtReaderActivity" }
+
+        assertWithMessage("TxtReaderActivity must be declared").that(reader).isNotNull()
+        assertThat(reader!!.exported).isFalse()
+        assertThat(reader.actions).isEmpty()
+    }
+
     private fun activities(): List<ActivityContract> {
         val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
         val document = factory.newDocumentBuilder().parse(MANIFEST)
@@ -49,6 +58,7 @@ class VaultShelfManifestTest {
             val categories = activity.getElementsByTagName("category")
             ActivityContract(
                 name = activity.getAttributeNS(ANDROID_NS, "name"),
+                exported = activity.getAttributeNS(ANDROID_NS, "exported") == "true",
                 actions = (0 until actions.length)
                     .map { actions.item(it) as Element }
                     .map { it.getAttributeNS(ANDROID_NS, "name") }
@@ -63,6 +73,7 @@ class VaultShelfManifestTest {
 
     private data class ActivityContract(
         val name: String,
+        val exported: Boolean,
         val actions: Set<String>,
         val categories: Set<String>,
     )

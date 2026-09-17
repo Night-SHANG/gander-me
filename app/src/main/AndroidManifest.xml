@@ -9,13 +9,6 @@
         android:name="android.permission.ACCESS_NETWORK_STATE"
         tools:node="remove" />
 
-    <!-- Auto Backup is off because the only thing it could copy is worthless. The recents
-         list is SAF content URIs, and Recents.all filters every entry against
-         contentResolver.persistedUriPermissions; those grants are per install and do not
-         survive a restore, so a restored list renders empty however faithfully it was
-         backed up. Leaving it on sent file names and timestamps to the user's Drive to
-         buy nothing, and put an asterisk on the one claim the app is built around.
-         Thumbnails were never affected: cacheDir is excluded from backup already. -->
     <application
         android:name=".GanderApp"
         android:allowBackup="false"
@@ -25,8 +18,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Gander">
 
-        <!-- Lets the Share action hand out the shared-text temp file; grants are
-             per-share and read-only, so the zero-permission story is unchanged -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -37,8 +28,6 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- New VaultShelf product shell. The legacy Gander browser stays isolated below
-             so its tested document/folder path does not need a Compose rewrite. -->
         <activity
             android:name=".VaultShelfActivity"
             android:exported="true"
@@ -48,6 +37,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Private reader: books are opened only from VaultShelf's imported local library. -->
+        <activity
+            android:name=".TxtReaderActivity"
+            android:exported="false"
+            android:label="@string/vaultshelf_reader_title" />
 
         <activity
             android:name=".MainActivity"

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!--
+        LocalLibraryRepository intentionally uses SharedPreferences.Editor.commit()
+        because import/delete operations need the synchronous boolean result before
+        reporting success. The KTX edit helper returns Unit and would remove that
+        contract.
+    -->
+    <issue id="UseKtx">
+        <ignore path="src/main/java/com/arjun/gander/library/LocalLibraryRepository.kt" />
+        <!--
+            TxtReaderActivity only persists a tiny local font-size preference with
+            apply(); keeping the direct Android API here avoids pulling persistence
+            style concerns into the reader UI. This exception is scoped to this file.
+        -->
+        <ignore path="src/main/java/com/arjun/gander/TxtReaderActivity.kt" />
+    </issue>
+</lint>

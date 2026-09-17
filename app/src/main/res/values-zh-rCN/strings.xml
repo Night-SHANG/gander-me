@@ -74,7 +74,7 @@
     <string name="vaultshelf_open_documents">打开文档</string>
     <string name="vaultshelf_open_documents_detail">使用现有的离线文档查看器浏览本地文件。</string>
     <string name="vaultshelf_library_card">小说与阅读书库</string>
-    <string name="vaultshelf_library_card_detail">集中管理小说、EPUB 书籍和阅读进度。</string>
+    <string name="vaultshelf_library_card_detail">导入 TXT 小说、保存阅读进度，下次继续上次的位置。</string>
     <string name="vaultshelf_vault_card">私人保险库</string>
     <string name="vaultshelf_vault_card_detail">敏感文件将存放在独立的加密边界中。</string>
     <string name="vaultshelf_offline_badge">离线优先</string>
@@ -83,8 +83,28 @@
     <string name="vaultshelf_files_title">文件</string>
     <string name="vaultshelf_files_detail">VaultShelf 在继续扩展时，仍使用经过验证的 Gander 文件浏览器和查看器。</string>
     <string name="vaultshelf_open_file_browser">打开文件浏览器</string>
+
     <string name="vaultshelf_library_title">书库</string>
-    <string name="vaultshelf_library_placeholder">后续版本将在这里加入书库索引、书籍元数据和小说阅读功能。</string>
+    <string name="vaultshelf_library_subtitle">导入的 TXT 会复制到 VaultShelf 的应用私有目录，之后阅读不再依赖原文件位置。</string>
+    <string name="vaultshelf_library_import_txt">导入 TXT</string>
+    <string name="vaultshelf_library_import_failed">无法导入这个 TXT 文件。</string>
+    <string name="vaultshelf_library_empty_title">书库还是空的</string>
+    <string name="vaultshelf_library_empty_detail">导入本地 TXT 小说后，就可以建立只保存在设备上的阅读书架。</string>
+    <string name="vaultshelf_library_progress">已读 %1$d%%</string>
+    <string name="vaultshelf_library_continue_reading">继续阅读</string>
+    <string name="vaultshelf_library_start_reading">开始阅读</string>
+    <string name="vaultshelf_untitled_book">未命名书籍</string>
+
+    <string name="vaultshelf_reader_title">阅读器</string>
+    <string name="vaultshelf_reader_load_failed">无法打开这本书。</string>
+    <string name="vaultshelf_reader_progress">%1$d%%</string>
+    <string name="vaultshelf_reader_start">正文</string>
+    <string name="vaultshelf_reader_previous_chapter">上一章</string>
+    <string name="vaultshelf_reader_next_chapter">下一章</string>
+    <string name="vaultshelf_reader_chapter_position">%1$d / %2$d</string>
+    <string name="vaultshelf_reader_contents">目录</string>
+    <string name="vaultshelf_reader_empty_chapter">这一章没有可显示的正文。</string>
+
     <string name="vaultshelf_vault_title">私人保险库</string>
     <string name="vaultshelf_vault_placeholder">后续将以独立模块加入文件加密、PIN 或生物识别解锁以及私人存储。</string>
     <string name="vaultshelf_settings_title">设置</string>
