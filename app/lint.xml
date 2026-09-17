@@ -9,11 +9,13 @@
     <issue id="UseKtx">
         <ignore path="src/main/java/com/arjun/gander/library/LocalLibraryRepository.kt" />
         <!--
-            TxtReaderActivity only persists a tiny local font-size preference with
-            apply(); keeping the direct Android API here avoids pulling persistence
-            style concerns into the reader UI. This exception is scoped to this file.
+            The mature TXT/EPUB readers keep a tiny set of local typography preferences
+            with SharedPreferences. Keep that persistence detail local to the reader
+            activities rather than introducing another settings abstraction solely for
+            style lint; both use apply() and never depend on a synchronous result.
         -->
         <ignore path="src/main/java/com/arjun/gander/TxtReaderActivity.kt" />
+        <ignore path="src/main/java/com/arjun/gander/EpubReaderActivity.kt" />
     </issue>
 
     <!--
