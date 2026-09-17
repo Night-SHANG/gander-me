@@ -78,7 +78,7 @@
     <string name="vaultshelf_nav_settings">Settings</string>
     <string name="vaultshelf_quick_access">Quick access</string>
     <string name="vaultshelf_open_documents">Open documents</string>
-    <string name="vaultshelf_library_card">Reading library</string>
+    <string name="vaultshelf_library_card">Library</string>
     <string name="vaultshelf_vault_card">Private vault</string>
     <string name="vaultshelf_offline_badge">Offline by design</string>
     <string name="vaultshelf_action_browse_files">Browse files</string>
