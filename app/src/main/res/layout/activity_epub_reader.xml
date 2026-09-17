@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/epub_reader_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:ignore="MergeRootFrame">
@@ -61,77 +62,52 @@
             android:textAppearance="?attr/textAppearanceBodyMedium" />
     </LinearLayout>
 
-    <HorizontalScrollView
+    <LinearLayout
         android:id="@+id/epub_reader_bottom_chrome"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:background="?attr/colorSurface"
         android:elevation="8dp"
-        android:fillViewport="true"
-        android:scrollbars="none"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="6dp"
         android:visibility="gone">
 
-        <LinearLayout
-            android:layout_width="wrap_content"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/epub_reader_contents"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="10dp"
-            android:paddingTop="6dp"
-            android:paddingEnd="10dp"
-            android:paddingBottom="6dp">
+            android:layout_weight="1"
+            android:minWidth="0dp"
+            android:text="@string/vaultshelf_reader_contents" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/epub_reader_contents"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/vaultshelf_reader_contents" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/epub_reader_font_smaller"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:minWidth="0dp"
+            android:text="@string/vaultshelf_reader_font_smaller" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/epub_reader_font_smaller"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:minWidth="0dp"
-                android:text="@string/vaultshelf_reader_font_smaller" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/epub_reader_font_larger"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:minWidth="0dp"
+            android:text="@string/vaultshelf_reader_font_larger" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/epub_reader_font_larger"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:minWidth="0dp"
-                android:text="@string/vaultshelf_reader_font_larger" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/epub_reader_line_height"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/vaultshelf_epub_line_normal" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/epub_reader_page_margins"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/vaultshelf_epub_margin_normal" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/epub_reader_theme"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/vaultshelf_epub_theme_light" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/epub_reader_flow"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/vaultshelf_epub_mode_paged" />
-        </LinearLayout>
-    </HorizontalScrollView>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/epub_reader_settings"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:minWidth="0dp"
+            android:text="@string/vaultshelf_reader_settings" />
+    </LinearLayout>
 
 </FrameLayout>
