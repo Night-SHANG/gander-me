@@ -34,6 +34,8 @@ class EpubReaderActivity : AppCompatActivity() {
     private var bookId: String? = null
 
     private var fontSize = DEFAULT_FONT_SIZE
+    private var lineHeightIndex = DEFAULT_LINE_HEIGHT_INDEX
+    private var pageMarginsIndex = DEFAULT_PAGE_MARGINS_INDEX
     private var readerTheme = Theme.LIGHT
     private var scrollMode = false
 
@@ -41,6 +43,8 @@ class EpubReaderActivity : AppCompatActivity() {
     private lateinit var progressView: TextView
     private lateinit var containerView: View
     private lateinit var errorView: TextView
+    private lateinit var lineHeightButton: MaterialButton
+    private lateinit var pageMarginsButton: MaterialButton
     private lateinit var themeButton: MaterialButton
     private lateinit var flowButton: MaterialButton
 
@@ -80,6 +84,8 @@ class EpubReaderActivity : AppCompatActivity() {
         progressView = findViewById(R.id.epub_reader_progress)
         containerView = findViewById(R.id.epub_reader_container)
         errorView = findViewById(R.id.epub_reader_error)
+        lineHeightButton = findViewById(R.id.epub_reader_line_height)
+        pageMarginsButton = findViewById(R.id.epub_reader_page_margins)
         themeButton = findViewById(R.id.epub_reader_theme)
         flowButton = findViewById(R.id.epub_reader_flow)
     }
@@ -95,6 +101,18 @@ class EpubReaderActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.epub_reader_font_larger).setOnClickListener {
             fontSize = (fontSize + FONT_STEP).coerceAtMost(MAX_FONT_SIZE)
             savePreferences()
+            applyPreferences()
+        }
+        lineHeightButton.setOnClickListener {
+            lineHeightIndex = (lineHeightIndex + 1) % LINE_HEIGHTS.size
+            savePreferences()
+            updateControlLabels()
+            applyPreferences()
+        }
+        pageMarginsButton.setOnClickListener {
+            pageMarginsIndex = (pageMarginsIndex + 1) % PAGE_MARGINS.size
+            savePreferences()
+            updateControlLabels()
             applyPreferences()
         }
         themeButton.setOnClickListener {
@@ -172,6 +190,8 @@ class EpubReaderActivity : AppCompatActivity() {
 
     private fun currentPreferences(): EpubPreferences = EpubPreferences(
         fontSize = fontSize,
+        lineHeight = LINE_HEIGHTS[lineHeightIndex],
+        pageMargins = PAGE_MARGINS[pageMarginsIndex],
         theme = readerTheme,
         scroll = scrollMode,
         publisherStyles = false,
@@ -223,6 +243,10 @@ class EpubReaderActivity : AppCompatActivity() {
         val preferences = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
         fontSize = preferences.getFloat(KEY_FONT_SIZE, DEFAULT_FONT_SIZE.toFloat()).toDouble()
             .coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
+        lineHeightIndex = preferences.getInt(KEY_LINE_HEIGHT, DEFAULT_LINE_HEIGHT_INDEX)
+            .coerceIn(LINE_HEIGHTS.indices)
+        pageMarginsIndex = preferences.getInt(KEY_PAGE_MARGINS, DEFAULT_PAGE_MARGINS_INDEX)
+            .coerceIn(PAGE_MARGINS.indices)
         readerTheme = runCatching {
             Theme.valueOf(preferences.getString(KEY_THEME, Theme.LIGHT.name) ?: Theme.LIGHT.name)
         }.getOrDefault(Theme.LIGHT)
@@ -232,12 +256,28 @@ class EpubReaderActivity : AppCompatActivity() {
     private fun savePreferences() {
         getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE).edit {
             putFloat(KEY_FONT_SIZE, fontSize.toFloat())
+            putInt(KEY_LINE_HEIGHT, lineHeightIndex)
+            putInt(KEY_PAGE_MARGINS, pageMarginsIndex)
             putString(KEY_THEME, readerTheme.name)
             putBoolean(KEY_SCROLL_MODE, scrollMode)
         }
     }
 
     private fun updateControlLabels() {
+        lineHeightButton.setText(
+            when (lineHeightIndex) {
+                0 -> R.string.vaultshelf_epub_line_compact
+                1 -> R.string.vaultshelf_epub_line_normal
+                else -> R.string.vaultshelf_epub_line_relaxed
+            },
+        )
+        pageMarginsButton.setText(
+            when (pageMarginsIndex) {
+                0 -> R.string.vaultshelf_epub_margin_narrow
+                1 -> R.string.vaultshelf_epub_margin_normal
+                else -> R.string.vaultshelf_epub_margin_wide
+            },
+        )
         themeButton.setText(
             when (readerTheme) {
                 Theme.LIGHT -> R.string.vaultshelf_epub_theme_light
@@ -269,11 +309,17 @@ class EpubReaderActivity : AppCompatActivity() {
         private const val NAVIGATOR_TAG = "vaultshelf.epub.navigator"
         private const val PREFERENCES_NAME = "vaultshelf_epub_reader"
         private const val KEY_FONT_SIZE = "font_size"
+        private const val KEY_LINE_HEIGHT = "line_height"
+        private const val KEY_PAGE_MARGINS = "page_margins"
         private const val KEY_THEME = "theme"
         private const val KEY_SCROLL_MODE = "scroll_mode"
         private const val DEFAULT_FONT_SIZE = 1.0
         private const val MIN_FONT_SIZE = 0.75
         private const val MAX_FONT_SIZE = 1.75
         private const val FONT_STEP = 0.1
+        private const val DEFAULT_LINE_HEIGHT_INDEX = 1
+        private const val DEFAULT_PAGE_MARGINS_INDEX = 1
+        private val LINE_HEIGHTS = doubleArrayOf(1.2, 1.5, 1.8)
+        private val PAGE_MARGINS = doubleArrayOf(0.6, 1.0, 1.4)
     }
 }
