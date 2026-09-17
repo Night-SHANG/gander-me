@@ -255,11 +255,11 @@ class EpubReaderActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        activityScope.cancel()
         navigator = null
+        super.onDestroy()
         session?.close()
         session = null
-        activityScope.cancel()
-        super.onDestroy()
     }
 
     private data class TocEntry(val link: Link, val depth: Int)
