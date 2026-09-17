@@ -1,7 +1,6 @@
 package com.arjun.gander
 
 import android.os.Bundle
-import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
@@ -12,7 +11,6 @@ import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryRepository
 import com.arjun.gander.library.LocalLibraryRepository
 import com.google.android.material.button.MaterialButton
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +22,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubPreferences
+import org.readium.r2.navigator.input.InputListener
+import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.navigator.preferences.Theme
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Link
@@ -207,29 +207,13 @@ class EpubReaderActivity : AppCompatActivity() {
     }
 
     private fun installReadingTapHandling(currentNavigator: EpubNavigatorFragment) {
-        val readerView = currentNavigator.requireView()
-        val touchSlop = 18f * resources.displayMetrics.density
-        var downX = 0f
-        var downY = 0f
+        currentNavigator.addInputListener(
+            object : InputListener {
+                override fun onTap(event: TapEvent): Boolean {
+                    val width = currentNavigator.requireView().width.takeIf { it > 0 } ?: return false
+                    val zone = event.point.x / width.toFloat()
 
-        readerView.setOnTouchListener { view, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    downX = event.x
-                    downY = event.y
-                    false
-                }
-
-                MotionEvent.ACTION_UP -> {
-                    val isTap = abs(event.x - downX) <= touchSlop &&
-                        abs(event.y - downY) <= touchSlop
-                    if (!isTap) return@setOnTouchListener false
-
-                    view.performClick()
-                    val width = view.width.takeIf { it > 0 } ?: return@setOnTouchListener false
-                    val zone = event.x / width.toFloat()
-
-                    when {
+                    return when {
                         !scrollMode && zone < LEFT_TAP_ZONE -> {
                             currentNavigator.goBackward(animated = true)
                             setChromeVisible(false)
@@ -250,10 +234,8 @@ class EpubReaderActivity : AppCompatActivity() {
                         else -> false
                     }
                 }
-
-                else -> false
-            }
-        }
+            },
+        )
     }
 
     private fun toggleChrome() {
