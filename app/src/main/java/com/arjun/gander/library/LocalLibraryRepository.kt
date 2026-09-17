@@ -1,9 +1,11 @@
 package com.arjun.gander.library
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.arjun.gander.R
+import com.arjun.gander.epub.EpubLibraryMetadataReader
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -41,7 +43,26 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     }
 
     override suspend fun importEpub(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
-        importFile(uri, BookFormat.EPUB, "epub") { 0 }
+        val imported = importFile(uri, BookFormat.EPUB, "epub") { 0 }
+        val storedFile = bookFileInternal(imported)
+        val metadata = EpubLibraryMetadataReader.read(appContext, storedFile).getOrNull()
+            ?: return@withContext imported
+
+        val coverFileName = metadata.cover?.let { cover ->
+            val name = "${imported.id}.cover.png"
+            val file = File(libraryDirectory(), name)
+            val saved = runCatching {
+                file.outputStream().buffered().use { output ->
+                    cover.compress(Bitmap.CompressFormat.PNG, 100, output)
+                }
+            }.getOrDefault(false)
+            if (saved && file.isFile) name else null
+        }
+        val updated = imported.copy(
+            title = metadata.title ?: imported.title,
+            coverFileName = coverFileName,
+        )
+        if (saveBook(updated)) updated else imported
     }
 
     private fun importFile(
