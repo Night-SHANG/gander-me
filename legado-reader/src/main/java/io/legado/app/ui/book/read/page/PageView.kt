@@ -8,11 +8,13 @@
 package io.legado.app.ui.book.read.page
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.text.TextPaint
 import android.view.View
+import androidx.core.graphics.createBitmap
 import io.legado.app.ui.book.read.page.entities.TextPage
 import io.legado.app.ui.book.read.page.provider.ReaderLayoutConfig
 import io.legado.app.utils.canvasrecorder.CanvasRecorder
@@ -28,6 +30,7 @@ class PageView(context: Context) : View(context) {
     private var textColor: Int = Color.rgb(35, 35, 35)
     private var titleColor: Int = textColor
     private var selectionColor: Int = Color.argb(72, 0, 95, 184)
+    private var pageBackgroundColor: Int = Color.WHITE
 
     private val contentPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
@@ -38,6 +41,7 @@ class PageView(context: Context) : View(context) {
     init {
         isFocusable = true
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
+        setBackgroundColor(pageBackgroundColor)
         applyPaints()
     }
 
@@ -46,11 +50,14 @@ class PageView(context: Context) : View(context) {
         textColor: Int,
         titleColor: Int = textColor,
         selectionColor: Int = Color.argb(72, 0, 95, 184),
+        backgroundColor: Int = Color.WHITE,
     ) {
         this.layoutConfig = config
         this.textColor = textColor
         this.titleColor = titleColor
         this.selectionColor = selectionColor
+        this.pageBackgroundColor = backgroundColor
+        setBackgroundColor(backgroundColor)
         applyPaints()
         invalidate()
     }
@@ -71,6 +78,30 @@ class PageView(context: Context) : View(context) {
         val canvas = recorder.beginRecording(width, height)
         draw(canvas)
         recorder.endRecording()
+    }
+
+    /** Legado's simulation page turn works with bitmap page snapshots. */
+    fun screenshotBitmap(reuse: Bitmap? = null, canvas: Canvas = Canvas()): Bitmap? {
+        if (width <= 0 || height <= 0) return null
+        val bitmap = if (reuse != null &&
+            !reuse.isRecycled &&
+            reuse.width == width &&
+            reuse.height == height
+        ) {
+            reuse.eraseColor(Color.TRANSPARENT)
+            reuse
+        } else {
+            reuse?.takeUnless { it.isRecycled }?.recycle()
+            createBitmap(width, height)
+        }
+        canvas.setBitmap(bitmap)
+        canvas.save()
+        canvas.translate(-scrollX.toFloat(), -scrollY.toFloat())
+        draw(canvas)
+        canvas.restore()
+        canvas.setBitmap(null)
+        bitmap.prepareToDraw()
+        return bitmap
     }
 
     override fun onDraw(canvas: Canvas) {
