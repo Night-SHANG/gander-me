@@ -1,5 +1,5 @@
 /*
- * TXT-only adaptation of Legado / 阅读 3.0 PageView + ContentTextView drawing paths.
+ * TXT/EPUB adaptation of Legado / 阅读 3.0 PageView + ContentTextView drawing paths.
  * Sources:
  * - https://github.com/LegadoTeam/legado
  * - https://github.com/TsaiYongChuan/legado
@@ -12,6 +12,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.text.TextPaint
 import android.view.View
 import androidx.core.graphics.createBitmap
@@ -22,6 +23,8 @@ import io.legado.app.utils.canvasrecorder.CanvasRecorder
 class PageView(context: Context) : View(context) {
     var textPage: TextPage = TextPage()
         private set
+
+    var imageProvider: ReaderImageProvider? = null
 
     private var layoutConfig = ReaderLayoutConfig(
         contentTextSizePx = 38f,
@@ -37,6 +40,8 @@ class PageView(context: Context) : View(context) {
     private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
     }
+    private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val imageRect = RectF()
 
     init {
         isFocusable = true
@@ -108,6 +113,21 @@ class PageView(context: Context) : View(context) {
         super.onDraw(canvas)
         selectionPaint.color = selectionColor
         textPage.textLines.forEach { line ->
+            if (line.isImage) {
+                val source = line.imageSource
+                val bitmap = source?.let { imageProvider?.load(it) }
+                if (bitmap != null && line.imageWidth > 0f && line.imageHeight > 0f) {
+                    imageRect.set(
+                        line.imageLeft,
+                        line.lineTop,
+                        line.imageLeft + line.imageWidth,
+                        line.lineTop + line.imageHeight,
+                    )
+                    canvas.drawBitmap(bitmap, null, imageRect, imagePaint)
+                }
+                return@forEach
+            }
+
             val paint = if (line.isTitle) titlePaint else contentPaint
             line.textChars.forEach { char ->
                 if (char.selected) {
