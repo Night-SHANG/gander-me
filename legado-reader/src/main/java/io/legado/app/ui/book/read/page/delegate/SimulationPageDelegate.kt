@@ -28,8 +28,6 @@ import kotlin.math.sin
 
 @Suppress("DEPRECATION")
 class SimulationPageDelegate(readView: ReadView) : HorizontalPageDelegate(readView) {
-    // Legado keeps the touch coordinates non-zero because several curve calculations divide by
-    // distances derived from them.
     private var mTouchX = 0.1f
     private var mTouchY = 0.1f
 
@@ -580,10 +578,12 @@ class SimulationPageDelegate(readView: ReadView) : HorizontalPageDelegate(readVi
     private fun getCross(p1: PointF, p2: PointF, p3: PointF, p4: PointF): PointF {
         val dx1 = (p2.x - p1.x).takeUnless { it == 0f } ?: 0.1f
         val dx2 = (p4.x - p3.x).takeUnless { it == 0f } ?: 0.1f
+        val denominatorB1 = (p1.x - p2.x).takeUnless { it == 0f } ?: 0.1f
+        val denominatorB2 = (p3.x - p4.x).takeUnless { it == 0f } ?: 0.1f
         val a1 = (p2.y - p1.y) / dx1
-        val b1 = (p1.x * p2.y - p2.x * p1.y) / (p1.x - p2.x).takeUnless { it == 0f } ?: 0.1f
+        val b1 = (p1.x * p2.y - p2.x * p1.y) / denominatorB1
         val a2 = (p4.y - p3.y) / dx2
-        val b2 = (p3.x * p4.y - p4.x * p3.y) / (p3.x - p4.x).takeUnless { it == 0f } ?: 0.1f
+        val b2 = (p3.x * p4.y - p4.x * p3.y) / denominatorB2
         val divisor = (a1 - a2).takeUnless { it == 0f } ?: 0.1f
         val x = (b2 - b1) / divisor
         return PointF(x, a1 * x + b1)
