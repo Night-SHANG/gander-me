@@ -8,18 +8,34 @@
 package io.legado.app.ui.book.read.page.entities
 
 import java.text.DecimalFormat
+import kotlin.math.min
 
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 data class TextPage(
     var index: Int = 0,
     var text: String = "",
     var title: String = "",
+    val textLines: ArrayList<TextLine> = arrayListOf(),
     var pageSize: Int = 0,
     var chapterSize: Int = 0,
     var chapterIndex: Int = 0,
     var chapterPosition: Int = 0,
+    var height: Float = 0f,
+    var leftLineSize: Int = 0,
 ) {
+    val lineSize: Int get() = textLines.size
     val charSize: Int get() = text.length
+
+    fun getLine(index: Int): TextLine = textLines.getOrElse(index) { textLines.last() }
+
+    fun getSelectStartLength(lineIndex: Int, charIndex: Int): Int {
+        var length = 0
+        val maxIndex = min(lineIndex, lineSize)
+        for (index in 0 until maxIndex) {
+            length += textLines[index].charSize
+        }
+        return length + charIndex
+    }
 
     val readProgress: String
         get() {
