@@ -223,7 +223,8 @@ object RichChapterPaginator {
 
     private fun textHeight(paint: TextPaint): Float {
         val metrics = paint.fontMetrics
-        return metrics.descent - metrics.ascent
+        val measured = metrics.descent - metrics.ascent
+        return measured.takeIf { it > 0f } ?: (paint.textSize * 1.2f).coerceAtLeast(1f)
     }
 
     @Suppress("DEPRECATION")

@@ -21,7 +21,7 @@ import me.ag2s.epublib.domain.EpubBook
 import me.ag2s.epublib.domain.Resource
 import me.ag2s.epublib.domain.TOCReference
 import me.ag2s.epublib.epub.EpubReader
-import me.ag2s.epublib.util.zip.AndroidZipFile
+import java.util.zip.ZipFile
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -39,7 +39,7 @@ data class EpubReaderPosition(
 )
 
 class LegadoEpubDocument private constructor(
-    private val zipFile: AndroidZipFile,
+    private val zipFile: ZipFile,
     private val epubBook: EpubBook,
     val title: String,
     val chapters: List<EpubSourceChapter>,
@@ -99,6 +99,46 @@ class LegadoEpubDocument private constructor(
         return ((before + safePage).toFloat() / (totalPages - 1).toFloat()).coerceIn(0f, 1f)
     }
 
+    fun coverBitmap(maxWidth: Int, maxHeight: Int): Bitmap? {
+        val resource = epubBook.coverImage ?: return null
+        val data = runCatching { resource.data }.getOrNull() ?: return null
+        if (data.isEmpty()) return null
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        var sampleSize = 1
+        while (bounds.outWidth / (sampleSize * 2) >= maxWidth &&
+            bounds.outHeight / (sampleSize * 2) >= maxHeight
+        ) {
+            sampleSize *= 2
+        }
+
+        val decoded = BitmapFactory.decodeByteArray(
+            data,
+            0,
+            data.size,
+            BitmapFactory.Options().apply { inSampleSize = sampleSize },
+        ) ?: return null
+
+        val scale = minOf(
+            1f,
+            maxWidth.toFloat() / decoded.width.coerceAtLeast(1),
+            maxHeight.toFloat() / decoded.height.coerceAtLeast(1),
+        )
+        if (scale >= 1f) return decoded
+
+        val scaled = Bitmap.createScaledBitmap(
+            decoded,
+            (decoded.width * scale).toInt().coerceAtLeast(1),
+            (decoded.height * scale).toInt().coerceAtLeast(1),
+            true,
+        )
+        if (scaled !== decoded) decoded.recycle()
+        return scaled
+    }
+
     override fun load(source: String): Bitmap? {
         bitmapCache.get(source)?.let { if (!it.isRecycled) return it }
         val resource = epubBook.resources.getByHref(source) ?: return null
@@ -126,7 +166,7 @@ class LegadoEpubDocument private constructor(
         )
 
         fun open(file: File): Result<LegadoEpubDocument> = runCatching {
-            val zip = AndroidZipFile(file)
+            val zip = ZipFile(file)
             try {
                 val book = EpubReader().readEpubLazy(zip, "utf-8")
                 val tocTitles = buildTocTitleMap(book.tableOfContents.tocReferences)
