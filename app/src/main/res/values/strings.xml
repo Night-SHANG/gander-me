@@ -113,6 +113,12 @@
     <string name="vaultshelf_reader_font_larger" translatable="false">A+</string>
     <string name="vaultshelf_reader_empty_chapter">Nothing to read in this chapter.</string>
     <string name="vaultshelf_epub_no_contents">This EPUB does not provide a table of contents.</string>
+    <string name="vaultshelf_epub_line_compact">Line: compact</string>
+    <string name="vaultshelf_epub_line_normal">Line: normal</string>
+    <string name="vaultshelf_epub_line_relaxed">Line: relaxed</string>
+    <string name="vaultshelf_epub_margin_narrow">Margins: narrow</string>
+    <string name="vaultshelf_epub_margin_normal">Margins: normal</string>
+    <string name="vaultshelf_epub_margin_wide">Margins: wide</string>
     <string name="vaultshelf_epub_theme_light">Light</string>
     <string name="vaultshelf_epub_theme_sepia">Sepia</string>
     <string name="vaultshelf_epub_theme_dark">Dark</string>
