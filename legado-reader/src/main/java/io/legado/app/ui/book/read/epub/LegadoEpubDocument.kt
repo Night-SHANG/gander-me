@@ -133,7 +133,8 @@ class LegadoEpubDocument private constructor(
                 val sourceChapters = book.spine.spineReferences.mapIndexedNotNull { index, reference ->
                     val resource = reference.resource ?: return@mapIndexedNotNull null
                     val href = resource.href?.substringBefore('#') ?: return@mapIndexedNotNull null
-                    val document = resource.reader.use { reader -> Jsoup.parse(reader, href) }
+                    val html = resource.reader.use { reader -> reader.readText() }
+                    val document = Jsoup.parse(html, href)
                     val fallbackTitle = document.title().takeIf { it.isNotBlank() }
                         ?: resource.title?.takeIf { it.isNotBlank() }
                         ?: "Chapter ${index + 1}"
