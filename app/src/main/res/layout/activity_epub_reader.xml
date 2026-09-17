@@ -78,6 +78,20 @@
                 android:text="@string/vaultshelf_reader_font_larger" />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/epub_reader_line_height"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/vaultshelf_epub_line_normal" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/epub_reader_page_margins"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/vaultshelf_epub_margin_normal" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/epub_reader_theme"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
