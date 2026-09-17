@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Gander"
 include(":app")
+include(":legado-reader")
