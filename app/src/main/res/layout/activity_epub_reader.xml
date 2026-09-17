@@ -37,7 +37,6 @@
             android:id="@+id/epub_reader_progress"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/vaultshelf_reader_progress_zero"
             android:textAppearance="?attr/textAppearanceBodyMedium" />
     </LinearLayout>
 
