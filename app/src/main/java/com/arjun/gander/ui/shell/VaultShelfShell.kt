@@ -85,6 +85,8 @@ fun VaultShelfShell(
     libraryRepository: LibraryRepository,
     onOpenFiles: () -> Unit,
     onOpenVault: () -> Unit,
+    onOpenVaultSettings: () -> Unit,
+    onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedName by rememberSaveable { mutableStateOf(VaultShelfDestination.HOME.name) }
@@ -138,9 +140,9 @@ fun VaultShelfShell(
                 onOpenVault = onOpenVault,
             )
 
-            VaultShelfDestination.SETTINGS -> FoundationScreen(
-                titleRes = R.string.vaultshelf_settings_title,
-                detailRes = R.string.vaultshelf_settings_placeholder,
+            VaultShelfDestination.SETTINGS -> SettingsScreen(
+                onOpenVaultSettings = onOpenVaultSettings,
+                onOpenAbout = onOpenAbout,
                 modifier = Modifier.padding(innerPadding),
             )
         }
@@ -457,71 +459,98 @@ private fun QuickActionTile(
 }
 
 @Composable
-private fun FilesScreen(
-    onOpenFiles: () -> Unit,
+private fun SettingsScreen(
+    onOpenVaultSettings: () -> Unit,
+    onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(
-            text = stringResource(R.string.vaultshelf_files_title),
+            text = stringResource(R.string.vaultshelf_settings_title),
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.SemiBold,
         )
-        Text(
-            text = stringResource(R.string.vaultshelf_files_detail),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+        SettingsEntry(
+            titleRes = R.string.vaultshelf_settings_vault,
+            detailRes = R.string.vaultshelf_settings_vault_detail,
+            iconRes = R.drawable.ic_vaultshelf_vault,
+            onClick = onOpenVaultSettings,
         )
-        Button(
-            onClick = onOpenFiles,
-            shape = RoundedCornerShape(10.dp),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp),
-        ) {
-            Text(stringResource(R.string.vaultshelf_open_file_browser))
-        }
+
+        SettingsEntry(
+            titleRes = R.string.vaultshelf_settings_reader,
+            detailRes = R.string.vaultshelf_settings_reader_detail,
+            iconRes = R.drawable.ic_vaultshelf_library,
+            onClick = null,
+        )
+
+        SettingsEntry(
+            titleRes = R.string.vaultshelf_settings_about,
+            detailRes = R.string.vaultshelf_settings_about_detail,
+            iconRes = R.drawable.ic_vaultshelf_settings,
+            onClick = onOpenAbout,
+        )
     }
 }
 
 @Composable
-private fun FoundationScreen(
+private fun SettingsEntry(
     @StringRes titleRes: Int,
     @StringRes detailRes: Int,
-    modifier: Modifier = Modifier,
+    @DrawableRes iconRes: Int,
+    onClick: (() -> Unit)?,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                },
+            ),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
     ) {
-        Text(
-            text = stringResource(titleRes),
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+            ) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(10.dp).size(22.dp),
+                )
+            }
             Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 Text(
-                    text = stringResource(R.string.vaultshelf_foundation_status),
+                    text = stringResource(titleRes),
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = stringResource(detailRes),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
