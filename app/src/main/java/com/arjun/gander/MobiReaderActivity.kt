@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.edit
 import androidx.core.view.WindowCompat
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
@@ -467,24 +468,24 @@ private fun MatureMobiReader(
             themeMode = themeMode,
             onPageAnimation = { animation ->
                 pageAnimation = animation
-                preferences.edit().putInt(PREF_PAGE_ANIMATION, animation).apply()
+                preferences.edit { putInt(PREF_PAGE_ANIMATION, animation) }
                 readView?.setPageAnimation(animation)
             },
             onFontSize = { size ->
                 fontSizeSp = size.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
-                preferences.edit().putFloat(PREF_FONT_SIZE, fontSizeSp).apply()
+                preferences.edit { putFloat(PREF_FONT_SIZE, fontSizeSp) }
             },
             onLineSpacing = { spacing ->
                 lineSpacing = spacing
-                preferences.edit().putFloat(PREF_LINE_SPACING, spacing).apply()
+                preferences.edit { putFloat(PREF_LINE_SPACING, spacing) }
             },
             onMargin = { margin ->
                 marginDp = margin
-                preferences.edit().putInt(PREF_MARGIN_DP, margin).apply()
+                preferences.edit { putInt(PREF_MARGIN_DP, margin) }
             },
             onTheme = { mode ->
                 themeMode = mode
-                preferences.edit().putString(PREF_THEME, mode.key).apply()
+                preferences.edit { putString(PREF_THEME, mode.key) }
             },
             onDismiss = {
                 showSettings = false
