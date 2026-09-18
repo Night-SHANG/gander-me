@@ -14,7 +14,7 @@
         android:elevation="4dp"
         app:menu="@menu/viewer_menu"
         app:navigationContentDescription="@string/back"
-        app:navigationIcon="@drawable/ic_back"
+        app:navigationIcon="@drawable/gander_ic_back"
         app:titleTextAppearance="?attr/textAppearanceTitleMedium" />
 
     <LinearLayout
