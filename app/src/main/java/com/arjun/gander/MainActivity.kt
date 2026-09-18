@@ -39,6 +39,10 @@ import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        const val EXTRA_SHOW_ABOUT = "vaultshelf.show_about"
+    }
+
     private sealed interface Row {
         data class Header(val title: String) : Row
         data class Hint(val text: String) : Row
@@ -210,6 +214,11 @@ class MainActivity : AppCompatActivity() {
 
         restoreStack(savedInstanceState)
         onBackPressedDispatcher.addCallback(this, backCallback)
+
+        if (intent.getBooleanExtra(EXTRA_SHOW_ABOUT, false)) {
+            intent.removeExtra(EXTRA_SHOW_ABOUT)
+            toolbar.post { showAbout() }
+        }
     }
 
     /**
