@@ -89,6 +89,7 @@ fun VaultShelfShell(
     var selectedName by rememberSaveable { mutableStateOf(VaultShelfDestination.HOME.name) }
     val selected = VaultShelfDestination.entries
         .firstOrNull { it.name == selectedName }
+        ?.takeUnless { it == VaultShelfDestination.FILES }
         ?: VaultShelfDestination.HOME
 
     Scaffold(
@@ -97,7 +98,13 @@ fun VaultShelfShell(
         bottomBar = {
             FluentBottomBar(
                 selected = selected,
-                onSelected = { selectedName = it.name },
+                onSelected = { destination ->
+                    if (destination == VaultShelfDestination.FILES) {
+                        onOpenFiles()
+                    } else {
+                        selectedName = destination.name
+                    }
+                },
             )
         },
     ) { innerPadding ->
