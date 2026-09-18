@@ -37,6 +37,12 @@ class FileDispatchActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val uri = intent.data ?: sharedStreamUri(intent) ?: run {
+            if (!intent.getStringExtra(Intent.EXTRA_TEXT).isNullOrEmpty()) {
+                startActivity(
+                    Intent(intent)
+                        .setClass(this, ViewerActivity::class.java),
+                )
+            }
             finish()
             return
         }

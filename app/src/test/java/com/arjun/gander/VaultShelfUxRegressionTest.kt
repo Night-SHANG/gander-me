@@ -270,6 +270,8 @@ class VaultShelfUxRegressionTest {
         assertThat(dispatcher).contains("EBOOK_EXTENSIONS")
         assertThat(dispatcher).contains("LegadoReaderBridge.createTransientBookSession")
         assertThat(dispatcher).contains("VaultShelfExternalMediaRouter.supports")
+        assertThat(dispatcher).contains("Intent.EXTRA_TEXT")
+        assertThat(dispatcher).contains("setClass(this, ViewerActivity::class.java)")
         assertThat(mediaRouter).contains("AudioPlayer::class.java")
         assertThat(mediaRouter).contains("VideoPlayer::class.java")
         assertThat(mediaRouter).contains("EXTRA_PROGRESS_KEY")
