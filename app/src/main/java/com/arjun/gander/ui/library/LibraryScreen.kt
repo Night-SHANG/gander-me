@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -325,8 +326,9 @@ fun LibraryScreen(
             title = { Text(stringResource(R.string.vaultshelf_library_batch_delete_title)) },
             text = {
                 Text(
-                    stringResource(
-                        R.string.vaultshelf_library_batch_delete_message,
+                    pluralStringResource(
+                        R.plurals.vaultshelf_library_batch_delete_message,
+                        selectedIds.size,
                         selectedIds.size,
                     ),
                 )
@@ -440,8 +442,9 @@ private fun ShelfHeader(
                     text = if (searchQuery.isBlank()) {
                         stringResource(R.string.vaultshelf_library_book_count, bookCount)
                     } else {
-                        stringResource(
-                            R.string.vaultshelf_library_search_result_count,
+                        pluralStringResource(
+                            R.plurals.vaultshelf_library_search_result_count,
+                            bookCount,
                             visibleCount,
                             bookCount,
                         )
@@ -541,7 +544,11 @@ private fun SelectionHeader(
                 Text(stringResource(R.string.vaultshelf_library_manage_done))
             }
             Text(
-                text = stringResource(R.string.vaultshelf_library_selected_count, selectedCount),
+                text = pluralStringResource(
+                    R.plurals.vaultshelf_library_selected_count,
+                    selectedCount,
+                    selectedCount,
+                ),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
