@@ -135,7 +135,7 @@
     <string name="url_play_listing" translatable="false">https://play.google.com/store/apps/details?id=%1$s</string>
 
     <string name="vaultshelf_library_search_hint">Search books</string>
-    <string name="vaultshelf_library_search_result_count">%1$d of %2$d books</string>
+    <plurals name="vaultshelf_library_search_result_count">\n        <item quantity="one">%1$d of %2$d book</item>\n        <item quantity="other">%1$d of %2$d books</item>\n    </plurals>
     <string name="vaultshelf_library_search_empty_title">No matching books</string>
     <string name="vaultshelf_library_search_empty_detail">Try a different title or clear the search.</string>
     <string name="vaultshelf_library_search_clear">Clear search</string>
@@ -146,10 +146,10 @@
     <string name="vaultshelf_library_sort_progress">Reading progress</string>
     <string name="vaultshelf_library_manage_hint">Long press a book to manage multiple items.</string>
     <string name="vaultshelf_library_manage_done">Done</string>
-    <string name="vaultshelf_library_selected_count">%1$d selected</string>
+    <plurals name="vaultshelf_library_selected_count">\n        <item quantity="one">%1$d selected</item>\n        <item quantity="other">%1$d selected</item>\n    </plurals>
     <string name="vaultshelf_library_select_all">Select all</string>
     <string name="vaultshelf_library_unselect_all">Clear</string>
     <string name="vaultshelf_library_batch_delete_title">Delete selected books?</string>
-    <string name="vaultshelf_library_batch_delete_message">VaultShelf will delete its private copies of %1$d selected books. Your original imported files are not changed.</string>
+    <plurals name="vaultshelf_library_batch_delete_message">\n        <item quantity="one">VaultShelf will delete its private copy of %1$d selected book. Your original imported file is not changed.</item>\n        <item quantity="other">VaultShelf will delete its private copies of %1$d selected books. Your original imported files are not changed.</item>\n    </plurals>
     <string name="vaultshelf_library_grid_meta">%1$s · %2$d%%</string>
 </resources>
