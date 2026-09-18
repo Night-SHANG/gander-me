@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import com.arjun.gander.EpubReaderActivity
 import com.arjun.gander.R
 import com.arjun.gander.TxtReaderActivity
+import com.arjun.gander.UmdReaderActivity
 import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
@@ -187,6 +188,9 @@ private fun HomeScreen(
                             libraryRepository.bookFile(book.id).absolutePath,
                         )
                 }
+
+                BookFormat.UMD -> Intent(context, UmdReaderActivity::class.java)
+                    .putExtra(UmdReaderActivity.EXTRA_BOOK_ID, book.id)
             }
             readerLauncher.launch(intent)
         }
