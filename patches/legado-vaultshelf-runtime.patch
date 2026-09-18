@@ -70,3 +70,57 @@ diff --git a/app/src/main/java/io/legado/app/base/BaseService.kt b/app/src/main/
      }
  
      private fun tryStartForegroundNotification(): Boolean {
+
+# VaultShelf temporary-provider books may be read but must not expose/export their transient URI or mutate shared identity metadata.
+diff --git a/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt b/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt
+--- a/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt
++++ b/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt
+@@ -292,22 +292,32 @@
+     }
+ 
+     override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
+-        menu.findItem(R.id.menu_can_update)?.isChecked =
+-            viewModel.bookData.value?.canUpdate ?: true
+-        menu.findItem(R.id.menu_split_long_chapter)?.isChecked =
+-            viewModel.bookData.value?.getSplitLongChapter() ?: true
+-        menu.findItem(R.id.menu_login)?.isVisible =
+-            viewModel.bookSource?.hasLogin() == true
+-        menu.findItem(R.id.menu_set_source_variable)?.isVisible =
+-            viewModel.bookSource != null
+-        menu.findItem(R.id.menu_set_book_variable)?.isVisible =
+-            viewModel.bookSource != null
+-        menu.findItem(R.id.menu_can_update)?.isVisible =
+-            viewModel.bookSource != null
+-        menu.findItem(R.id.menu_split_long_chapter)?.isVisible =
+-            viewModel.bookData.value?.isLocalTxt ?: false
+-        menu.findItem(R.id.menu_upload)?.isVisible =
+-            viewModel.bookData.value?.isLocal ?: false
++        val vaultShelfTransient = viewModel.bookData.value
++            ?.bookUrl
++            ?.let(Uri::parse)
++            ?.authority
++            ?.endsWith(".temporary_provider") == true
++        editMenuItem?.isVisible = !vaultShelfTransient
++        menu.findItem(R.id.menu_share_it)?.isVisible = !vaultShelfTransient
++        menu.findItem(R.id.menu_copy_book_url)?.isVisible = !vaultShelfTransient
++        menu.findItem(R.id.menu_copy_toc_url)?.isVisible = !vaultShelfTransient
++
++        menu.findItem(R.id.menu_can_update)?.isChecked =
++            viewModel.bookData.value?.canUpdate ?: true
++        menu.findItem(R.id.menu_split_long_chapter)?.isChecked =
++            viewModel.bookData.value?.getSplitLongChapter() ?: true
++        menu.findItem(R.id.menu_login)?.isVisible =
++            viewModel.bookSource?.hasLogin() == true
++        menu.findItem(R.id.menu_set_source_variable)?.isVisible =
++            viewModel.bookSource != null
++        menu.findItem(R.id.menu_set_book_variable)?.isVisible =
++            viewModel.bookSource != null
++        menu.findItem(R.id.menu_can_update)?.isVisible =
++            viewModel.bookSource != null
++        menu.findItem(R.id.menu_split_long_chapter)?.isVisible =
++            viewModel.bookData.value?.isLocalTxt ?: false
++        menu.findItem(R.id.menu_upload)?.isVisible =
++            !vaultShelfTransient && (viewModel.bookData.value?.isLocal ?: false)
+         menu.findItem(R.id.menu_create_book_update_task)?.isVisible =
+             viewModel.bookData.value?.let {
+                 viewModel.inBookshelf &&

@@ -33,6 +33,16 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun transientVaultBooksCannotExportOrEditTheirTemporaryIdentity() {
+        val patch = File(repo, "patches/legado-vaultshelf-runtime.patch").readText()
+
+        assertThat(patch).contains(".temporary_provider")
+        assertThat(patch).contains("menu_share_it")
+        assertThat(patch).contains("menu_copy_book_url")
+        assertThat(patch).contains("menu_upload")
+    }
+
+    @Test
     fun localLegadoManifestKeepsReaderReachableActivitiesOnly() {
         val manifest = File(repo, "legado-upstream/src/main/AndroidManifest.xml").readText()
 
@@ -224,6 +234,9 @@ class VaultShelfUxRegressionTest {
         assertThat(vaultBridge).contains("cleanupTransientBookSession")
         assertThat(legadoBridge).contains("restoreTransientReadingPosition")
         assertThat(legadoBridge).contains("transientReadingPosition")
+        assertThat(legadoBridge).contains("TransientMetadataSnapshot")
+        assertThat(legadoBridge).contains("readRecordDao.getRecords")
+        assertThat(legadoBridge).contains("restoreTransientMetadataSnapshot")
         assertThat(positions).contains("noBackupFilesDir")
         assertThat(positions).doesNotContain("DISPLAY_NAME")
         assertThat(droidFsProgress).contains("MessageDigest.getInstance(\"SHA-256\")")

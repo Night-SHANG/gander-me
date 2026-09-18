@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
+import android.util.AtomicFile
 import com.github.liuyueyi.quick.transfer.constants.TransType
 import com.jeremyliao.liveeventbus.LiveEventBus
 import com.script.rhino.ReadOnlyJavaObject
@@ -19,7 +20,9 @@ import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.data.entities.BookSource
+import io.legado.app.data.entities.Bookmark
 import io.legado.app.data.entities.HttpTTS
+import io.legado.app.data.entities.ReadRecord
 import io.legado.app.data.entities.RssSource
 import io.legado.app.data.entities.rule.BookInfoRule
 import io.legado.app.data.entities.rule.ContentRule
@@ -45,8 +48,10 @@ import io.legado.app.model.localBook.LocalBook
 import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.help.book.removeLocalUriCache
 import io.legado.app.utils.ChineseUtils
+import io.legado.app.utils.GSON
 import io.legado.app.utils.defaultSharedPreferences
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -70,6 +75,13 @@ object LegadoReaderBridge {
     data class TransientReadingPosition(
         val chapterIndex: Int,
         val chapterPosition: Int,
+    )
+
+    private data class TransientMetadataSnapshot(
+        val bookName: String,
+        val bookAuthor: String,
+        val bookmarks: List<Bookmark>,
+        val readRecords: List<ReadRecord>,
     )
 
     data class LocalBookSnapshot(
@@ -207,7 +219,24 @@ object LegadoReaderBridge {
     ): TransientBookSession {
         initialize(context)
         val preview = LocalBook.previewImportFile(uri)
+        val existedBeforeImport = appDb.bookDao.getBook(preview.bookUrl) != null
         val book = LocalBook.importFile(uri, preview)
+        try {
+            rememberTransientMetadataSnapshot(context, book)
+        } catch (error: Throwable) {
+            // The reader has not opened yet, so no transient bookmark/history can exist.
+            // Roll a newly inserted row back instead of entering a session whose later
+            // cleanup could not distinguish pre-existing shared-identity metadata.
+            if (!existedBeforeImport) {
+                LocalBook.withParserCacheInvalidated(book) {
+                    BookHelp.clearCache(book)
+                    book.removeLocalUriCache()
+                    LocalBook.deleteBook(book, deleteOriginal = false)
+                    appDb.bookDao.delete(book)
+                }
+            }
+            throw error
+        }
         rememberTransientUrl(context, book.bookUrl)
         return TransientBookSession(book.bookUrl, book.name)
     }
@@ -248,8 +277,11 @@ object LegadoReaderBridge {
         bookUrl: String,
     ) {
         initialize(context)
+        val metadataSnapshot = transientMetadataSnapshot(context, bookUrl)
         val book = appDb.bookDao.getBook(bookUrl)
         if (book == null) {
+            metadataSnapshot?.let(::restoreTransientMetadataSnapshot)
+            forgetTransientMetadataSnapshot(context, bookUrl)
             forgetTransientUrl(context, bookUrl)
             return
         }
@@ -266,20 +298,29 @@ object LegadoReaderBridge {
                 ?.toTypedArray()
                 ?.let { appDb.bookHighlightDao.delete(*it) }
 
-            appDb.bookmarkDao.getByBook(book.name, book.author)
-                .takeIf { it.isNotEmpty() }
-                ?.toTypedArray()
-                ?.let { appDb.bookmarkDao.delete(*it) }
+            // Bookmark/read-history rows are keyed by book name + author rather than
+            // bookUrl. A deleted ordinary book can therefore have historical rows with
+            // the same identity as this transient vault book. Only wipe this shared
+            // identity when we have the pre-session snapshot needed to restore it.
+            if (metadataSnapshot != null &&
+                metadataSnapshot.bookName == book.name &&
+                metadataSnapshot.bookAuthor == book.author
+            ) {
+                appDb.bookmarkDao.getByBook(book.name, book.author)
+                    .takeIf { it.isNotEmpty() }
+                    ?.toTypedArray()
+                    ?.let { appDb.bookmarkDao.delete(*it) }
+                appDb.readRecordDao.deleteByBook(book.name, book.author)
+            }
 
-            appDb.readRecordDao.deleteByBook(book.name, book.author)
             book.removeLocalUriCache()
-
-            // Uses Legado's own local-book cleanup for its generated cover/cache files.
             LocalBook.deleteBook(book, deleteOriginal = false)
             appDb.bookDao.delete(book)
         }
 
+        metadataSnapshot?.let(::restoreTransientMetadataSnapshot)
         ReadRecordCoverCache.prune()
+        forgetTransientMetadataSnapshot(context, bookUrl)
         forgetTransientUrl(context, bookUrl)
     }
 
@@ -287,6 +328,64 @@ object LegadoReaderBridge {
         transientUrls(context).forEach { bookUrl ->
             runCatching { cleanupTransientBookSession(context, bookUrl) }
         }
+    }
+
+    private fun rememberTransientMetadataSnapshot(context: Context, book: Book) {
+        val snapshot = TransientMetadataSnapshot(
+            bookName = book.name,
+            bookAuthor = book.author,
+            bookmarks = appDb.bookmarkDao.getByBook(book.name, book.author),
+            readRecords = appDb.readRecordDao.getRecords(book.name, book.author),
+        )
+        val atomic = transientMetadataFile(context, book.bookUrl)
+        val output = atomic.startWrite()
+        try {
+            output.write(GSON.toJson(snapshot).toByteArray(Charsets.UTF_8))
+            atomic.finishWrite(output)
+        } catch (error: Throwable) {
+            atomic.failWrite(output)
+            throw error
+        }
+    }
+
+    private fun transientMetadataSnapshot(
+        context: Context,
+        bookUrl: String,
+    ): TransientMetadataSnapshot? = runCatching {
+        val json = String(
+            transientMetadataFile(context, bookUrl).readFully(),
+            Charsets.UTF_8,
+        )
+        GSON.fromJson(json, TransientMetadataSnapshot::class.java)
+    }.getOrNull()
+
+    private fun restoreTransientMetadataSnapshot(snapshot: TransientMetadataSnapshot) {
+        appDb.runInTransaction {
+            if (snapshot.bookmarks.isNotEmpty()) {
+                appDb.bookmarkDao.insert(*snapshot.bookmarks.toTypedArray())
+            }
+            if (snapshot.readRecords.isNotEmpty()) {
+                appDb.readRecordDao.insert(*snapshot.readRecords.toTypedArray())
+            }
+        }
+    }
+
+    private fun transientMetadataFile(context: Context, bookUrl: String): AtomicFile {
+        val directory = File(
+            context.noBackupFilesDir,
+            "vaultshelf_legado_transient_metadata",
+        )
+        check(directory.exists() || directory.mkdirs()) {
+            "Unable to create transient Legado metadata directory"
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(bookUrl.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        return AtomicFile(File(directory, "$digest.json"))
+    }
+
+    private fun forgetTransientMetadataSnapshot(context: Context, bookUrl: String) {
+        transientMetadataFile(context, bookUrl).delete()
     }
 
     private fun transientPrefs(context: Context) =
