@@ -63,4 +63,15 @@ class DependencyAlignmentTest {
         assertThat(droidFs).contains("ndkVersion = \"28.2.13676358\"")
     }
 
+    @Test
+    fun finalApplicationOwnsLegadoPackagingRules() {
+        assertThat(app).contains("\"META-INF/*\"")
+        assertThat(app).contains("\"tables/Transcoder_*.bin\"")
+        assertThat(app).contains("\"kotlin/**/*.kotlin_builtins\"")
+        assertThat(app).contains("keepDebugSymbols")
+        assertThat(app).contains("\"**/libarchive-jni.so\"")
+        assertThat(app).contains("\"**/librenderscript-toolkit.so\"")
+    }
+
+
 }

@@ -90,6 +90,36 @@ android {
         compose = true
     }
 
+    // Legado's original application-level packaging rules must live on the final
+    // VaultShelf application after its source is integrated as a library. Library
+    // packaging options do not define how transitive resources/native objects are
+    // merged into the APK.
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/*",
+                "tables/Transcoder_*.bin",
+                "*.proto",
+                "**/*.proto",
+                "src/**",
+                "kotlin/*.kotlin_builtins",
+                "kotlin/**/*.kotlin_builtins",
+            )
+        }
+        jniLibs {
+            // These dependency-provided objects are already stripped upstream.
+            keepDebugSymbols += setOf(
+                "**/libandroidx.graphics.path.so",
+                "**/libarchive-jni.so",
+                "**/libdatastore_shared_counter.so",
+                "**/libimage_processing_util_jni.so",
+                "**/librenderscript-toolkit.so",
+                "**/librtmp-jni.so",
+                "**/libsurface_util_jni.so",
+            )
+        }
+    }
+
     lint {
         // Warnings are frozen into the baseline below, so that a new one fails the
         // build while the existing ones stay visible in the report rather than
