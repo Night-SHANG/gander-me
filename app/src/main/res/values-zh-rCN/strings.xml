@@ -92,7 +92,9 @@
     <string name="vaultshelf_library_continue_reading">继续阅读</string>
     <string name="vaultshelf_library_book_count">书籍 · %1$d</string>
     <string name="vaultshelf_library_view_grid">网格</string>
-    <string name="vaultshelf_library_grid_columns">%1$d 列</string>
+    <plurals name="vaultshelf_library_grid_columns">
+        <item quantity="other">%1$d 列</item>
+    </plurals>
     <string name="vaultshelf_library_view_list">列表</string>
     <string name="vaultshelf_library_rename">重命名</string>
     <string name="vaultshelf_library_rename_title">重命名书籍</string>
