@@ -53,7 +53,7 @@
     <string name="about_source_url" translatable="false">github.com/Night-SHANG/gander-me</string>
     <string name="about_licences">Open source licences</string>
     <string name="about_licences_detail">Full text for every bundled library</string>
-    <string name="about_copyright" translatable="false">VaultShelf is distributed under GPL-3.0. Gander-originated code retains its MIT notice.</string>
+    <string name="about_copyright" translatable="false">VaultShelf is distributed under AGPL-3.0. Gander-originated code retains its MIT notice; bundled upstream projects retain their notices.</string>
     <string name="about_close">Close</string>
     <string name="no_browser">No app can open links</string>
     <string name="licences_file_name" translatable="false">Open source licences.md</string>
@@ -128,10 +128,13 @@
     <string name="vaultshelf_epub_theme_dark">Dark</string>
 
     <string name="vaultshelf_vault_title">Private vault</string>
-    <string name="vaultshelf_vault_placeholder">Encryption, PIN or biometric unlock and private storage will be added as a dedicated module.</string>
     <string name="vaultshelf_settings_title">Settings</string>
-    <string name="vaultshelf_settings_placeholder">Appearance, reading and privacy settings will live here.</string>
-    <string name="vaultshelf_foundation_status">Foundation ready</string>
+    <string name="vaultshelf_settings_vault">Vault settings</string>
+    <string name="vaultshelf_settings_vault_detail">Open DroidFS security, biometric unlock, auto-lock and vault behavior settings.</string>
+    <string name="vaultshelf_settings_reader">Reading settings</string>
+    <string name="vaultshelf_settings_reader_detail">Typography, themes, page turning and other reading options are managed in the original Legado reader while a book is open.</string>
+    <string name="vaultshelf_settings_about">About and open source</string>
+    <string name="vaultshelf_settings_about_detail">Version, permissions, source code and bundled open-source licences.</string>
 
     <string name="url_author" translatable="false">https://arjun.maniyani.com/</string>
     <string name="url_source" translatable="false">https://github.com/Night-SHANG/gander-me</string>
