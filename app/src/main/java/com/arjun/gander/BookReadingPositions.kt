@@ -48,9 +48,14 @@ object BookReadingPositions {
         if (filtered.size != all.size) write(context, filtered)
     }
 
-    fun exportOpaque(context: Context): ByteArray = runCatching {
-        file(context).readFully()
-    }.getOrDefault(ByteArray(0))
+    fun exportOpaque(context: Context, keyPrefix: String? = null): ByteArray {
+        val entries = if (keyPrefix == null) {
+            load(context)
+        } else {
+            load(context).filter { it.key.startsWith("$keyPrefix:") }
+        }
+        return encode(entries)
+    }
 
     fun mergeOpaque(context: Context, bytes: ByteArray) {
         if (bytes.isEmpty()) return
@@ -97,15 +102,16 @@ object BookReadingPositions {
             }
             .toList()
 
+    private fun encode(entries: List<Entry>): ByteArray =
+        entries.joinToString("") {
+            "${it.key} ${it.chapterIndex} ${it.chapterPosition} ${it.time}\n"
+        }.toByteArray()
+
     private fun write(context: Context, entries: List<Entry>) {
         val atomic = file(context)
         val output = runCatching { atomic.startWrite() }.getOrNull() ?: return
         runCatching {
-            output.write(
-                entries.joinToString("") {
-                    "${it.key} ${it.chapterIndex} ${it.chapterPosition} ${it.time}\n"
-                }.toByteArray(),
-            )
+            output.write(encode(entries))
             atomic.finishWrite(output)
         }.onFailure {
             atomic.failWrite(output)
