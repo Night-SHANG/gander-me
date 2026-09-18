@@ -39,10 +39,6 @@ import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
-    companion object {
-        const val EXTRA_SHOW_ABOUT = "vaultshelf.show_about"
-    }
-
     private sealed interface Row {
         data class Header(val title: String) : Row
         data class Hint(val text: String) : Row
@@ -694,8 +690,9 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    private companion object {
-        const val LICENCES_ASSET = "licences.md"
+    companion object {
+        const val EXTRA_SHOW_ABOUT = "vaultshelf.show_about"
+        private const val LICENCES_ASSET = "licences.md"
 
         /** Google Play's package: the installer Rate depends on, and the app it opens. */
         const val PLAY_STORE = "com.android.vending"
