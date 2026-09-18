@@ -71,6 +71,34 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun viewerProgressStaysConnectedToShelf() {
+        val viewer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ViewerActivity.kt",
+        ).readText()
+        val markdown = File(
+            repo,
+            "app/src/main/assets/viewer/md.html",
+        ).readText()
+        val library = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
+        ).readText()
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+
+        assertThat(viewer).contains("ScrollPositions.fraction")
+        assertThat(viewer).contains("ScrollPositions.save")
+        assertThat(viewer).contains("Positions.page(this, it)")
+        assertThat(viewer).contains("EXTRA_LIBRARY_PROGRESS")
+        assertThat(markdown).contains("resumeScroll")
+        assertThat(library).contains("updateViewerProgress")
+        assertThat(shell).contains("updateViewerProgress")
+    }
+
+    @Test
     fun readerPanelsKeepSettingsPagedAndContentsSearchable() {
         val source = File(
             repo,
