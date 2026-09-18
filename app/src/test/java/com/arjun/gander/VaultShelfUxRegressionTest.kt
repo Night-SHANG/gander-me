@@ -244,6 +244,19 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun vaultCleanupOutlivesBridgeActivityDestruction() {
+        val bridge = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultContentActivity.kt",
+        ).readText()
+
+        assertThat(bridge).contains("CoroutineScope(SupervisorJob() + Dispatchers.IO)")
+        assertThat(bridge).contains("startCleanup(finishWhenDone = false)")
+        assertThat(bridge).doesNotContain("Thread {")
+        assertThat(bridge).doesNotContain("lifecycleScope.launch {\n            if (bookUrl != null)")
+    }
+
+    @Test
     fun vaultLockGuardCoversNestedLegadoActivitiesInTheSameTask() {
         val guard = File(
             repo,

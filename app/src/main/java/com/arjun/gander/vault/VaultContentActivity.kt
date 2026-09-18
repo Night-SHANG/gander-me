@@ -13,7 +13,9 @@ import com.arjun.gander.ViewerActivity
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import com.vaultshelf.legado.LegadoReaderBridge
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -24,6 +26,9 @@ import kotlinx.coroutines.withContext
 class VaultContentActivity : ComponentActivity() {
 
     private val cleanupStarted = AtomicBoolean(false)
+    // Cleanup must outlive this translucent Activity: auto-lock can finish the bridge
+    // at the same instant as its child reader, which cancels lifecycleScope.
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var sourceUri: Uri? = null
     private var sessionToken: String? = null
@@ -151,89 +156,61 @@ class VaultContentActivity : ComponentActivity() {
     }
 
     private fun cleanupAndFinish() {
+        startCleanup(finishWhenDone = true)
+    }
+
+    private fun startCleanup(finishWhenDone: Boolean) {
         if (!cleanupStarted.compareAndSet(false, true)) return
 
         val uri = sourceUri
         val token = sessionToken
         val key = fileKey
         val bookUrl = transientBookUrl
+        val appContext = applicationContext
 
-        lifecycleScope.launch {
+        cleanupScope.launch {
             if (bookUrl != null) {
-                withContext(Dispatchers.IO) {
-                    runCatching {
-                        if (key != null) {
-                            LegadoReaderBridge.transientReadingPosition(
-                                applicationContext,
-                                bookUrl,
-                            )?.let { position ->
-                                BookReadingPositions.save(
-                                    applicationContext,
-                                    key,
-                                    position.chapterIndex,
-                                    position.chapterPosition,
-                                )
-                            }
-                        }
-                        LegadoReaderBridge.cleanupTransientBookSession(
-                            applicationContext,
+                runCatching {
+                    if (key != null) {
+                        LegadoReaderBridge.transientReadingPosition(
+                            appContext,
                             bookUrl,
-                        )
+                        )?.let { position ->
+                            BookReadingPositions.save(
+                                appContext,
+                                key,
+                                position.chapterIndex,
+                                position.chapterPosition,
+                            )
+                        }
                     }
+                    LegadoReaderBridge.cleanupTransientBookSession(
+                        appContext,
+                        bookUrl,
+                    )
                 }
             }
 
             if (uri != null) {
-                withContext(Dispatchers.IO) {
-                    runCatching { contentResolver.delete(uri, null, null) }
-                }
+                runCatching { appContext.contentResolver.delete(uri, null, null) }
             }
 
             if (token != null) {
                 VaultSessionGuard.unregister(token)
             }
-            finish()
+
+            if (finishWhenDone) {
+                withContext(Dispatchers.Main.immediate) {
+                    if (!isDestroyed && !isFinishing) finish()
+                }
+            }
         }
     }
 
     override fun onDestroy() {
         if (isFinishing && !cleanupStarted.get()) {
-            val uri = sourceUri
-            val token = sessionToken
-            val key = fileKey
-            val bookUrl = transientBookUrl
-            Thread {
-                if (bookUrl != null) {
-                    runCatching {
-                        if (key != null) {
-                            LegadoReaderBridge.transientReadingPosition(
-                                applicationContext,
-                                bookUrl,
-                            )?.let { position ->
-                                BookReadingPositions.save(
-                                    applicationContext,
-                                    key,
-                                    position.chapterIndex,
-                                    position.chapterPosition,
-                                )
-                            }
-                        }
-                        LegadoReaderBridge.cleanupTransientBookSession(
-                            applicationContext,
-                            bookUrl,
-                        )
-                    }
-                }
-                if (uri != null) {
-                    runCatching { contentResolver.delete(uri, null, null) }
-                }
-                if (token != null) {
-                    VaultSessionGuard.unregister(token)
-                }
-            }.apply {
-                name = "vault-session-cleanup"
-                isDaemon = true
-            }.start()
+            // The independent scope is intentionally not cancelled here.
+            startCleanup(finishWhenDone = false)
         }
         super.onDestroy()
     }
