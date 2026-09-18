@@ -57,6 +57,12 @@
             android:label="@string/vaultshelf_reader_title" />
 
         <activity
+            android:name=".MobiReaderActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false"
+            android:label="@string/vaultshelf_reader_title" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/vaultshelf_action_browse_files" />
