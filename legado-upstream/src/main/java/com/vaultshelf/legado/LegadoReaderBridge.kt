@@ -195,12 +195,12 @@ object LegadoReaderBridge {
             appDb.bookHighlightDao.getByBook(bookUrl)
                 .takeIf { it.isNotEmpty() }
                 ?.toTypedArray()
-                ?.let(appDb.bookHighlightDao::delete)
+                ?.let { appDb.bookHighlightDao.delete(*it) }
 
             appDb.bookmarkDao.getByBook(book.name, book.author)
                 .takeIf { it.isNotEmpty() }
                 ?.toTypedArray()
-                ?.let(appDb.bookmarkDao::delete)
+                ?.let { appDb.bookmarkDao.delete(*it) }
 
             appDb.readRecordDao.deleteByBook(book.name, book.author)
             book.removeLocalUriCache()
