@@ -48,3 +48,25 @@ diff --git a/app/src/main/java/io/legado/app/base/BaseViewModel.kt b/app/src/mai
  
      fun <T> execute(
          scope: CoroutineScope = viewModelScope,
+
+# VaultShelf only exposes local TTS service; it must not request a global battery-optimization exemption.
+diff --git a/app/src/main/java/io/legado/app/base/BaseService.kt b/app/src/main/java/io/legado/app/base/BaseService.kt
+--- a/app/src/main/java/io/legado/app/base/BaseService.kt
++++ b/app/src/main/java/io/legado/app/base/BaseService.kt
+@@ -117,16 +117,6 @@
+                 }
+             }
+             .request()
+-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+-            PermissionsCompat.Builder()
+-                .addPermissions(Permissions.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+-                .apply {
+-                    if (showRationale) {
+-                        rationale(R.string.ignore_battery_permission_rationale)
+-                    }
+-                }
+-                .request()
+-        }
+     }
+ 
+     private fun tryStartForegroundNotification(): Boolean {

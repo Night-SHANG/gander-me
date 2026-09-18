@@ -154,8 +154,13 @@ android {
 // one and would otherwise fail against a hardcoded package name.
 val permissionAllowlist = setOf(
     // Legado's original local TTS reader runs as a media foreground service.
+    // WAKE_LOCK is only used when the reader's optional "read aloud wake lock" setting is on.
+    // READ_PHONE_STATE is requested at runtime only if the user enables both "ignore audio
+    // focus" and "pause read aloud during phone calls"; both settings default to off.
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+    "android.permission.WAKE_LOCK",
+    "android.permission.READ_PHONE_STATE",
 
     // DroidFS' original vault implementation. Biometric/camera permissions are only
     // requested at runtime when the corresponding upstream feature is used.
