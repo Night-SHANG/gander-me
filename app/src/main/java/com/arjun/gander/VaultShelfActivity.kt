@@ -11,6 +11,7 @@ import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import sushi.hardcore.droidfs.MainActivity as DroidFsMainActivity
+import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 
 /**
  * VaultShelf's product shell.
@@ -37,6 +38,17 @@ class VaultShelfActivity : AppCompatActivity() {
                         onOpenVault = {
                             startActivity(
                                 Intent(this@VaultShelfActivity, DroidFsMainActivity::class.java),
+                            )
+                        },
+                        onOpenVaultSettings = {
+                            startActivity(
+                                Intent(this@VaultShelfActivity, DroidFsSettingsActivity::class.java),
+                            )
+                        },
+                        onOpenAbout = {
+                            startActivity(
+                                Intent(this@VaultShelfActivity, MainActivity::class.java)
+                                    .putExtra(MainActivity.EXTRA_SHOW_ABOUT, true),
                             )
                         },
                         // Android 15+ is edge-to-edge by default. Use the platform-provided
