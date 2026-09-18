@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.vault.VaultBackupActivity
 import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import sushi.hardcore.droidfs.MainActivity as DroidFsMainActivity
@@ -43,6 +44,11 @@ class VaultShelfActivity : AppCompatActivity() {
                         onOpenVaultSettings = {
                             startActivity(
                                 Intent(this@VaultShelfActivity, DroidFsSettingsActivity::class.java),
+                            )
+                        },
+                        onOpenVaultBackup = {
+                            startActivity(
+                                Intent(this@VaultShelfActivity, VaultBackupActivity::class.java),
                             )
                         },
                         onOpenAbout = {
