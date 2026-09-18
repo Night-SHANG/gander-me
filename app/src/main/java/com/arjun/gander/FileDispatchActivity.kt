@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
+import com.vaultshelf.droidfs.VaultShelfExternalMediaRouter
 import com.vaultshelf.legado.LegadoReaderBridge
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
@@ -50,15 +51,29 @@ class FileDispatchActivity : ComponentActivity() {
         val meta = metadata(uri)
         val extension = meta.name.substringAfterLast('.', "").lowercase()
 
-        if (extension in EBOOK_EXTENSIONS) {
-            openWithLegado(uri, meta.size)
-        } else {
-            startActivity(
-                Intent(this, ViewerActivity::class.java)
-                    .setData(uri)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
-            )
-            finish()
+        when {
+            extension in EBOOK_EXTENSIONS -> openWithLegado(uri, meta.size)
+
+            VaultShelfExternalMediaRouter.supports(meta.name, meta.mime) -> {
+                startActivity(
+                    VaultShelfExternalMediaRouter.intent(
+                        this,
+                        uri,
+                        meta.name,
+                        meta.mime,
+                    ),
+                )
+                finish()
+            }
+
+            else -> {
+                startActivity(
+                    Intent(this, ViewerActivity::class.java)
+                        .setData(uri)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                )
+                finish()
+            }
         }
     }
 
@@ -190,6 +205,7 @@ class FileDispatchActivity : ComponentActivity() {
     private data class Metadata(
         val name: String,
         val size: Long,
+        val mime: String?,
     )
 
     private fun metadata(uri: Uri): Metadata {
@@ -209,7 +225,7 @@ class FileDispatchActivity : ComponentActivity() {
                 }
             }
         }
-        return Metadata(name, size)
+        return Metadata(name, size, contentResolver.getType(uri))
     }
 
     private companion object {
