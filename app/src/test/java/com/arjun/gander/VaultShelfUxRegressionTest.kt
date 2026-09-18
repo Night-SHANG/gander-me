@@ -294,6 +294,15 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun droidFsUnreferencedBackupRulesAreNamespacedAwayFromLegado() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val manifest = File(repo, "droidfs-upstream/src/main/AndroidManifest.xml").readText()
+
+        assertThat(manifest).doesNotContain("@xml/backup_rules")
+        assertThat(patch).contains("rename to app/src/main/res/xml/droidfs_backup_rules.xml")
+    }
+
+    @Test
     fun temporaryVaultProviderUsesPerUriGrantsInsteadOfGlobalExport() {
         val manifest = File(
             repo,

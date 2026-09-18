@@ -520,3 +520,8 @@ diff --git a/app/src/main/res/layout/dialog_edit_text.xml b/app/src/main/res/lay
 similarity index 100%
 rename from app/src/main/res/layout/dialog_edit_text.xml
 rename to app/src/main/res/layout/droidfs_dialog_edit_text.xml
+
+diff --git a/app/src/main/res/xml/backup_rules.xml b/app/src/main/res/xml/droidfs_backup_rules.xml
+similarity index 100%
+rename from app/src/main/res/xml/backup_rules.xml
+rename to app/src/main/res/xml/droidfs_backup_rules.xml
