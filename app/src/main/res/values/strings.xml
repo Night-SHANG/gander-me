@@ -89,9 +89,9 @@
     <string name="vaultshelf_library_title">Library</string>
     <string name="vaultshelf_library_import_book">Import book</string>
     <string name="vaultshelf_library_import_short">Import</string>
-    <string name="vaultshelf_library_import_failed">This book could not be imported. VaultShelf currently accepts TXT, EPUB, and Markdown.</string>
+    <string name="vaultshelf_library_import_failed">This book could not be imported. VaultShelf currently accepts TXT, EPUB, UMD, PDF, MOBI, AZW3, AZW, and Markdown.</string>
     <string name="vaultshelf_library_empty_title">Your library is empty</string>
-    <string name="vaultshelf_library_empty_detail">Import a local TXT, EPUB, or Markdown file to start a private on-device reading shelf.</string>
+    <string name="vaultshelf_library_empty_detail">Import a supported local ebook or Markdown file to start a private on-device reading shelf.</string>
     <string name="vaultshelf_library_progress">Read %1$d%%</string>
     <string name="vaultshelf_library_continue_reading">Continue reading</string>
     <string name="vaultshelf_library_book_count">Books · %1$d</string>
