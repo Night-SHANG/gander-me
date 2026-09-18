@@ -179,7 +179,7 @@ private fun HomeScreen(
                 BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
                     .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
 
-                BookFormat.MARKDOWN -> {
+                BookFormat.MARKDOWN, BookFormat.PDF -> {
                     libraryRepository.updateProgress(book.id, book.readingOffset)
                     Intent(context, ViewerActivity::class.java)
                         .putExtra(
