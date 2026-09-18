@@ -17,4 +17,11 @@
     <string name="vaultshelf_reader_relaxed">宽松</string>
     <string name="vaultshelf_reader_narrow">窄</string>
     <string name="vaultshelf_reader_wide">宽</string>
+    <string name="vaultshelf_reader_layout">排版</string>
+    <string name="vaultshelf_reader_contents_search">搜索章节</string>
+    <string name="vaultshelf_reader_chapter_position">%1$d / %2$d</string>
+    <string name="vaultshelf_reader_contents_first">顶部</string>
+    <string name="vaultshelf_reader_contents_current">当前</string>
+    <string name="vaultshelf_reader_contents_last">底部</string>
+    <string name="vaultshelf_reader_contents_empty">没有匹配的章节</string>
 </resources>
