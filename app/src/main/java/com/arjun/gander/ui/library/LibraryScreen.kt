@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import com.arjun.gander.EpubReaderActivity
+import com.arjun.gander.MobiReaderActivity
 import com.arjun.gander.R
 import com.arjun.gander.TxtReaderActivity
 import com.arjun.gander.UmdReaderActivity
@@ -160,6 +161,8 @@ fun LibraryScreen(
                             BookFormat.MARKDOWN -> repository.importMarkdown(uri)
                             BookFormat.PDF -> repository.importPdf(uri)
                             BookFormat.UMD -> repository.importUmd(uri)
+                            BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
+                                repository.importMobi(uri, detectBookFormat(context, uri)!!)
                             null -> error("Unsupported library format")
                         }
                     }.onFailure { failed = true }
@@ -187,6 +190,10 @@ fun LibraryScreen(
 
                 BookFormat.UMD -> Intent(context, UmdReaderActivity::class.java)
                     .putExtra(UmdReaderActivity.EXTRA_BOOK_ID, book.id)
+
+                BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
+                    Intent(context, MobiReaderActivity::class.java)
+                        .putExtra(MobiReaderActivity.EXTRA_BOOK_ID, book.id)
             }
             readerLauncher.launch(intent)
         }
@@ -1073,12 +1080,18 @@ private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
         "md", "markdown" -> return BookFormat.MARKDOWN
         "pdf" -> return BookFormat.PDF
         "umd" -> return BookFormat.UMD
+        "mobi" -> return BookFormat.MOBI
+        "azw3" -> return BookFormat.AZW3
+        "azw" -> return BookFormat.AZW
     }
 
     return when (context.contentResolver.getType(uri)?.lowercase()) {
         "application/epub+zip" -> BookFormat.EPUB
         "text/markdown" -> BookFormat.MARKDOWN
         "application/pdf" -> BookFormat.PDF
+        "application/mobi", "application/x-mobipocket-ebook" -> BookFormat.MOBI
+        "application/azw3", "application/x-mobi8-ebook" -> BookFormat.AZW3
+        "application/azw" -> BookFormat.AZW
         "text/plain" -> BookFormat.TXT
         else -> null
     }
