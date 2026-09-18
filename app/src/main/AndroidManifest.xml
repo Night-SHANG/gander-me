@@ -13,13 +13,19 @@
         tools:node="remove" />
 
     <application
-        android:name=".GanderApp"
+        android:name="sushi.hardcore.droidfs.VolumeManagerApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Gander">
+
+        <provider
+            android:name=".GanderStartupProvider"
+            android:authorities="${applicationId}.startup"
+            android:exported="false"
+            android:initOrder="100" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
