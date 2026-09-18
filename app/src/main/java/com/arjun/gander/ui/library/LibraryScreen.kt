@@ -79,6 +79,10 @@ import kotlinx.coroutines.withContext
 
 private enum class ShelfViewMode { GRID, LIST }
 
+private const val SHELF_UI_PREFERENCES = "vaultshelf_library_ui"
+private const val PREF_GRID_COLUMNS = "grid_columns"
+private const val DEFAULT_GRID_COLUMNS = 3
+
 private enum class ShelfSort(@StringRes val labelRes: Int) {
     LAST_ACTIVITY(R.string.vaultshelf_library_sort_recent),
     TITLE(R.string.vaultshelf_library_sort_title),
@@ -93,11 +97,19 @@ fun LibraryScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val shelfPreferences = remember {
+        context.getSharedPreferences(SHELF_UI_PREFERENCES, Context.MODE_PRIVATE)
+    }
     var books by remember { mutableStateOf<List<LibraryBook>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var importFailed by remember { mutableStateOf(false) }
     var viewModeName by rememberSaveable { mutableStateOf(ShelfViewMode.GRID.name) }
     var sortName by rememberSaveable { mutableStateOf(ShelfSort.LAST_ACTIVITY.name) }
+    var gridColumns by rememberSaveable {
+        mutableStateOf(
+            shelfPreferences.getInt(PREF_GRID_COLUMNS, DEFAULT_GRID_COLUMNS).coerceIn(2, 6),
+        )
+    }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var confirmBatchDelete by remember { mutableStateOf(false) }
@@ -217,6 +229,11 @@ fun LibraryScreen(
                         ShelfViewMode.GRID.name
                     }
                 },
+                gridColumns = gridColumns,
+                onGridColumnsChange = { columns ->
+                    gridColumns = columns.coerceIn(2, 6)
+                    shelfPreferences.edit().putInt(PREF_GRID_COLUMNS, gridColumns).apply()
+                },
                 onImport = { importLauncher.launch(IMPORT_MIME_TYPES) },
             )
         }
@@ -243,7 +260,7 @@ fun LibraryScreen(
             )
 
             viewMode == ShelfViewMode.GRID -> LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 104.dp),
+                columns = GridCells.Fixed(gridColumns),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 28.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -427,9 +444,12 @@ private fun ShelfHeader(
     onSortChange: (ShelfSort) -> Unit,
     viewMode: ShelfViewMode,
     onViewModeChange: () -> Unit,
+    gridColumns: Int,
+    onGridColumnsChange: (Int) -> Unit,
     onImport: () -> Unit,
 ) {
     var sortMenuExpanded by remember { mutableStateOf(false) }
+    var gridMenuExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -519,6 +539,39 @@ private fun ShelfHeader(
                         },
                     ),
                 )
+            }
+            if (viewMode == ShelfViewMode.GRID) {
+                Box {
+                    TextButton(onClick = { gridMenuExpanded = true }) {
+                        Text(
+                            stringResource(
+                                R.string.vaultshelf_library_grid_columns,
+                                gridColumns,
+                            ),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = gridMenuExpanded,
+                        onDismissRequest = { gridMenuExpanded = false },
+                    ) {
+                        (2..6).forEach { columns ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            R.string.vaultshelf_library_grid_columns,
+                                            columns,
+                                        ),
+                                    )
+                                },
+                                onClick = {
+                                    gridMenuExpanded = false
+                                    onGridColumnsChange(columns)
+                                },
+                            )
+                        }
+                    }
+                }
             }
             Text(
                 text = stringResource(R.string.vaultshelf_library_manage_hint),
