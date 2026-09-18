@@ -96,7 +96,10 @@
     <string name="vaultshelf_library_continue_reading">Continue reading</string>
     <string name="vaultshelf_library_book_count">Books · %1$d</string>
     <string name="vaultshelf_library_view_grid">Grid</string>
-    <string name="vaultshelf_library_grid_columns">%1$d columns</string>
+    <plurals name="vaultshelf_library_grid_columns">
+        <item quantity="one">%1$d column</item>
+        <item quantity="other">%1$d columns</item>
+    </plurals>
     <string name="vaultshelf_library_view_list">List</string>
     <string name="vaultshelf_library_rename">Rename</string>
     <string name="vaultshelf_library_rename_title">Rename book</string>
