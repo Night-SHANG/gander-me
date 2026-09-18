@@ -15,7 +15,7 @@
     <string name="removed">Removed</string>
     <string name="remove_folder_title">Remove folder?</string>
     <string name="remove_folder_message">VaultShelf will lose access to %1$s. Granting it back means finding it in the system picker again.</string>
-    <string name="remove">Remove</string>
+    <string name="gander_remove">Remove</string>
     <string name="search_in_document">Search in document</string>
     <string name="share_file">Share</string>
     <string name="show_in_file_manager">Show in file manager</string>
@@ -38,7 +38,7 @@
     <string name="scroll_position">%1$d%%</string>
     <string name="scroll_position_spoken">%1$d percent through the document</string>
     <string name="open_with_hint">Tip: in your file manager, tap any file and choose Open with &gt; VaultShelf.</string>
-    <string name="back">Back</string>
+    <string name="gander_back">Back</string>
     <string name="about_gander">About VaultShelf</string>
     <string name="rate_app">Rate</string>
     <string name="gander_share_app">Share</string>

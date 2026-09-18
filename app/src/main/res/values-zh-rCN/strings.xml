@@ -15,7 +15,7 @@
     <string name="removed">已移除</string>
     <string name="remove_folder_title">移除文件夹？</string>
     <string name="remove_folder_message">VaultShelf 将失去对 %1$s 的访问权限。若要重新授权，需要再次在系统文件选择器中找到它。</string>
-    <string name="remove">移除</string>
+    <string name="gander_remove">移除</string>
     <string name="search_in_document">在文档中搜索</string>
     <string name="share_file">分享</string>
     <string name="show_in_file_manager">在文件管理器中显示</string>
@@ -38,7 +38,7 @@
     <string name="scroll_position">%1$d%%</string>
     <string name="scroll_position_spoken">文档已浏览百分之 %1$d</string>
     <string name="open_with_hint">提示：在文件管理器中点击任意文件，然后选择“打开方式 &gt; VaultShelf”。</string>
-    <string name="back">返回</string>
+    <string name="gander_back">返回</string>
     <string name="about_gander">关于 VaultShelf</string>
     <string name="rate_app">评分</string>
     <string name="gander_share_app">分享</string>

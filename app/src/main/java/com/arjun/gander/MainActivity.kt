@@ -450,7 +450,7 @@ class MainActivity : AppCompatActivity() {
         toolbar.navigationIcon =
             if (here == null) null
             else androidx.appcompat.content.res.AppCompatResources.getDrawable(this, R.drawable.ic_back)
-        toolbar.navigationContentDescription = getString(R.string.back)
+        toolbar.navigationContentDescription = getString(R.string.gander_back)
 
         val token = ++renderToken
         // Delayed rather than shown at once. Most folders come back in a few
@@ -548,7 +548,7 @@ class MainActivity : AppCompatActivity() {
                     val dialog = MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.remove_folder_title)
                         .setMessage(getString(R.string.remove_folder_message, label))
-                        .setPositiveButton(R.string.remove) { _, _ ->
+                        .setPositiveButton(R.string.gander_remove) { _, _ ->
                             runCatching {
                                 contentResolver.releasePersistableUriPermission(
                                     perm.uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -793,7 +793,7 @@ class MainActivity : AppCompatActivity() {
                         // default behaviour, so this reads "double tap and hold to Remove"
                         ViewCompat.replaceAccessibilityAction(
                             holder.itemView, AccessibilityActionCompat.ACTION_LONG_CLICK,
-                            holder.itemView.context.getString(R.string.remove), null
+                            holder.itemView.context.getString(R.string.gander_remove), null
                         )
                     }
                 }
