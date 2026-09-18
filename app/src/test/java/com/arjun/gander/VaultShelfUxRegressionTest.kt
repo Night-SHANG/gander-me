@@ -333,6 +333,20 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun vaultLockStopsTransientReadAloudAndHidesItsLockscreenNotification() {
+        val guard = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultSessionGuard.kt",
+        ).readText()
+        val patch = File(repo, "patches/legado-vaultshelf-runtime.patch").readText()
+
+        assertThat(guard).contains("ReadAloud.stop(context)")
+        assertThat(guard).contains(".temporary_provider")
+        assertThat(patch).contains("NotificationCompat.VISIBILITY_SECRET")
+        assertThat(patch).contains(".temporary_provider")
+    }
+
+    @Test
     fun vaultLockGuardCoversNestedLegadoActivitiesInTheSameTask() {
         val guard = File(
             repo,

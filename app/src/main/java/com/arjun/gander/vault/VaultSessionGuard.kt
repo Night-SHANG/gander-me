@@ -2,11 +2,14 @@ package com.arjun.gander.vault
 
 import android.app.Activity
 import android.app.Application
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.WindowManager
 import com.vaultshelf.droidfs.VaultShelfFileRouter
+import io.legado.app.model.ReadAloud
+import io.legado.app.model.ReadBook
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
 import sushi.hardcore.droidfs.VolumeData
@@ -34,11 +37,13 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
     @Volatile
     private var initialized = false
     private var volumeManager: VolumeManager? = null
+    private var application: VolumeManagerApp? = null
 
     @Synchronized
     private fun initialize(application: VolumeManagerApp) {
         if (initialized) return
         initialized = true
+        this.application = application
         volumeManager = application.volumeManager
         application.volumeManager.observe(this)
         application.registerActivityLifecycleCallbacks(this)
@@ -78,6 +83,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
         val manager = volumeManager ?: return
         if (manager.getVolume(session.volumeId) != null) return
 
+        stopVaultReadAloudIfNeeded()
         main.post {
             val current = sessions[token] ?: return@post
             current.activities.entries.toList().forEach { (id, reference) ->
@@ -88,6 +94,16 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
                     activity.finish()
                 }
             }
+        }
+    }
+
+    private fun stopVaultReadAloudIfNeeded() {
+        val context = application ?: return
+        val authority = ReadBook.book
+            ?.bookUrl
+            ?.let { runCatching { Uri.parse(it).authority }.getOrNull() }
+        if (authority?.endsWith(".temporary_provider") == true) {
+            ReadAloud.stop(context)
         }
     }
 
