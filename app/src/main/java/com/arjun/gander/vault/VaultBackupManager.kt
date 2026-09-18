@@ -182,6 +182,9 @@ object VaultBackupManager {
                 var bookMetadata: ByteArray? = null
                 var mediaMetadata: ByteArray? = null
                 var entryCount = 0
+                var restoredBytes = 0L
+                val maxRestoreBytes = (volumesRoot.usableSpace - RESTORE_SPACE_RESERVE)
+                    .coerceAtLeast(0L)
 
                 while (true) {
                     val entry = zip.nextEntry ?: break
@@ -215,7 +218,12 @@ object VaultBackupManager {
                                         if (!it.exists() && !it.mkdirs()) throw BackupException(Failure.IO)
                                     }
                                     destination.outputStream().buffered().use { output ->
-                                        zip.copyTo(output)
+                                        restoredBytes = copyVolumeEntry(
+                                            zip = zip,
+                                            output = output,
+                                            bytesSoFar = restoredBytes,
+                                            maxBytes = maxRestoreBytes,
+                                        )
                                     }
                                 }
                             }
@@ -307,6 +315,24 @@ object VaultBackupManager {
         }
     }
 
+    private fun copyVolumeEntry(
+        zip: ZipInputStream,
+        output: java.io.OutputStream,
+        bytesSoFar: Long,
+        maxBytes: Long,
+    ): Long {
+        var total = bytesSoFar
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val read = zip.read(buffer)
+            if (read <= 0) break
+            total += read
+            if (total > maxBytes) throw BackupException(Failure.IO)
+            output.write(buffer, 0, read)
+        }
+        return total
+    }
+
     private fun writeBytes(zip: ZipOutputStream, name: String, bytes: ByteArray) {
         zip.putNextEntry(ZipEntry(name))
         zip.write(bytes)
@@ -343,4 +369,5 @@ object VaultBackupManager {
     private const val MAX_ENTRY_COUNT = 200_000
     private const val MAX_ENTRY_NAME = 4096
     private const val MAX_VOLUME_NAME = 255
+    private const val RESTORE_SPACE_RESERVE = 64L * 1024L * 1024L
 }
