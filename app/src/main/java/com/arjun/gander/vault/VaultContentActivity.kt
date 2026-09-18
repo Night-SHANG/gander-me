@@ -25,6 +25,7 @@ class VaultContentActivity : ComponentActivity() {
 
     private var sourceUri: Uri? = null
     private var sessionToken: String? = null
+    private var fileKey: String? = null
     private var transientBookUrl: String? = null
 
     private val childLauncher = registerForActivityResult(
@@ -39,13 +40,15 @@ class VaultContentActivity : ComponentActivity() {
         val uri = intent.data
         val token = intent.getStringExtra(VaultShelfFileRouter.EXTRA_SESSION_TOKEN)
         val volumeId = intent.getIntExtra(VaultShelfFileRouter.EXTRA_VOLUME_ID, -1)
-        if (uri == null || token.isNullOrBlank() || volumeId < 0) {
+        val stableFileKey = intent.getStringExtra(VaultShelfFileRouter.EXTRA_FILE_KEY)
+        if (uri == null || token.isNullOrBlank() || stableFileKey.isNullOrBlank() || volumeId < 0) {
             finish()
             return
         }
 
         sourceUri = uri
         sessionToken = token
+        fileKey = stableFileKey
         transientBookUrl = savedInstanceState?.getString(STATE_TRANSIENT_BOOK_URL)
 
         VaultSessionGuard.register(this, token, volumeId)
@@ -90,6 +93,19 @@ class VaultContentActivity : ComponentActivity() {
             }
 
             transientBookUrl = session.bookUrl
+            fileKey?.let { key ->
+                VaultReadingPositions.book(applicationContext, key)?.let { saved ->
+                    withContext(Dispatchers.IO) {
+                        LegadoReaderBridge.restoreTransientReadingPosition(
+                            applicationContext,
+                            session.bookUrl,
+                            saved.chapterIndex,
+                            saved.chapterPosition,
+                        )
+                    }
+                }
+            }
+
             val reader = LegadoReaderBridge.readerIntent(this@VaultContentActivity, session.bookUrl)
                 .putExtra(VaultShelfFileRouter.EXTRA_SESSION_TOKEN, token)
             childLauncher.launch(reader)
@@ -125,12 +141,26 @@ class VaultContentActivity : ComponentActivity() {
 
         val uri = sourceUri
         val token = sessionToken
+        val key = fileKey
         val bookUrl = transientBookUrl
 
         lifecycleScope.launch {
             if (bookUrl != null) {
                 withContext(Dispatchers.IO) {
                     runCatching {
+                        if (key != null) {
+                            LegadoReaderBridge.transientReadingPosition(
+                                applicationContext,
+                                bookUrl,
+                            )?.let { position ->
+                                VaultReadingPositions.saveBook(
+                                    applicationContext,
+                                    key,
+                                    position.chapterIndex,
+                                    position.chapterPosition,
+                                )
+                            }
+                        }
                         LegadoReaderBridge.cleanupTransientBookSession(
                             applicationContext,
                             bookUrl,
@@ -156,10 +186,24 @@ class VaultContentActivity : ComponentActivity() {
         if (isFinishing && !cleanupStarted.get()) {
             val uri = sourceUri
             val token = sessionToken
+            val key = fileKey
             val bookUrl = transientBookUrl
             Thread {
                 if (bookUrl != null) {
                     runCatching {
+                        if (key != null) {
+                            LegadoReaderBridge.transientReadingPosition(
+                                applicationContext,
+                                bookUrl,
+                            )?.let { position ->
+                                VaultReadingPositions.saveBook(
+                                    applicationContext,
+                                    key,
+                                    position.chapterIndex,
+                                    position.chapterPosition,
+                                )
+                            }
+                        }
                         LegadoReaderBridge.cleanupTransientBookSession(
                             applicationContext,
                             bookUrl,
