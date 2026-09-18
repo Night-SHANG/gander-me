@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.WindowManager
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
@@ -83,6 +84,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
             ?.getStringExtra(VaultShelfFileRouter.EXTRA_SESSION_TOKEN)
             ?: return
         val session = sessions[token] ?: return
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         session.activity = WeakReference(activity)
         enforce(token)
     }
@@ -106,7 +108,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
             ?: return
         val session = sessions[token] ?: return
         if (session.activity.get() === activity) {
-            session.activity = WeakReference(null)
+            session.activity = WeakReference<Activity>(null)
         }
     }
 }
