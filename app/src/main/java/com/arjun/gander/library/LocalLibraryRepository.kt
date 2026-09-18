@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.arjun.gander.R
 import com.arjun.gander.epub.EpubLibraryMetadataReader
+import io.legado.app.ui.book.read.umd.LegadoUmdDocument
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -50,6 +51,33 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
 
     override suspend fun importPdf(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
         importFile(uri, BookFormat.PDF, "pdf") { 0 }
+    }
+
+    override suspend fun importUmd(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
+        val imported = importFile(uri, BookFormat.UMD, "umd") { 0 }
+        val storedFile = bookFileInternal(imported)
+        val document = LegadoUmdDocument.open(storedFile).getOrNull()
+            ?: return@withContext imported
+        try {
+            val coverFileName = document.coverBitmap(720, 1080)?.let { cover ->
+                val name = "${imported.id}.cover.png"
+                val file = File(libraryDirectory(), name)
+                val saved = runCatching {
+                    file.outputStream().buffered().use { output ->
+                        cover.compress(Bitmap.CompressFormat.PNG, 100, output)
+                    }
+                }.getOrDefault(false)
+                cover.recycle()
+                if (saved && file.isFile) name else null
+            }
+            val updated = imported.copy(
+                title = document.title.takeIf { it.isNotBlank() } ?: imported.title,
+                coverFileName = coverFileName,
+            )
+            if (saveBook(updated)) updated else imported
+        } finally {
+            document.close()
+        }
     }
 
     override suspend fun importEpub(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
@@ -174,6 +202,21 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     ): LibraryBook? = withContext(Dispatchers.IO) {
         val current = getBook(id) ?: return@withContext null
         if (current.format != BookFormat.EPUB) return@withContext current
+        val updated = current.copy(
+            readingLocatorJson = locatorJson,
+            publicationProgression = publicationProgression?.coerceIn(0f, 1f),
+            lastOpenedAtEpochMillis = System.currentTimeMillis(),
+        )
+        if (saveBook(updated)) updated else current
+    }
+
+    override suspend fun updateUmdProgress(
+        id: String,
+        locatorJson: String,
+        publicationProgression: Float?,
+    ): LibraryBook? = withContext(Dispatchers.IO) {
+        val current = getBook(id) ?: return@withContext null
+        if (current.format != BookFormat.UMD) return@withContext current
         val updated = current.copy(
             readingLocatorJson = locatorJson,
             publicationProgression = publicationProgression?.coerceIn(0f, 1f),
