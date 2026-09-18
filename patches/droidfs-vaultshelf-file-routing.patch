@@ -525,3 +525,21 @@ diff --git a/app/src/main/res/xml/backup_rules.xml b/app/src/main/res/xml/droidf
 similarity index 100%
 rename from app/src/main/res/xml/backup_rules.xml
 rename to app/src/main/res/xml/droidfs_backup_rules.xml
+
+# VaultShelf excludes unused upstream source files by renaming them out of the Android source scanner.
+diff --git a/app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java b/app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java
+rename to app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java b/app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java
+rename to app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/originals/base/Recorder.java b/app/src/main/java/androidx/camera/video/originals/base/Recorder.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/originals/base/Recorder.java
+rename to app/src/main/java/androidx/camera/video/originals/base/Recorder.java.vaultshelf-disabled
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt.vaultshelf-disabled

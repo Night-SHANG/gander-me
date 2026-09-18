@@ -51,10 +51,8 @@ android {
             java.srcDir("../third_party/droidfs/app/src/main/java")
             res.srcDir("../third_party/droidfs/app/src/main/res")
             manifest.srcFile("src/main/AndroidManifest.xml")
-            java.exclude("androidx/camera/video/originals/**")
-            // PDF is routed to Gander; keep the upstream DroidFS PDF implementation out
-            // of this build instead of carrying a second PDF engine.
-            java.exclude("sushi/hardcore/droidfs/file_viewers/PdfViewer.kt")
+            // Unused upstream sources are renamed to non-source suffixes by the reviewed
+            // DroidFS patch. AndroidSourceDirectorySet no longer exposes source excludes.
         }
     }
 

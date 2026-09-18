@@ -74,4 +74,16 @@ class DependencyAlignmentTest {
     }
 
 
+    @Test
+    fun droidFsUnusedSourcesAreDisabledByPatchInsteadOfUnsupportedSourceSetExcludes() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+
+        assertThat(droidFs).doesNotContain("java.exclude(")
+        assertThat(patch).contains("EncoderImpl.java.vaultshelf-disabled")
+        assertThat(patch).contains("PendingRecording.java.vaultshelf-disabled")
+        assertThat(patch).contains("Recorder.java.vaultshelf-disabled")
+        assertThat(patch).contains("PdfViewer.kt.vaultshelf-disabled")
+    }
+
+
 }
