@@ -3,6 +3,7 @@ package com.vaultshelf.droidfs
 import android.app.Activity
 import android.content.Intent
 import sushi.hardcore.droidfs.FileShare
+import sushi.hardcore.droidfs.VolumeManagerApp
 import sushi.hardcore.droidfs.content_providers.TemporaryFileProvider
 import java.io.File
 import java.util.UUID
@@ -45,6 +46,14 @@ object VaultShelfFileRouter {
     ): Boolean {
         if (!supports(path)) return false
 
+        val volumeUuid = (activity.application as VolumeManagerApp)
+            .volumeManager
+            .listVolumes()
+            .firstOrNull { it.first == volumeId }
+            ?.second
+            ?.uuid
+            ?: return false
+
         val exportedFile = TemporaryFileProvider.instance.encryptedFileProvider
             .createFile(path, size)
             ?: return false
@@ -63,7 +72,7 @@ object VaultShelfFileRouter {
             )
             putExtra(EXTRA_VOLUME_ID, volumeId)
             putExtra(EXTRA_SESSION_TOKEN, UUID.randomUUID().toString())
-            putExtra(EXTRA_FILE_KEY, VaultShelfProgressStore.fileKey(volumeId, path))
+            putExtra(EXTRA_FILE_KEY, VaultShelfProgressStore.fileKey(volumeUuid, path))
         }
 
         return runCatching {
