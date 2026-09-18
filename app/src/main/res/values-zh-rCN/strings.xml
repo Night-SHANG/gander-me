@@ -121,10 +121,13 @@
     <string name="vaultshelf_epub_theme_dark">深色</string>
 
     <string name="vaultshelf_vault_title">私人保险库</string>
-    <string name="vaultshelf_vault_placeholder">后续将以独立模块加入文件加密、PIN 或生物识别解锁以及私人存储。</string>
     <string name="vaultshelf_settings_title">设置</string>
-    <string name="vaultshelf_settings_placeholder">外观、阅读和隐私相关设置将集中在这里。</string>
-    <string name="vaultshelf_foundation_status">基础框架已就绪</string>
+    <string name="vaultshelf_settings_vault">保险库设置</string>
+    <string name="vaultshelf_settings_vault_detail">直接打开 DroidFS 原安全设置，包括生物识别解锁、自动锁定和保险库行为。</string>
+    <string name="vaultshelf_settings_reader">阅读设置</string>
+    <string name="vaultshelf_settings_reader_detail">字体、主题、翻页和其他阅读选项由原 Legado 阅读器在打开书籍时直接管理。</string>
+    <string name="vaultshelf_settings_about">关于与开源</string>
+    <string name="vaultshelf_settings_about_detail">版本、权限、源代码以及所有内置开源项目的许可证。</string>
 
     <string name="vaultshelf_library_search_hint">搜索书籍</string>
     <plurals name="vaultshelf_library_search_result_count">\n        <item quantity="other">显示 %1$d / %2$d 本</item>\n    </plurals>
