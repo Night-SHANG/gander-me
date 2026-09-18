@@ -63,7 +63,6 @@ The Gander-derived viewer covers PDF, Word, spreadsheets, slides, images, video/
 - `droidfs-upstream` — Gradle adapter that compiles the pinned original DroidFS source.
 - `third_party/legado` — pinned upstream Legado Git submodule.
 - `third_party/droidfs` — pinned upstream DroidFS Git submodule.
-- `legado-reader` — historical adapted reader source retained outside the active build graph while migration is completed/audited.
 
 ## Build
 
