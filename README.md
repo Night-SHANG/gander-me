@@ -4,8 +4,9 @@ VaultShelf is an offline Android document viewer, local reading library and encr
 
 ## What VaultShelf uses
 
-- **General documents:** Gander's mature local browser and viewer.
+- **General documents:** Gander's mature local browser and document viewer.
 - **Local ebooks:** the original Legado / 阅读 3.0 reader source, pinned as a Git submodule.
+- **Audio/video:** DroidFS' original Media3 player UI is reused for both ordinary files and encrypted-vault media.
 - **Encrypted vault:** the original DroidFS hidden-volume stack backed by gocryptfs, pinned as a Git submodule.
 - **VaultShelf code:** the application shell, bookshelf index, routing and the thin synchronization layers required to connect those mature subsystems.
 
@@ -44,7 +45,8 @@ The intended VaultShelf vault is DroidFS' **hidden volume** mode:
 - password and biometric unlock use DroidFS' existing implementation;
 - DroidFS' original lifecycle performs locking and sensitive temporary-file cleanup;
 - encrypted files can still be viewed and managed after the vault is unlocked using DroidFS' original Explorer and viewers;
-- a hidden encrypted volume can be copied/exported as an encrypted volume and added again on another device.
+- DroidFS' original encrypted-volume copy workflow remains available;
+- VaultShelf can additionally create a portable `.vsbackup` file for a locked hidden volume. The package contains the existing gocryptfs ciphertext plus opaque per-volume reading/playback position metadata; document contents are never decrypted for backup. The original volume UUID is preserved so that metadata remains usable after restore, while biometric cached credentials are deliberately not exported. The original vault password is still required on the destination device.
 
 Pinned DroidFS commit:
 
@@ -52,9 +54,16 @@ Pinned DroidFS commit:
 
 The project currently builds the DroidFS integration in gocryptfs-only mode; CryFS is disabled through DroidFS' own supported build switch.
 
-## General document viewer
+## File viewing
 
-The Gander-derived viewer covers PDF, Word, spreadsheets, slides, images, video/audio, Markdown and text/code paths. Gander-originated code retains its original MIT notice.
+VaultShelf routes each format to the mature subsystem that already handles it well:
+
+- TXT, EPUB, UMD, MOBI, AZW3 and AZW → original Legado reader.
+- PDF, Word, spreadsheets, slides, Markdown and text/code document paths → Gander-derived viewer.
+- Audio and video → original DroidFS Media3 player.
+- Encrypted-vault files use the same routing after DroidFS supplies its controlled temporary decrypted URI.
+
+Gander-originated code retains its original MIT notice.
 
 ## Project structure
 
@@ -84,6 +93,7 @@ VaultShelf is designed around local processing.
 - Broad storage access is only part of DroidFS' original external encrypted-volume backup/migration path and is not needed for normal hidden-vault use.
 - Books imported to the bookshelf are copied into app-private storage.
 - DroidFS hidden vaults live under app-private storage and remain encrypted at rest.
+- Portable vault backup copies the already-encrypted gocryptfs volume; it does not decrypt document contents.
 - Export/share only occurs through an explicit user action.
 
 ## Licence and attribution
