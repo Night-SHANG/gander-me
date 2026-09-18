@@ -48,6 +48,12 @@
             android:theme="@style/Activity.Translucence" />
 
         <activity
+            android:name="io.legado.app.ui.association.OpenUrlConfirmActivity"
+            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="false"
+            android:theme="@style/AppTheme.Transparent" />
+
+        <activity
             android:name="io.legado.app.ui.replace.ReplaceRuleActivity"
             android:exported="false"
             android:theme="@style/AppTheme.Light" />

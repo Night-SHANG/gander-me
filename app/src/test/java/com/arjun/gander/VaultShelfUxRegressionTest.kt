@@ -33,6 +33,29 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun localLegadoManifestKeepsReaderReachableActivitiesOnly() {
+        val manifest = File(repo, "legado-upstream/src/main/AndroidManifest.xml").readText()
+
+        listOf(
+            "ReadBookActivity",
+            "BookInfoActivity",
+            "BookInfoEditActivity",
+            "ReplaceRuleActivity",
+            "ReplaceEditActivity",
+            "CodeEditActivity",
+            "HighlightRuleActivity",
+            "TxtTocRuleActivity",
+            "OpenUrlConfirmActivity",
+        ).forEach { activity ->
+            assertThat(manifest).contains(activity)
+        }
+
+        assertThat(manifest).doesNotContain("SourceLoginActivity")
+        assertThat(manifest).doesNotContain("WebViewActivity")
+        assertThat(manifest).doesNotContain("BookSourceEditActivity")
+    }
+
+    @Test
     fun originalLegadoReaderIsPinnedAndUsedDirectly() {
         val gitmodules = File(repo, ".gitmodules").readText()
         val appBuild = File(repo, "app/build.gradle.kts").readText()
