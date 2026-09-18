@@ -1,28 +1,54 @@
 package com.vaultshelf.legado
 
+import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
+import com.github.liuyueyi.quick.transfer.constants.TransType
+import com.jeremyliao.liveeventbus.LiveEventBus
+import com.script.rhino.ReadOnlyJavaObject
 import com.script.rhino.RhinoScriptEngine
+import com.script.rhino.RhinoWrapFactory
 import io.legado.app.constant.AppConst
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
+import io.legado.app.data.entities.BookChapter
+import io.legado.app.data.entities.BookSource
+import io.legado.app.data.entities.HttpTTS
+import io.legado.app.data.entities.RssSource
+import io.legado.app.data.entities.rule.BookInfoRule
+import io.legado.app.data.entities.rule.ContentRule
+import io.legado.app.data.entities.rule.ExploreRule
+import io.legado.app.data.entities.rule.SearchRule
 import io.legado.app.help.DefaultData
+import io.legado.app.help.LifecycleHelp
+import io.legado.app.help.book.ResourceThemeGeneration
 import io.legado.app.help.book.readProgress
+import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.ReadBookConfig
+import io.legado.app.help.config.ThemeConfig.applyDayNightInit
+import io.legado.app.help.coroutine.Coroutine
+import io.legado.app.help.rhino.NativeBaseSource
+import io.legado.app.lib.theme.WallpaperTheme
+import io.legado.app.model.BookCover
 import io.legado.app.model.localBook.LocalBook
 import io.legado.app.ui.book.read.ReadBookActivity
+import io.legado.app.utils.ChineseUtils
+import io.legado.app.utils.defaultSharedPreferences
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Thin VaultShelf boundary around the pinned upstream Legado local-reader subsystem.
  *
- * All actual reading UI, pagination, TOC, styles, bookmarks, highlights and search stay
- * inside the original Legado sources. VaultShelf only imports its private local copy into
- * Legado's local-book database and exchanges a stable bookUrl/progress snapshot.
+ * The reader UI, pagination, TOC, styles, bookmarks, highlights, search and local-book
+ * handling remain the original Legado implementation. This bridge only performs the
+ * application-level initialization that Legado's own App normally performs and maps
+ * VaultShelf's app-private books to Legado bookUrl values.
  */
 object LegadoReaderBridge {
 
@@ -42,27 +68,74 @@ object LegadoReaderBridge {
     fun initialize(context: Context) {
         if (!initialized.compareAndSet(false, true)) return
 
-        RhinoScriptEngine.initialize()
+        val appContext = context.applicationContext
+        val configuration = Configuration(appContext.resources.configuration)
 
-        // Seeds the same built-in TXT TOC/default reader data the upstream app uses.
-        // This intentionally avoids Legado App.onCreate(), which also starts online
-        // source/WebDAV/Cronet/background features that VaultShelf does not use.
-        DefaultData.upVersion()
+        // Same local reader/theme lifecycle initialization used by Legado App.onCreate().
+        ResourceThemeGeneration.observeSystemNight(
+            configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                Configuration.UI_MODE_NIGHT_YES,
+            AppConfig.themeMode !in listOf("1", "2", "3"),
+        )
+        WallpaperTheme.syncWithPreferences(appContext)
+        applyDayNightInit(appContext)
+        (appContext as? Application)?.registerActivityLifecycleCallbacks(LifecycleHelp)
+        appContext.defaultSharedPreferences
+            .registerOnSharedPreferenceChangeListener(AppConfig)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = context.getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(
-                NotificationChannel(
-                    AppConst.channelIdReadAloud,
-                    context.getString(io.legado.app.R.string.read_aloud),
-                    NotificationManager.IMPORTANCE_DEFAULT,
-                ).apply {
-                    enableLights(false)
-                    enableVibration(false)
-                    setSound(null, null)
-                },
-            )
+        initializeRhino()
+
+        LiveEventBus.config()
+            .lifecycleObserverAlwaysActive(true)
+            .autoClear(false)
+            .enableLogger(false)
+
+        createReadAloudChannel(appContext)
+
+        // Legado performs these local data/cache initializers asynchronously too.
+        // Online Cronet/WebDAV/source sync/auto-task initialization is intentionally omitted.
+        Coroutine.async {
+            DefaultData.upVersion()
+            BookCover.toString()
+            ReadBookConfig.clearBgAndCache()
+            when (AppConfig.chineseConverterType) {
+                1 -> {
+                    ChineseUtils.fixT2sDict()
+                    ChineseUtils.preLoad(true, TransType.TRADITIONAL_TO_SIMPLE)
+                }
+
+                2 -> ChineseUtils.preLoad(true, TransType.SIMPLE_TO_TRADITIONAL)
+            }
         }
+    }
+
+    private fun initializeRhino() {
+        RhinoScriptEngine.initialize()
+        RhinoWrapFactory.register(BookSource::class.java, NativeBaseSource.factory)
+        RhinoWrapFactory.register(RssSource::class.java, NativeBaseSource.factory)
+        RhinoWrapFactory.register(HttpTTS::class.java, NativeBaseSource.factory)
+        RhinoWrapFactory.register(ExploreRule::class.java, ReadOnlyJavaObject.factory)
+        RhinoWrapFactory.register(SearchRule::class.java, ReadOnlyJavaObject.factory)
+        RhinoWrapFactory.register(BookInfoRule::class.java, ReadOnlyJavaObject.factory)
+        RhinoWrapFactory.register(ContentRule::class.java, ReadOnlyJavaObject.factory)
+        RhinoWrapFactory.register(BookChapter::class.java, ReadOnlyJavaObject.factory)
+        RhinoWrapFactory.register(Book.ReadConfig::class.java, ReadOnlyJavaObject.factory)
+    }
+
+    private fun createReadAloudChannel(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager?.createNotificationChannel(
+            NotificationChannel(
+                AppConst.channelIdReadAloud,
+                context.getString(io.legado.app.R.string.read_aloud),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                enableLights(false)
+                enableVibration(false)
+                setSound(null, null)
+            },
+        )
     }
 
     fun ensureLocalBook(
