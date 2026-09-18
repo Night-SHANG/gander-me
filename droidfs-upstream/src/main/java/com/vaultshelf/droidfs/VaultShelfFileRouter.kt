@@ -5,6 +5,7 @@ import android.content.Intent
 import sushi.hardcore.droidfs.FileShare
 import sushi.hardcore.droidfs.content_providers.TemporaryFileProvider
 import java.io.File
+import java.security.MessageDigest
 import java.util.UUID
 
 /**
@@ -20,6 +21,7 @@ object VaultShelfFileRouter {
     const val ACTION_OPEN_VAULT_FILE = "com.arjun.gander.action.OPEN_VAULT_FILE"
     const val EXTRA_VOLUME_ID = "vaultshelf.vault.volume_id"
     const val EXTRA_SESSION_TOKEN = "vaultshelf.vault.session_token"
+    const val EXTRA_FILE_KEY = "vaultshelf.vault.file_key"
 
     private val extraFormats = setOf(
         // Gander document/Markdown formats not natively handled by DroidFS.
@@ -34,6 +36,14 @@ object VaultShelfFileRouter {
 
     fun supports(path: String): Boolean =
         File(path).extension.lowercase() in extraFormats
+
+    private fun stableFileKey(volumeId: Int, path: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update(volumeId.toString().toByteArray())
+        digest.update(0)
+        digest.update(path.toByteArray())
+        return digest.digest().take(16).joinToString("") { "%02x".format(it) }
+    }
 
     fun open(
         activity: Activity,
@@ -61,6 +71,7 @@ object VaultShelfFileRouter {
             )
             putExtra(EXTRA_VOLUME_ID, volumeId)
             putExtra(EXTRA_SESSION_TOKEN, UUID.randomUUID().toString())
+            putExtra(EXTRA_FILE_KEY, stableFileKey(volumeId, path))
         }
 
         return runCatching {
