@@ -2,9 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- No permissions at all: files arrive via SAF or Open-with grants, rendering is fully offline.
-         Media3 contributes ACCESS_NETWORK_STATE for streaming bitrate choice, stripped below because
-         Gander only ever plays local files. The checkPermissions task fails the build on any others. -->
+    <!-- VaultShelf remains offline-first. Network permissions contributed by reader/media
+         dependencies are stripped. The only retained permissions are the two non-runtime
+         foreground-media declarations needed by Legado's original local TTS service. -->
+    <uses-permission
+        android:name="android.permission.INTERNET"
+        tools:node="remove" />
     <uses-permission
         android:name="android.permission.ACCESS_NETWORK_STATE"
         tools:node="remove" />
