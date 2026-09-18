@@ -75,6 +75,7 @@ class VaultShelfUxRegressionTest {
         assertThat(appBuild).doesNotContain("implementation(project(\":legado-reader\"))")
         assertThat(upstreamBuild).contains("../third_party/legado/app/src/main/java")
         assertThat(upstreamBuild).contains("../third_party/legado/app/src/main/res")
+        assertThat(upstreamBuild).contains("../third_party/legado/modules/book/src/main/resources")
         assertThat(bridge).contains("ReadBookActivity")
         assertThat(bridge).contains("LocalBook.previewImportFile")
         assertThat(router).contains("LegadoReaderBridge.readerIntent")

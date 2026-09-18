@@ -43,6 +43,8 @@ android {
             )
             res.srcDirs("../third_party/legado/app/src/main/res")
             assets.srcDirs("../third_party/legado/app/src/main/assets")
+            // EPUB/XHTML parsing in modules/book loads these DTDs from the classpath.
+            resources.srcDirs("../third_party/legado/modules/book/src/main/resources")
             manifest.srcFile("src/main/AndroidManifest.xml")
         }
     }
