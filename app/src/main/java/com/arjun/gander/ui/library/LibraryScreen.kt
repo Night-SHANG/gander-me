@@ -183,7 +183,7 @@ fun LibraryScreen(
                 onClose = { selectedIds = emptySet() },
                 onSelectAll = {
                     selectedIds = if (visibleBooks.isNotEmpty() && visibleBooks.all { it.id in selectedIds }) {
-                        selectedIds - visibleBooks.mapTo(setOf()) { it.id }
+                        selectedIds - visibleBooks.mapTo(mutableSetOf()) { it.id }
                     } else {
                         selectedIds + visibleBooks.map { it.id }
                     }
