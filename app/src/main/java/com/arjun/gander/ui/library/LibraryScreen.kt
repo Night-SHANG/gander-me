@@ -65,6 +65,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import com.arjun.gander.EpubReaderActivity
 import com.arjun.gander.R
 import com.arjun.gander.TxtReaderActivity
@@ -232,7 +233,7 @@ fun LibraryScreen(
                 gridColumns = gridColumns,
                 onGridColumnsChange = { columns ->
                     gridColumns = columns.coerceIn(2, 6)
-                    shelfPreferences.edit().putInt(PREF_GRID_COLUMNS, gridColumns).apply()
+                    shelfPreferences.edit { putInt(PREF_GRID_COLUMNS, gridColumns) }
                 },
                 onImport = { importLauncher.launch(IMPORT_MIME_TYPES) },
             )
