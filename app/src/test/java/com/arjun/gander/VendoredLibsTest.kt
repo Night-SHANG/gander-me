@@ -26,6 +26,7 @@ class VendoredLibsTest {
         val FETCH_SCRIPT = File(REPO, "scripts/fetch-viewer-libs.sh").readText()
         val VENDORED_MD = File(REPO, "docs/VENDORED.md").readText()
         val LICENCES_MD = File(REPO, "app/src/main/assets/licences.md").readText()
+        val VIEWER_LICENCES_MD = File(REPO, "app/src/main/assets/viewer-licences.md").readText()
 
         /** The pdf.js release the script pins, read out of the script itself. */
         val PDFJS_VER: String =
@@ -46,7 +47,8 @@ class VendoredLibsTest {
     @Test
     fun everyRecordOfThePdfJsVersionAgrees() {
         assertThat(VENDORED_MD).contains(PDFJS_VER)
-        assertThat(LICENCES_MD).contains(PDFJS_VER)
+        assertThat(LICENCES_MD).contains("viewer-licences.md")
+        assertThat(VIEWER_LICENCES_MD).contains(PDFJS_VER)
     }
 
     @Test
@@ -123,7 +125,8 @@ class VendoredLibsTest {
     fun theCmapLicenceTravelsWithTheTables() {
         assertThat(File(CMAPS, "LICENSE").exists()).isTrue()
         assertThat(VENDORED_MD).contains("cmaps/")
-        assertThat(LICENCES_MD).contains("CMap")
+        assertThat(LICENCES_MD).contains("viewer-licences.md")
+        assertThat(VIEWER_LICENCES_MD).contains("CMap")
     }
 
     // ---------------------------------------------------------------

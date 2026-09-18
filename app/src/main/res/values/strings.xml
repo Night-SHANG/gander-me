@@ -50,10 +50,10 @@
     <string name="about_made_by">Made by Arjun Maniyani</string>
     <string name="about_made_by_url" translatable="false">arjun.maniyani.com</string>
     <string name="about_source">Source code</string>
-    <string name="about_source_url" translatable="false">github.com/mokshablr/gander</string>
+    <string name="about_source_url" translatable="false">github.com/Night-SHANG/gander-me</string>
     <string name="about_licences">Open source licences</string>
     <string name="about_licences_detail">Full text for every bundled library</string>
-    <string name="about_copyright" translatable="false">MIT licence. Copyright © 2026 Arjun Maniyani.</string>
+    <string name="about_copyright" translatable="false">VaultShelf is distributed under GPL-3.0. Gander-originated code retains its MIT notice.</string>
     <string name="about_close">Close</string>
     <string name="no_browser">No app can open links</string>
     <string name="licences_file_name" translatable="false">Open source licences.md</string>
@@ -78,7 +78,7 @@
     <string name="vaultshelf_nav_settings">Settings</string>
     <string name="vaultshelf_quick_access">Quick access</string>
     <string name="vaultshelf_open_documents">Open documents</string>
-    <string name="vaultshelf_library_card">Reading library</string>
+    <string name="vaultshelf_library_card">Library</string>
     <string name="vaultshelf_vault_card">Private vault</string>
     <string name="vaultshelf_offline_badge">Offline by design</string>
     <string name="vaultshelf_action_browse_files">Browse files</string>
@@ -119,19 +119,9 @@
     <string name="vaultshelf_reader_contents">Contents</string>
     <string name="vaultshelf_reader_font_smaller" translatable="false">A−</string>
     <string name="vaultshelf_reader_font_larger" translatable="false">A+</string>
-    <string name="vaultshelf_reader_empty_chapter">Nothing to read in this chapter.</string>
-    <string name="vaultshelf_epub_no_contents">This EPUB does not provide a table of contents.</string>
-    <string name="vaultshelf_epub_line_compact">Line: compact</string>
-    <string name="vaultshelf_epub_line_normal">Line: normal</string>
-    <string name="vaultshelf_epub_line_relaxed">Line: relaxed</string>
-    <string name="vaultshelf_epub_margin_narrow">Margins: narrow</string>
-    <string name="vaultshelf_epub_margin_normal">Margins: normal</string>
-    <string name="vaultshelf_epub_margin_wide">Margins: wide</string>
     <string name="vaultshelf_epub_theme_light">Light</string>
     <string name="vaultshelf_epub_theme_sepia">Sepia</string>
     <string name="vaultshelf_epub_theme_dark">Dark</string>
-    <string name="vaultshelf_epub_mode_paged">Paged</string>
-    <string name="vaultshelf_epub_mode_scroll">Scroll</string>
 
     <string name="vaultshelf_vault_title">Private vault</string>
     <string name="vaultshelf_vault_placeholder">Encryption, PIN or biometric unlock and private storage will be added as a dedicated module.</string>
@@ -140,7 +130,7 @@
     <string name="vaultshelf_foundation_status">Foundation ready</string>
 
     <string name="url_author" translatable="false">https://arjun.maniyani.com/</string>
-    <string name="url_source" translatable="false">https://github.com/mokshablr/gander</string>
+    <string name="url_source" translatable="false">https://github.com/Night-SHANG/gander-me</string>
     <string name="url_site" translatable="false">https://arjun.maniyani.com/gander/</string>
     <string name="url_play_listing" translatable="false">https://play.google.com/store/apps/details?id=%1$s</string>
 </resources>

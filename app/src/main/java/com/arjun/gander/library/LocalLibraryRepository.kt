@@ -45,7 +45,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     override suspend fun importEpub(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
         val imported = importFile(uri, BookFormat.EPUB, "epub") { 0 }
         val storedFile = bookFileInternal(imported)
-        val metadata = EpubLibraryMetadataReader.read(appContext, storedFile).getOrNull()
+        val metadata = EpubLibraryMetadataReader.read(storedFile).getOrNull()
             ?: return@withContext imported
 
         val coverFileName = metadata.cover?.let { cover ->

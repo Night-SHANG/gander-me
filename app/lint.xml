@@ -9,19 +9,19 @@
     <issue id="UseKtx">
         <ignore path="src/main/java/com/arjun/gander/library/LocalLibraryRepository.kt" />
         <!--
-            TxtReaderActivity only persists a tiny local font-size preference with
-            apply(); keeping the direct Android API here avoids pulling persistence
-            style concerns into the reader UI. This exception is scoped to this file.
+            The mature TXT/EPUB readers keep a tiny set of local typography preferences
+            with SharedPreferences. Keep that persistence detail local to the reader
+            activities rather than introducing another settings abstraction solely for
+            style lint; both use apply() and never depend on a synchronous result.
         -->
         <ignore path="src/main/java/com/arjun/gander/TxtReaderActivity.kt" />
+        <ignore path="src/main/java/com/arjun/gander/EpubReaderActivity.kt" />
     </issue>
 
     <!--
         Gander's custom audio transport intentionally includes Media3's rewind/forward
         controller layouts so PlayerControlView can supply the seek amount and matching
-        controls. This was already an accepted baseline exception with Media3 1.5.1;
-        Readium 3.1.2 resolves Media3 1.7.1 and changes only the version embedded in the
-        lint message. Keep the existing exception scoped to this one legacy layout instead
+        controls. Keep the existing exception scoped to this one legacy layout instead
         of weakening PrivateResource checks project-wide.
     -->
     <issue id="PrivateResource">

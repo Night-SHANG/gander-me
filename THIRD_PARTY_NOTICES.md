@@ -1,43 +1,29 @@
 # Third-party notices
 
-VaultShelf builds on Gander and includes third-party open-source components. This file records dependencies introduced by VaultShelf-specific functionality in addition to the bundled viewer licences listed in `app/src/main/assets/licences.md`.
+VaultShelf is an open-source Android application that combines and adapts several mature open-source projects. The combined VaultShelf application is distributed under GNU GPL v3 because its novel-reading core incorporates and adapts code from Legado / 阅读 3.0.
 
-## Readium Kotlin Toolkit 3.1.2
+This file preserves upstream attribution and the licences that continue to apply to their respective source material. The bundled viewer licences are also listed in `app/src/main/assets/licences.md`.
 
-Modules used:
+## Gander
 
-- `org.readium.kotlin-toolkit:readium-shared:3.1.2`
-- `org.readium.kotlin-toolkit:readium-streamer:3.1.2`
-- `org.readium.kotlin-toolkit:readium-navigator:3.1.2`
+VaultShelf started from the Gander Android file viewer.
 
-Source: https://github.com/readium/kotlin-toolkit
+Source: https://github.com/mokshablr/gander
 
-BSD 3-Clause License
+Original licence: MIT License
 
-Copyright (c) 2017, Readium
-All rights reserved.
+Copyright (c) 2026 Arjun Maniyani
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+The original Gander MIT licence text is preserved in `LICENSES/GANDER-MIT.txt`. Gander-originated code keeps its original copyright and MIT notice even though the combined VaultShelf application is distributed under GPL-3.0.
 
-* Redistributions of source code must retain the above copyright notice, this
-  list of conditions and the following disclaimer.
+## Legado / 阅读 3.0
 
-* Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
+Novel reading, pagination, page-turning, reading configuration, and EPUB parsing are adapted from Legado.
 
-* Neither the name of the copyright holder nor the names of its
-  contributors may be used to endorse or promote products derived from
-  this software without specific prior written permission.
+Source: https://github.com/LegadoTeam/legado
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Pinned source commit used for the standalone `modules:book` parser: `62003ce732a7e30602754d28996da7f98b9ea296`
+
+Licence: GNU General Public License v3.0
+
+Original project copyright notices and file-level notices are retained where source files are imported or adapted. VaultShelf modifications to GPL-covered Legado code remain GPL-3.0.
