@@ -48,6 +48,20 @@ object BookReadingPositions {
         if (filtered.size != all.size) write(context, filtered)
     }
 
+    fun exportOpaque(context: Context): ByteArray = runCatching {
+        file(context).readFully()
+    }.getOrDefault(ByteArray(0))
+
+    fun mergeOpaque(context: Context, bytes: ByteArray) {
+        if (bytes.isEmpty()) return
+        val merged = (load(context) + parse(bytes))
+            .groupBy { it.key }
+            .mapNotNull { (_, values) -> values.maxByOrNull { it.time } }
+            .sortedByDescending { it.time }
+            .take(MAX)
+        write(context, merged)
+    }
+
     private data class Entry(
         val key: String,
         val chapterIndex: Int,
@@ -59,7 +73,11 @@ object BookReadingPositions {
         AtomicFile(File(context.noBackupFilesDir, FILE_NAME))
 
     private fun load(context: Context): List<Entry> = runCatching {
-        String(file(context).readFully())
+        parse(file(context).readFully())
+    }.getOrDefault(emptyList())
+
+    private fun parse(bytes: ByteArray): List<Entry> =
+        String(bytes)
             .lineSequence()
             .mapNotNull { line ->
                 val parts = line.split(' ')
@@ -78,7 +96,6 @@ object BookReadingPositions {
                 }
             }
             .toList()
-    }.getOrDefault(emptyList())
 
     private fun write(context: Context, entries: List<Entry>) {
         val atomic = file(context)
