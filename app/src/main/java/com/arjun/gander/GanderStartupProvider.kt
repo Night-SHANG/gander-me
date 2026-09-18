@@ -8,6 +8,7 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewOutcomeReceiver
 import androidx.webkit.WebViewStartUpConfig
 import androidx.webkit.WebViewStartUpResult
+import com.vaultshelf.legado.LegadoReaderBridge
 import androidx.webkit.WebViewStartupException
 import java.util.concurrent.Executor
 
@@ -18,6 +19,8 @@ class GanderStartupProvider : ContentProvider() {
 
     override fun onCreate(): Boolean {
         val appContext = context?.applicationContext ?: return true
+        LegadoReaderBridge.initialize(appContext)
+
         val executor = Executor { runnable ->
             Thread(runnable, "webview-warmup").apply { isDaemon = true }.start()
         }
