@@ -3,6 +3,7 @@ package com.arjun.gander.library
 enum class BookFormat {
     TXT,
     EPUB,
+    MARKDOWN,
 }
 
 data class LibraryBook(
@@ -21,7 +22,7 @@ data class LibraryBook(
 ) {
     val progressFraction: Float
         get() = when (format) {
-            BookFormat.TXT -> if (totalCharacters <= 0) {
+            BookFormat.TXT, BookFormat.MARKDOWN -> if (totalCharacters <= 0) {
                 0f
             } else {
                 readingOffset.coerceIn(0, totalCharacters).toFloat() / totalCharacters.toFloat()
