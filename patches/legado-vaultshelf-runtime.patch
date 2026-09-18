@@ -75,10 +75,20 @@ diff --git a/app/src/main/java/io/legado/app/base/BaseService.kt b/app/src/main/
 diff --git a/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt b/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt
 --- a/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt
 +++ b/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt
-@@ -292,22 +292,32 @@
+@@ -282,730 +282,754 @@
+         initViewEvent()
      }
  
-     override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
+-    override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
+-        menuInflater.inflate(R.menu.book_info, menu)
+-        editMenuItem = menu.findItem(R.id.menu_edit)
+-        menuCustomBtn = menu.findItem(R.id.menu_custom_btn).also {
+-            it.isVisible = viewModel.hasCustomBtn
+-        }
+-        return super.onCompatCreateOptionsMenu(menu)
+-    }
+-
+-    override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
 -        menu.findItem(R.id.menu_can_update)?.isChecked =
 -            viewModel.bookData.value?.canUpdate ?: true
 -        menu.findItem(R.id.menu_split_long_chapter)?.isChecked =
@@ -95,16 +105,737 @@ diff --git a/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt b/
 -            viewModel.bookData.value?.isLocalTxt ?: false
 -        menu.findItem(R.id.menu_upload)?.isVisible =
 -            viewModel.bookData.value?.isLocal ?: false
-+        val vaultShelfTransient = viewModel.bookData.value
-+            ?.bookUrl
+-        menu.findItem(R.id.menu_create_book_update_task)?.isVisible =
+-            viewModel.bookData.value?.let {
+-                viewModel.inBookshelf &&
+-                    viewModel.bookSource != null &&
+-                    !it.isLocal &&
+-                    it.canUpdate
+-            } == true
+-        menu.findItem(R.id.menu_delete_alert)?.isChecked =
+-            LocalConfig.bookInfoDeleteAlert
+-        return super.onMenuOpened(featureId, menu)
+-    }
+-
+-    override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
+-        when (item.itemId) {
+-            R.id.menu_custom_btn -> {
+-                viewModel.bookSource?.customButton?.let {
+-                    viewModel.getBook()?.let { book ->
+-                        SourceCallBack.callBackBtn(
+-                            this,
+-                            SourceCallBack.CLICK_CUSTOM_BUTTON,
+-                            viewModel.bookSource,
+-                            book,
+-                            null
+-                        )
+-                    }
+-                }
+-            }
+-
+-            R.id.menu_edit -> {
+-                viewModel.getBook()?.let {
+-                    infoEditResult.launch {
+-                        putExtra("bookUrl", it.bookUrl)
+-                    }
+-                }
+-            }
+-
+-            R.id.menu_share_it -> {
+-                viewModel.getBook()?.let {
+-                    val bookJson = GSON.toJson(it)
+-                    val shareStr = "${it.bookUrl}#$bookJson"
+-                    SourceCallBack.callBackBtn(
+-                        this,
+-                        SourceCallBack.CLICK_SHARE_BOOK,
+-                        viewModel.bookSource,
+-                        it,
+-                        null,
+-                        result = shareStr
+-                    ) {
+-                        val intent = Intent(Intent.ACTION_SEND)
+-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+-                        intent.putExtra(Intent.EXTRA_TEXT, shareStr)
+-                        intent.type = "text/plain"
+-                        startActivity(Intent.createChooser(intent, it.name))
+-                    }
+-                }
+-            }
+-
+-            R.id.menu_refresh -> {
+-                refreshBook()
+-            }
+-
+-            R.id.menu_create_book_update_task -> viewModel.getBook()?.let {
+-                openBookUpdateTask(it)
+-            }
+-
+-            R.id.menu_login -> viewModel.bookSource?.let {
+-                startActivity<SourceLoginActivity> {
+-                    putExtra("type", "bookSource")
+-                    putExtra("key", it.bookSourceUrl)
+-                    putExtra("bookUrl", book?.bookUrl)
+-                }
+-            }
+-
+-            R.id.menu_top -> viewModel.topBook()
+-            R.id.menu_set_source_variable -> setSourceVariable()
+-            R.id.menu_set_book_variable -> setBookVariable()
+-            R.id.menu_copy_book_url -> viewModel.getBook()?.let {
+-                SourceCallBack.callBackBtn(
+-                    this,
+-                    SourceCallBack.CLICK_COPY_BOOK_URL,
+-                    viewModel.bookSource,
+-                    it,
+-                    null,
+-                    result = it.bookUrl
+-                ) {
+-                    sendToClip(it.bookUrl)
+-                }
+-            }
+-
+-            R.id.menu_copy_toc_url -> viewModel.getBook()?.let {
+-                SourceCallBack.callBackBtn(
+-                    this,
+-                    SourceCallBack.CLICK_COPY_TOC_URL,
+-                    viewModel.bookSource,
+-                    it,
+-                    null,
+-                    result = it.tocUrl
+-                ) {
+-                    sendToClip(it.tocUrl)
+-                }
+-            }
+-
+-            R.id.menu_can_update -> {
+-                viewModel.getBook()?.let {
+-                    it.canUpdate = !it.canUpdate
+-                    if (viewModel.inBookshelf) {
+-                        if (!it.canUpdate) {
+-                            it.removeType(BookType.updateError)
+-                        }
+-                        viewModel.saveBook(it)
+-                    }
+-                }
+-            }
+-
+-            R.id.menu_clear_cache -> viewModel.getBook()?.let {
+-                    SourceCallBack.callBackBtn(this, SourceCallBack.CLICK_CLEAR_CACHE, viewModel.bookSource, it, null) {
+-                        viewModel.clearCache(it)
+-                    }
+-                }
+-            R.id.menu_log -> showDialogFragment<AppLogDialog>()
+-            R.id.menu_split_long_chapter -> {
+-                upLoading(true)
+-                viewModel.getBook()?.let {
+-                    it.setSplitLongChapter(!item.isChecked)
+-                    viewModel.loadBookInfo(it, false)
+-                }
+-                item.isChecked = !item.isChecked
+-                if (!item.isChecked) longToastOnUi(R.string.need_more_time_load_content)
+-            }
+-
+-            R.id.menu_delete_alert -> LocalConfig.bookInfoDeleteAlert = !item.isChecked
+-            R.id.menu_upload -> {
+-                viewModel.getBook()?.let { confirmAndUploadBook(it) }
+-            }
+-        }
+-        return super.onCompatOptionsItemSelected(item)
+-    }
+-
+-    override fun observeLiveBus() {
+-        viewModel.actionLive.observe(this) {
+-            when (it) {
+-                "selectBooksDir" -> localBookTreeSelect.launch {
+-                    title = getString(R.string.select_book_folder)
+-                }
+-            }
+-        }
+-
+-        observeEvent<Boolean>(EventBus.REFRESH_BOOK_INFO) { //书源js函数触发刷新
+-            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+-                refreshBook()
+-            }
+-        }
+-
+-        observeEvent<Boolean>(EventBus.REFRESH_BOOK_TOC) { //书源js函数触发刷新
+-            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+-                refreshToc()
+-            }
+-        }
+-    }
+-
+-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+-        if (isIntroTextViewAttached && ev.action == MotionEvent.ACTION_DOWN) {
+-            currentFocus?.let {
+-                if (it === introTextView && introTextView.hasSelection()) {
+-                    it.clearFocus()
+-                }
+-            }
+-        }
+-        return super.dispatchTouchEvent(ev)
+-    }
+-
+-    private fun refreshBook() {
+-        upLoading(true)
+-        viewModel.getBook()?.let {
+-            viewModel.refreshBook(it)
+-        }
+-    }
+-
+-    private fun openBookUpdateTask(book: Book) {
+-        val task = AutoTask.buildBookUpdateTask(
+-            book = book,
+-            name = getString(R.string.auto_task_book_update_name, book.name)
+-        )
+-        lifecycleScope.launch {
+-            val existingTask = withContext(IO) {
+-                AutoTask.findBookUpdateTask(AutoTask.all(), book)
+-            }
+-            if (existingTask != null) {
+-                startActivity(AutoTaskEditActivity.intent(this@BookInfoActivity, existingTask.id))
+-            } else {
+-                showDialogFragment(ImportAutoTaskDialog(GSON.toJson(task)))
+-            }
+-        }
+-    }
+-
+-    private fun refreshToc() {
+-        upLoading(true)
+-        viewModel.getBook()?.let {
+-            viewModel.loadChapter(it, true, isFromBookInfo = true)
+-        }
+-    }
+-
+-    private fun upLoadBook(
+-        book: Book,
+-        bookWebDav: RemoteBookWebDav? = AppWebDav.defaultBookWebDav,
+-        overwrite: Boolean = true,
+-        onConflict: (() -> Unit)? = null,
+-        onFinished: () -> Unit = {},
+-    ) {
+-        lifecycleScope.launch {
+-            waitDialog.setText(R.string.loading)
+-            waitDialog.show()
+-            var uploadConflict = false
+-            try {
+-                bookWebDav
+-                    ?.upload(book, overwrite)
+-                    ?: throw NoStackTraceException(getString(R.string.webdav_not_configured))
+-                //更新书籍最后更新时间,使之比远程书籍的时间新
+-                book.lastCheckTime = System.currentTimeMillis()
+-                viewModel.saveBook(book)
+-            } catch (e: Exception) {
+-                currentCoroutineContext().ensureActive()
+-                if (!overwrite &&
+-                    e is WebDavException &&
+-                    isWebDavOverwriteConflict(e.responseCode)
+-                ) {
+-                    uploadConflict = true
+-                } else {
+-                    toastOnUi(e.localizedMessage)
+-                }
+-            } finally {
+-                waitDialog.dismiss()
+-            }
+-            if (uploadConflict) {
+-                onConflict?.invoke() ?: onFinished()
+-            } else {
+-                onFinished()
+-            }
+-        }
+-    }
+-
+-    private fun confirmAndUploadBook(
+-        book: Book,
+-        onFinished: () -> Unit = {},
+-    ) {
+-        val bookWebDav = AppWebDav.defaultBookWebDav
+-        if (bookWebDav == null) {
+-            toastOnUi(R.string.webdav_not_configured)
+-            onFinished()
+-            return
+-        }
+-        lifecycleScope.launch {
+-            waitDialog.setText(R.string.loading)
+-            waitDialog.show()
+-            val remoteExists = try {
+-                withContext(IO) { bookWebDav.hasRemoteBook(book) }
+-            } catch (e: Exception) {
+-                currentCoroutineContext().ensureActive()
+-                toastOnUi(e.localizedMessage)
+-                onFinished()
+-                return@launch
+-            } finally {
+-                waitDialog.dismiss()
+-            }
+-            if (!remoteExists) {
+-                upLoadBook(
+-                    book = book,
+-                    bookWebDav = bookWebDav,
+-                    overwrite = false,
+-                    onConflict = {
+-                        showUploadOverwriteConfirm(book, bookWebDav, onFinished)
+-                    },
+-                    onFinished = onFinished,
+-                )
+-                return@launch
+-            }
+-            showUploadOverwriteConfirm(book, bookWebDav, onFinished)
+-        }
+-    }
+-
+-    private fun showUploadOverwriteConfirm(
+-        book: Book,
+-        bookWebDav: RemoteBookWebDav,
+-        onFinished: () -> Unit,
+-    ) {
+-        alert(R.string.draw, R.string.webdav_book_exists_confirm) {
+-            yesButton {
+-                upLoadBook(
+-                    book = book,
+-                    bookWebDav = bookWebDav,
+-                    overwrite = true,
+-                    onFinished = onFinished,
+-                )
+-            }
+-            noButton { onFinished() }
+-            onCancelled { onFinished() }
+-        }
+-    }
+-
+-    private fun showBook(book: Book) = binding.run {
+-        showCover(book)
+-        tvName.text = book.name
+-        tvAuthor.text = getString(R.string.author_show, book.getRealAuthor())
+-        tvOrigin.text = getString(R.string.origin_show, book.originName)
+-        tvLasted.text = getString(R.string.lasted_show, book.latestChapterTitle)
+-        showBookIntro(book)
+-        if (book.isWebFile) {
+-            llToc.gone()
+-            tvLasted.text = getString(R.string.lasted_show, "下载中...")
+-        } else {
+-            llToc.visible()
+-        }
+-        menuCustomBtn?.isVisible = viewModel.hasCustomBtn
+-        upTvBookshelf()
+-        upKinds(book)
+-        upGroup(book.group)
+-    }
+-
+-    inner class CustomWebViewClient : WebViewClient() {
+-        private val jsStr = getInjectionString
+-        override fun shouldOverrideUrlLoading(
+-            view: WebView?,
+-            request: WebResourceRequest?
+-        ): Boolean {
+-            request?.let {
+-                val uri = it.url
+-                return when (uri.scheme) {
+-                    "http", "https" -> false
+-                    "legado", "yuedu" -> {
+-                        startActivity<OnLineImportActivity> {
+-                            data = uri
+-                        }
+-                        true
+-                    }
+-
+-                    else -> {
+-                        binding.root.longSnackbar(R.string.jump_to_another_app, R.string.confirm) {
+-                            openUrl(uri)
+-                        }
+-                        true
+-                    }
+-                }
+-            }
+-            return true
+-        }
+-        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+-            super.onPageStarted(view, url, favicon)
+-            view?.evaluateJavascript(jsStr, null)
+-        }
+-        override fun onPageFinished(view: WebView?, url: String?) {
+-            super.onPageFinished(view, url)
+-            view?.post {
+-                binding.tvIntroContainer.requestLayout()
+-            }
+-        }
+-    }
+-
+-    private fun showBookIntro(book: Book) {
+-        val intro = book.getDisplayIntro()
+-        if (intro.isNullOrBlank()) {
+-            introContent = null
+-            introExpanded = false
+-            introCanCollapse = false
+-            introRenderGeneration++
+-            introRenderJob?.cancel()
+-            destroyWeb()
+-            binding.tvIntroContainer.removeAllViews()
+-            isIntroTextViewAttached = false
+-            binding.tvIntroContainer.gone()
+-            updateIntroToggle()
+-            return
+-        }
+-        if (intro != introContent) {
+-            introContent = intro
+-            introExpanded = true
+-            introCanCollapse = false
+-        }
+-        val renderGeneration = ++introRenderGeneration
+-        introRenderJob?.cancel()
+-        binding.tvIntroContainer.visible()
+-        if (intro.startsWith("<useweb>")) {
+-            val lastIndex = intro.lastIndexOf("<")
+-            if (lastIndex < 8) {
+-                val tvIntro = prepareIntroTextView()
+-                tvIntro.text = intro
+-                scheduleIntroOverflowCheck(renderGeneration)
+-                return
+-            }
+-            introCanCollapse = false
+-            updateIntroToggle()
+-            val html = intro.substring(8, lastIndex)
+-            val pooledWebView = this.pooledWebView ?: let{
+-                val pooledWebView = WebViewPool.acquire(this)
+-                val webView = pooledWebView.realWebView
+-                webView.onResume()
+-                webView.webViewClient = CustomWebViewClient()
+-                webView.addJavascriptInterface(WebCacheManager, nameCache)
+-                viewModel.bookSource?.let {
+-                    webView.addJavascriptInterface(it as BaseSource, nameSource)
+-                    val webJsExtensions = WebJsExtensions(it, null, webView)
+-                    webView.addJavascriptInterface(webJsExtensions, nameJava)
+-                }
+-                pooledWebView
+-            }
+-            val webView = pooledWebView.realWebView
+-            if (isIntroTextViewAttached || this.pooledWebView == null) {
+-                isIntroTextViewAttached = false
+-                this.pooledWebView = pooledWebView
+-                binding.tvIntroContainer.removeAllViews()
+-                binding.tvIntroContainer.addView(webView)
+-            }
+-            val bookUrl = viewModel.getBook()?.bookUrl
+-                ?.takeIf { it.startsWith("http", true) }
+-                ?.substringBefore(",")
+-            webView.loadDataWithBaseURL(bookUrl, html, "text/html", "utf-8", bookUrl)
+-            return
+-        }
+-        val tvIntro = prepareIntroTextView()
+-        if (intro.startsWith("<usehtml>")) {
+-            val lastIndex = intro.lastIndexOf("<")
+-            if (lastIndex < 9) {
+-                tvIntro.text = intro
+-                scheduleIntroOverflowCheck(renderGeneration)
+-                return
+-            }
+-            val html = intro.substring(9, lastIndex)
+-            tvIntro.setHtml(
+-                html,
+-                glideImageGetter,
+-                textViewTagHandler,
+-                imgOnLongClickListener = {
+-                    showDialogFragment(PhotoDialog(it, viewModel.bookSource?.bookSourceUrl))
+-                },
+-                imgOnClickListener = {
+-                    viewModel.onButtonClick(this@BookInfoActivity, "info image" , it)
+-                }
+-            )
+-            scheduleIntroOverflowCheck(renderGeneration)
+-        } else if (intro.startsWith("<md>")) {
+-            val lastIndex = intro.lastIndexOf("<")
+-            if (lastIndex < 4) {
+-                tvIntro.text = intro
+-                scheduleIntroOverflowCheck(renderGeneration)
+-                return
+-            }
+-            val mark = intro.substring(4, lastIndex)
+-            tvIntro.text = null
+-            introRenderJob = lifecycleScope.launch {
+-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+-                    tvIntro.setTextClassifier(TextClassifier.NO_OP)
+-                }
+-                val context = this@BookInfoActivity
+-                val markwon: Markwon
+-                val markdown = withContext(IO) {
+-                    markwon = Markwon.builder(context)
+-                        .usePlugin(
+-                            GlideImagesPlugin.create(
+-                                Glide.with(context)
+-                                    .applyDefaultRequestOptions(
+-                                        RequestOptions()
+-                                            .override(imgAvailableWidth)
+-                                            .encodeQuality(88)
+-                                    )
+-                            )
+-                        )
+-                        .usePlugin(HtmlPlugin.create())
+-                        .usePlugin(TablePlugin.create(context))
+-                        .build()
+-                    markwon.toMarkdown(mark)
+-                }
+-                if (renderGeneration != introRenderGeneration) return@launch
+-                tvIntro.setMarkdown(
+-                    markwon,
+-                    markdown,
+-                    imgOnLongClickListener = { source ->
+-                        showDialogFragment(PhotoDialog(source, viewModel.bookSource?.bookSourceUrl))
+-                    }
+-                )
+-                scheduleIntroOverflowCheck(renderGeneration)
+-            }
+-        } else {
+-            setPlainBookIntro(tvIntro, intro)
+-            scheduleIntroOverflowCheck(renderGeneration)
+-        }
+-    }
+-
+-    private fun setPlainBookIntro(textView: ScrollTextView, intro: String) {
+-        val ranges = introIndentRanges(intro)
+-        if (ranges.isEmpty()) {
+-            textView.text = intro
+-            return
+-        }
+-        val indentWidth = textView.paint.measureText("　　").roundToInt().coerceAtLeast(1)
+-        textView.text = SpannableString(intro).apply {
+-            ranges.forEach { range ->
+-                setSpan(
+-                    LeadingMarginSpan.Standard(indentWidth, 0),
+-                    range.start,
+-                    range.endExclusive,
+-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+-                )
+-            }
+-        }
+-    }
+-
+-    private fun prepareIntroTextView(): ScrollTextView {
+-        val tvIntro = introTextView
+-        if (!isIntroTextViewAttached || pooledWebView != null) {
+-            destroyWeb()
+-            binding.tvIntroContainer.removeAllViews()
+-            tvIntro.text = null
+-            binding.tvIntroContainer.addView(tvIntro)
+-            isIntroTextViewAttached = true
+-        }
+-        applyIntroCollapseState(tvIntro)
+-        return tvIntro
+-    }
+-
+-    private fun applyIntroCollapseState(tvIntro: ScrollTextView = introTextView) {
+-        tvIntro.internalScrollEnabled = false
+-        tvIntro.maxLines = if (introExpanded) Int.MAX_VALUE else BookIntroCollapse.COLLAPSED_LINES
+-        tvIntro.maxMeasuredHeight = if (introExpanded) {
+-            null
+-        } else {
+-            collapsedIntroHeight(tvIntro)
+-        }
+-        tvIntro.ellipsize = if (introExpanded) null else TextUtils.TruncateAt.END
+-        if (!introExpanded) {
+-            tvIntro.scrollTo(0, 0)
+-        }
+-        updateIntroToggle()
+-        tvIntro.requestLayout()
+-    }
+-
+-    private fun collapsedIntroHeight(tvIntro: ScrollTextView): Int =
+-        tvIntro.lineHeight * BookIntroCollapse.COLLAPSED_LINES +
+-            tvIntro.compoundPaddingTop + tvIntro.compoundPaddingBottom
+-
+-    private fun scheduleIntroOverflowCheck(renderGeneration: Int) {
+-        introTextView.post {
+-            if (renderGeneration == introRenderGeneration &&
+-                lifecycle.currentState != Lifecycle.State.DESTROYED
+-            ) {
+-                updateIntroOverflow()
+-            }
+-        }
+-    }
+-
+-    private fun updateIntroOverflow() {
+-        if (!isIntroTextViewAttached || pooledWebView != null) return
+-        val tvIntro = introTextView
+-        val textLayout = tvIntro.layout ?: return
+-        val lineCount = textLayout.lineCount
+-        if (lineCount <= 0) return
+-        val lastLine = lineCount - 1
+-        val collapsedHeight = collapsedIntroHeight(tvIntro)
+-        val canCollapse = tvIntro.isMeasuredHeightLimited || BookIntroCollapse.hasOverflow(
+-            expanded = introExpanded,
+-            lineCount = lineCount,
+-            lastLineEllipsisCount = textLayout.getEllipsisCount(lastLine),
+-            lastLineEnd = textLayout.getLineEnd(lastLine),
+-            textLength = tvIntro.text.length,
+-            contentHeight = textLayout.height +
+-                tvIntro.compoundPaddingTop + tvIntro.compoundPaddingBottom,
+-            collapsedContentHeight = collapsedHeight,
+-        )
+-        if (introCanCollapse != canCollapse) {
+-            introCanCollapse = canCollapse
+-            updateIntroToggle()
+-        }
+-    }
+-
+-    private fun updateIntroToggle() = binding.tvIntroToggle.run {
+-        if (!introCanCollapse || !isIntroTextViewAttached || pooledWebView != null) {
+-            gone()
+-            return@run
+-        }
+-        setText(
+-            if (introExpanded) {
+-                R.string.book_intro_collapse
+-            } else {
+-                R.string.book_intro_expand
+-            }
+-        )
+-        visible()
+-    }
+-
+-    private fun upKinds(book: Book) = binding.run {
+-        lifecycleScope.launch {
+-            var kinds = book.getKindList()
+-            if (book.isLocal) {
+-                withContext(IO) {
+-                    val size = try {
+-                        FileDoc.fromUri(book.getLocalUri(), false).size
+-                    } catch (e: Exception) {
+-                        currentCoroutineContext().ensureActive()
+-                        0L
+-                    }
+-                    if (size > 0) {
+-                        kinds = kinds.toMutableList()
+-                        kinds.add(ConvertUtils.formatFileSize(size))
+-                    }
+-                }
+-            }
+-            if (kinds.isEmpty()) {
+-                lbKind.gone()
+-            } else {
+-                lbKind.visible()
+-                val source = viewModel.bookSource
+-                if (source == null) {
+-                    lbKind.setLabels(kinds)
+-                    return@launch
+-                }
+-                lbKind.setLabels(
+-                    kinds,
+-                    { kind ->
+-                        SourceCallBack.callBackBtn(
+-                            this@BookInfoActivity,
+-                            SourceCallBack.CLICK_BOOK_LABEL,
+-                            source,
+-                            book,
+-                            null,
+-                            result = kind
+-                        ) {
+-                            SearchActivity.start(this@BookInfoActivity, source, kind)
+-                        }
+-                    },
+-                    { kind ->
+-                        SourceCallBack.callBackBtn(
+-                            this@BookInfoActivity,
+-                            SourceCallBack.LONG_CLICK_BOOK_LABEL,
+-                            source,
+-                            book,
+-                            null,
+-                            result = kind
+-                        )
+-                        true
+-                    }
+-                )
+-            }
+-        }
+-    }
+-
+-    private fun showCover(book: Book) {
+-        binding.ivCover.load(book, false) {
+-            if (!AppConfig.isEInkMode) {
+-                BookCover.loadBlur(
+-                    this,
+-                    book.getDisplayCover(),
+-                    false,
+-                    book.getCoverSourceOrigin()
+-                )
+-                    .into(binding.bgBook)
+-            }
+-        }
+-    }
+-
+-    private fun upLoading(isLoading: Boolean, chapterList: List<BookChapter>? = null) {
+-        when {
+-            isLoading -> {
+-                binding.tvToc.text = getString(R.string.toc_s, getString(R.string.loading))
+-            }
+-
+-            chapterList.isNullOrEmpty() -> {
+-                binding.tvToc.text = getString(
+-                    R.string.toc_s,
+-                    getString(R.string.error_load_toc)
+-                )
+-                binding.tvLasted.text = getString(R.string.lasted_show, book?.latestChapterTitle)
+-            }
+-
+-            else -> {
+-                book?.let {
+-                    val tocTitle = resolveBookInfoTocTitle(
+-                        it.durChapterTitle,
+-                        it.durChapterIndex,
+-                        chapterList,
+-                    ) ?: getString(R.string.no_last_chapter)
+-                    val readStatus = resolveBookInfoReadProgress(it)?.let { percent ->
+-                        getString(R.string.read_y, "$percent%")
+-                    }
+-                    binding.tvToc.text = getString(
+-                        R.string.toc_s,
+-                        listOfNotNull(tocTitle, readStatus).joinToString("  ·  "),
+-                    )
+-                    binding.tvLasted.text = getString(R.string.lasted_show, it.latestChapterTitle)
+-                }
+-            }
+-        }
+-    }
+-
+-    private fun upTvBookshelf() {
+-        if (viewModel.inBookshelf) {
+-            binding.tvShelf.text = getString(R.string.remove_from_bookshelf)
+-        } else {
+-            binding.tvShelf.text = getString(R.string.add_to_bookshelf)
+-        }
+-        editMenuItem?.isVisible = viewModel.inBookshelf
++    private fun isVaultShelfTransientBook(book: Book? = viewModel.bookData.value): Boolean =
++        book?.bookUrl
 +            ?.let(Uri::parse)
 +            ?.authority
 +            ?.endsWith(".temporary_provider") == true
-+        editMenuItem?.isVisible = !vaultShelfTransient
-+        menu.findItem(R.id.menu_share_it)?.isVisible = !vaultShelfTransient
-+        menu.findItem(R.id.menu_copy_book_url)?.isVisible = !vaultShelfTransient
-+        menu.findItem(R.id.menu_copy_toc_url)?.isVisible = !vaultShelfTransient
 +
++    private fun applyVaultShelfTransientMenuPolicy(menu: Menu) {
++        val transient = isVaultShelfTransientBook()
++        editMenuItem?.isVisible = viewModel.inBookshelf && !transient
++        menu.findItem(R.id.menu_share_it)?.isVisible = !transient
++        menu.findItem(R.id.menu_upload)?.isVisible =
++            !transient && (viewModel.bookData.value?.isLocal ?: false)
++        menu.findItem(R.id.menu_copy_book_url)?.isVisible = !transient
++        menu.findItem(R.id.menu_copy_toc_url)?.isVisible = !transient
++    }
++
++    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
++        applyVaultShelfTransientMenuPolicy(menu)
++        return super.onPrepareOptionsMenu(menu)
++    }
++
++    override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
++        menuInflater.inflate(R.menu.book_info, menu)
++        editMenuItem = menu.findItem(R.id.menu_edit)
++        menuCustomBtn = menu.findItem(R.id.menu_custom_btn).also {
++            it.isVisible = viewModel.hasCustomBtn
++        }
++        applyVaultShelfTransientMenuPolicy(menu)
++        return super.onCompatCreateOptionsMenu(menu)
++    }
++
++    override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
++        applyVaultShelfTransientMenuPolicy(menu)
 +        menu.findItem(R.id.menu_can_update)?.isChecked =
 +            viewModel.bookData.value?.canUpdate ?: true
 +        menu.findItem(R.id.menu_split_long_chapter)?.isChecked =
@@ -120,7 +851,706 @@ diff --git a/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt b/
 +        menu.findItem(R.id.menu_split_long_chapter)?.isVisible =
 +            viewModel.bookData.value?.isLocalTxt ?: false
 +        menu.findItem(R.id.menu_upload)?.isVisible =
-+            !vaultShelfTransient && (viewModel.bookData.value?.isLocal ?: false)
-         menu.findItem(R.id.menu_create_book_update_task)?.isVisible =
-             viewModel.bookData.value?.let {
-                 viewModel.inBookshelf &&
++            !isVaultShelfTransientBook() && (viewModel.bookData.value?.isLocal ?: false)
++        menu.findItem(R.id.menu_create_book_update_task)?.isVisible =
++            viewModel.bookData.value?.let {
++                viewModel.inBookshelf &&
++                    viewModel.bookSource != null &&
++                    !it.isLocal &&
++                    it.canUpdate
++            } == true
++        menu.findItem(R.id.menu_delete_alert)?.isChecked =
++            LocalConfig.bookInfoDeleteAlert
++        return super.onMenuOpened(featureId, menu)
++    }
++
++    override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
++        when (item.itemId) {
++            R.id.menu_custom_btn -> {
++                viewModel.bookSource?.customButton?.let {
++                    viewModel.getBook()?.let { book ->
++                        SourceCallBack.callBackBtn(
++                            this,
++                            SourceCallBack.CLICK_CUSTOM_BUTTON,
++                            viewModel.bookSource,
++                            book,
++                            null
++                        )
++                    }
++                }
++            }
++
++            R.id.menu_edit -> {
++                viewModel.getBook()?.let {
++                    infoEditResult.launch {
++                        putExtra("bookUrl", it.bookUrl)
++                    }
++                }
++            }
++
++            R.id.menu_share_it -> {
++                viewModel.getBook()?.let {
++                    val bookJson = GSON.toJson(it)
++                    val shareStr = "${it.bookUrl}#$bookJson"
++                    SourceCallBack.callBackBtn(
++                        this,
++                        SourceCallBack.CLICK_SHARE_BOOK,
++                        viewModel.bookSource,
++                        it,
++                        null,
++                        result = shareStr
++                    ) {
++                        val intent = Intent(Intent.ACTION_SEND)
++                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++                        intent.putExtra(Intent.EXTRA_TEXT, shareStr)
++                        intent.type = "text/plain"
++                        startActivity(Intent.createChooser(intent, it.name))
++                    }
++                }
++            }
++
++            R.id.menu_refresh -> {
++                refreshBook()
++            }
++
++            R.id.menu_create_book_update_task -> viewModel.getBook()?.let {
++                openBookUpdateTask(it)
++            }
++
++            R.id.menu_login -> viewModel.bookSource?.let {
++                startActivity<SourceLoginActivity> {
++                    putExtra("type", "bookSource")
++                    putExtra("key", it.bookSourceUrl)
++                    putExtra("bookUrl", book?.bookUrl)
++                }
++            }
++
++            R.id.menu_top -> viewModel.topBook()
++            R.id.menu_set_source_variable -> setSourceVariable()
++            R.id.menu_set_book_variable -> setBookVariable()
++            R.id.menu_copy_book_url -> viewModel.getBook()?.let {
++                SourceCallBack.callBackBtn(
++                    this,
++                    SourceCallBack.CLICK_COPY_BOOK_URL,
++                    viewModel.bookSource,
++                    it,
++                    null,
++                    result = it.bookUrl
++                ) {
++                    sendToClip(it.bookUrl)
++                }
++            }
++
++            R.id.menu_copy_toc_url -> viewModel.getBook()?.let {
++                SourceCallBack.callBackBtn(
++                    this,
++                    SourceCallBack.CLICK_COPY_TOC_URL,
++                    viewModel.bookSource,
++                    it,
++                    null,
++                    result = it.tocUrl
++                ) {
++                    sendToClip(it.tocUrl)
++                }
++            }
++
++            R.id.menu_can_update -> {
++                viewModel.getBook()?.let {
++                    it.canUpdate = !it.canUpdate
++                    if (viewModel.inBookshelf) {
++                        if (!it.canUpdate) {
++                            it.removeType(BookType.updateError)
++                        }
++                        viewModel.saveBook(it)
++                    }
++                }
++            }
++
++            R.id.menu_clear_cache -> viewModel.getBook()?.let {
++                    SourceCallBack.callBackBtn(this, SourceCallBack.CLICK_CLEAR_CACHE, viewModel.bookSource, it, null) {
++                        viewModel.clearCache(it)
++                    }
++                }
++            R.id.menu_log -> showDialogFragment<AppLogDialog>()
++            R.id.menu_split_long_chapter -> {
++                upLoading(true)
++                viewModel.getBook()?.let {
++                    it.setSplitLongChapter(!item.isChecked)
++                    viewModel.loadBookInfo(it, false)
++                }
++                item.isChecked = !item.isChecked
++                if (!item.isChecked) longToastOnUi(R.string.need_more_time_load_content)
++            }
++
++            R.id.menu_delete_alert -> LocalConfig.bookInfoDeleteAlert = !item.isChecked
++            R.id.menu_upload -> {
++                viewModel.getBook()?.let { confirmAndUploadBook(it) }
++            }
++        }
++        return super.onCompatOptionsItemSelected(item)
++    }
++
++    override fun observeLiveBus() {
++        viewModel.actionLive.observe(this) {
++            when (it) {
++                "selectBooksDir" -> localBookTreeSelect.launch {
++                    title = getString(R.string.select_book_folder)
++                }
++            }
++        }
++
++        observeEvent<Boolean>(EventBus.REFRESH_BOOK_INFO) { //书源js函数触发刷新
++            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
++                refreshBook()
++            }
++        }
++
++        observeEvent<Boolean>(EventBus.REFRESH_BOOK_TOC) { //书源js函数触发刷新
++            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
++                refreshToc()
++            }
++        }
++    }
++
++    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
++        if (isIntroTextViewAttached && ev.action == MotionEvent.ACTION_DOWN) {
++            currentFocus?.let {
++                if (it === introTextView && introTextView.hasSelection()) {
++                    it.clearFocus()
++                }
++            }
++        }
++        return super.dispatchTouchEvent(ev)
++    }
++
++    private fun refreshBook() {
++        upLoading(true)
++        viewModel.getBook()?.let {
++            viewModel.refreshBook(it)
++        }
++    }
++
++    private fun openBookUpdateTask(book: Book) {
++        val task = AutoTask.buildBookUpdateTask(
++            book = book,
++            name = getString(R.string.auto_task_book_update_name, book.name)
++        )
++        lifecycleScope.launch {
++            val existingTask = withContext(IO) {
++                AutoTask.findBookUpdateTask(AutoTask.all(), book)
++            }
++            if (existingTask != null) {
++                startActivity(AutoTaskEditActivity.intent(this@BookInfoActivity, existingTask.id))
++            } else {
++                showDialogFragment(ImportAutoTaskDialog(GSON.toJson(task)))
++            }
++        }
++    }
++
++    private fun refreshToc() {
++        upLoading(true)
++        viewModel.getBook()?.let {
++            viewModel.loadChapter(it, true, isFromBookInfo = true)
++        }
++    }
++
++    private fun upLoadBook(
++        book: Book,
++        bookWebDav: RemoteBookWebDav? = AppWebDav.defaultBookWebDav,
++        overwrite: Boolean = true,
++        onConflict: (() -> Unit)? = null,
++        onFinished: () -> Unit = {},
++    ) {
++        lifecycleScope.launch {
++            waitDialog.setText(R.string.loading)
++            waitDialog.show()
++            var uploadConflict = false
++            try {
++                bookWebDav
++                    ?.upload(book, overwrite)
++                    ?: throw NoStackTraceException(getString(R.string.webdav_not_configured))
++                //更新书籍最后更新时间,使之比远程书籍的时间新
++                book.lastCheckTime = System.currentTimeMillis()
++                viewModel.saveBook(book)
++            } catch (e: Exception) {
++                currentCoroutineContext().ensureActive()
++                if (!overwrite &&
++                    e is WebDavException &&
++                    isWebDavOverwriteConflict(e.responseCode)
++                ) {
++                    uploadConflict = true
++                } else {
++                    toastOnUi(e.localizedMessage)
++                }
++            } finally {
++                waitDialog.dismiss()
++            }
++            if (uploadConflict) {
++                onConflict?.invoke() ?: onFinished()
++            } else {
++                onFinished()
++            }
++        }
++    }
++
++    private fun confirmAndUploadBook(
++        book: Book,
++        onFinished: () -> Unit = {},
++    ) {
++        val bookWebDav = AppWebDav.defaultBookWebDav
++        if (bookWebDav == null) {
++            toastOnUi(R.string.webdav_not_configured)
++            onFinished()
++            return
++        }
++        lifecycleScope.launch {
++            waitDialog.setText(R.string.loading)
++            waitDialog.show()
++            val remoteExists = try {
++                withContext(IO) { bookWebDav.hasRemoteBook(book) }
++            } catch (e: Exception) {
++                currentCoroutineContext().ensureActive()
++                toastOnUi(e.localizedMessage)
++                onFinished()
++                return@launch
++            } finally {
++                waitDialog.dismiss()
++            }
++            if (!remoteExists) {
++                upLoadBook(
++                    book = book,
++                    bookWebDav = bookWebDav,
++                    overwrite = false,
++                    onConflict = {
++                        showUploadOverwriteConfirm(book, bookWebDav, onFinished)
++                    },
++                    onFinished = onFinished,
++                )
++                return@launch
++            }
++            showUploadOverwriteConfirm(book, bookWebDav, onFinished)
++        }
++    }
++
++    private fun showUploadOverwriteConfirm(
++        book: Book,
++        bookWebDav: RemoteBookWebDav,
++        onFinished: () -> Unit,
++    ) {
++        alert(R.string.draw, R.string.webdav_book_exists_confirm) {
++            yesButton {
++                upLoadBook(
++                    book = book,
++                    bookWebDav = bookWebDav,
++                    overwrite = true,
++                    onFinished = onFinished,
++                )
++            }
++            noButton { onFinished() }
++            onCancelled { onFinished() }
++        }
++    }
++
++    private fun showBook(book: Book) = binding.run {
++        showCover(book)
++        tvName.text = book.name
++        tvAuthor.text = getString(R.string.author_show, book.getRealAuthor())
++        tvOrigin.text = getString(R.string.origin_show, book.originName)
++        tvLasted.text = getString(R.string.lasted_show, book.latestChapterTitle)
++        showBookIntro(book)
++        if (book.isWebFile) {
++            llToc.gone()
++            tvLasted.text = getString(R.string.lasted_show, "下载中...")
++        } else {
++            llToc.visible()
++        }
++        menuCustomBtn?.isVisible = viewModel.hasCustomBtn
++        upTvBookshelf()
++        invalidateOptionsMenu()
++        upKinds(book)
++        upGroup(book.group)
++    }
++
++    inner class CustomWebViewClient : WebViewClient() {
++        private val jsStr = getInjectionString
++        override fun shouldOverrideUrlLoading(
++            view: WebView?,
++            request: WebResourceRequest?
++        ): Boolean {
++            request?.let {
++                val uri = it.url
++                return when (uri.scheme) {
++                    "http", "https" -> false
++                    "legado", "yuedu" -> {
++                        startActivity<OnLineImportActivity> {
++                            data = uri
++                        }
++                        true
++                    }
++
++                    else -> {
++                        binding.root.longSnackbar(R.string.jump_to_another_app, R.string.confirm) {
++                            openUrl(uri)
++                        }
++                        true
++                    }
++                }
++            }
++            return true
++        }
++        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
++            super.onPageStarted(view, url, favicon)
++            view?.evaluateJavascript(jsStr, null)
++        }
++        override fun onPageFinished(view: WebView?, url: String?) {
++            super.onPageFinished(view, url)
++            view?.post {
++                binding.tvIntroContainer.requestLayout()
++            }
++        }
++    }
++
++    private fun showBookIntro(book: Book) {
++        val intro = book.getDisplayIntro()
++        if (intro.isNullOrBlank()) {
++            introContent = null
++            introExpanded = false
++            introCanCollapse = false
++            introRenderGeneration++
++            introRenderJob?.cancel()
++            destroyWeb()
++            binding.tvIntroContainer.removeAllViews()
++            isIntroTextViewAttached = false
++            binding.tvIntroContainer.gone()
++            updateIntroToggle()
++            return
++        }
++        if (intro != introContent) {
++            introContent = intro
++            introExpanded = true
++            introCanCollapse = false
++        }
++        val renderGeneration = ++introRenderGeneration
++        introRenderJob?.cancel()
++        binding.tvIntroContainer.visible()
++        if (intro.startsWith("<useweb>")) {
++            val lastIndex = intro.lastIndexOf("<")
++            if (lastIndex < 8) {
++                val tvIntro = prepareIntroTextView()
++                tvIntro.text = intro
++                scheduleIntroOverflowCheck(renderGeneration)
++                return
++            }
++            introCanCollapse = false
++            updateIntroToggle()
++            val html = intro.substring(8, lastIndex)
++            val pooledWebView = this.pooledWebView ?: let{
++                val pooledWebView = WebViewPool.acquire(this)
++                val webView = pooledWebView.realWebView
++                webView.onResume()
++                webView.webViewClient = CustomWebViewClient()
++                webView.addJavascriptInterface(WebCacheManager, nameCache)
++                viewModel.bookSource?.let {
++                    webView.addJavascriptInterface(it as BaseSource, nameSource)
++                    val webJsExtensions = WebJsExtensions(it, null, webView)
++                    webView.addJavascriptInterface(webJsExtensions, nameJava)
++                }
++                pooledWebView
++            }
++            val webView = pooledWebView.realWebView
++            if (isIntroTextViewAttached || this.pooledWebView == null) {
++                isIntroTextViewAttached = false
++                this.pooledWebView = pooledWebView
++                binding.tvIntroContainer.removeAllViews()
++                binding.tvIntroContainer.addView(webView)
++            }
++            val bookUrl = viewModel.getBook()?.bookUrl
++                ?.takeIf { it.startsWith("http", true) }
++                ?.substringBefore(",")
++            webView.loadDataWithBaseURL(bookUrl, html, "text/html", "utf-8", bookUrl)
++            return
++        }
++        val tvIntro = prepareIntroTextView()
++        if (intro.startsWith("<usehtml>")) {
++            val lastIndex = intro.lastIndexOf("<")
++            if (lastIndex < 9) {
++                tvIntro.text = intro
++                scheduleIntroOverflowCheck(renderGeneration)
++                return
++            }
++            val html = intro.substring(9, lastIndex)
++            tvIntro.setHtml(
++                html,
++                glideImageGetter,
++                textViewTagHandler,
++                imgOnLongClickListener = {
++                    showDialogFragment(PhotoDialog(it, viewModel.bookSource?.bookSourceUrl))
++                },
++                imgOnClickListener = {
++                    viewModel.onButtonClick(this@BookInfoActivity, "info image" , it)
++                }
++            )
++            scheduleIntroOverflowCheck(renderGeneration)
++        } else if (intro.startsWith("<md>")) {
++            val lastIndex = intro.lastIndexOf("<")
++            if (lastIndex < 4) {
++                tvIntro.text = intro
++                scheduleIntroOverflowCheck(renderGeneration)
++                return
++            }
++            val mark = intro.substring(4, lastIndex)
++            tvIntro.text = null
++            introRenderJob = lifecycleScope.launch {
++                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++                    tvIntro.setTextClassifier(TextClassifier.NO_OP)
++                }
++                val context = this@BookInfoActivity
++                val markwon: Markwon
++                val markdown = withContext(IO) {
++                    markwon = Markwon.builder(context)
++                        .usePlugin(
++                            GlideImagesPlugin.create(
++                                Glide.with(context)
++                                    .applyDefaultRequestOptions(
++                                        RequestOptions()
++                                            .override(imgAvailableWidth)
++                                            .encodeQuality(88)
++                                    )
++                            )
++                        )
++                        .usePlugin(HtmlPlugin.create())
++                        .usePlugin(TablePlugin.create(context))
++                        .build()
++                    markwon.toMarkdown(mark)
++                }
++                if (renderGeneration != introRenderGeneration) return@launch
++                tvIntro.setMarkdown(
++                    markwon,
++                    markdown,
++                    imgOnLongClickListener = { source ->
++                        showDialogFragment(PhotoDialog(source, viewModel.bookSource?.bookSourceUrl))
++                    }
++                )
++                scheduleIntroOverflowCheck(renderGeneration)
++            }
++        } else {
++            setPlainBookIntro(tvIntro, intro)
++            scheduleIntroOverflowCheck(renderGeneration)
++        }
++    }
++
++    private fun setPlainBookIntro(textView: ScrollTextView, intro: String) {
++        val ranges = introIndentRanges(intro)
++        if (ranges.isEmpty()) {
++            textView.text = intro
++            return
++        }
++        val indentWidth = textView.paint.measureText("　　").roundToInt().coerceAtLeast(1)
++        textView.text = SpannableString(intro).apply {
++            ranges.forEach { range ->
++                setSpan(
++                    LeadingMarginSpan.Standard(indentWidth, 0),
++                    range.start,
++                    range.endExclusive,
++                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
++                )
++            }
++        }
++    }
++
++    private fun prepareIntroTextView(): ScrollTextView {
++        val tvIntro = introTextView
++        if (!isIntroTextViewAttached || pooledWebView != null) {
++            destroyWeb()
++            binding.tvIntroContainer.removeAllViews()
++            tvIntro.text = null
++            binding.tvIntroContainer.addView(tvIntro)
++            isIntroTextViewAttached = true
++        }
++        applyIntroCollapseState(tvIntro)
++        return tvIntro
++    }
++
++    private fun applyIntroCollapseState(tvIntro: ScrollTextView = introTextView) {
++        tvIntro.internalScrollEnabled = false
++        tvIntro.maxLines = if (introExpanded) Int.MAX_VALUE else BookIntroCollapse.COLLAPSED_LINES
++        tvIntro.maxMeasuredHeight = if (introExpanded) {
++            null
++        } else {
++            collapsedIntroHeight(tvIntro)
++        }
++        tvIntro.ellipsize = if (introExpanded) null else TextUtils.TruncateAt.END
++        if (!introExpanded) {
++            tvIntro.scrollTo(0, 0)
++        }
++        updateIntroToggle()
++        tvIntro.requestLayout()
++    }
++
++    private fun collapsedIntroHeight(tvIntro: ScrollTextView): Int =
++        tvIntro.lineHeight * BookIntroCollapse.COLLAPSED_LINES +
++            tvIntro.compoundPaddingTop + tvIntro.compoundPaddingBottom
++
++    private fun scheduleIntroOverflowCheck(renderGeneration: Int) {
++        introTextView.post {
++            if (renderGeneration == introRenderGeneration &&
++                lifecycle.currentState != Lifecycle.State.DESTROYED
++            ) {
++                updateIntroOverflow()
++            }
++        }
++    }
++
++    private fun updateIntroOverflow() {
++        if (!isIntroTextViewAttached || pooledWebView != null) return
++        val tvIntro = introTextView
++        val textLayout = tvIntro.layout ?: return
++        val lineCount = textLayout.lineCount
++        if (lineCount <= 0) return
++        val lastLine = lineCount - 1
++        val collapsedHeight = collapsedIntroHeight(tvIntro)
++        val canCollapse = tvIntro.isMeasuredHeightLimited || BookIntroCollapse.hasOverflow(
++            expanded = introExpanded,
++            lineCount = lineCount,
++            lastLineEllipsisCount = textLayout.getEllipsisCount(lastLine),
++            lastLineEnd = textLayout.getLineEnd(lastLine),
++            textLength = tvIntro.text.length,
++            contentHeight = textLayout.height +
++                tvIntro.compoundPaddingTop + tvIntro.compoundPaddingBottom,
++            collapsedContentHeight = collapsedHeight,
++        )
++        if (introCanCollapse != canCollapse) {
++            introCanCollapse = canCollapse
++            updateIntroToggle()
++        }
++    }
++
++    private fun updateIntroToggle() = binding.tvIntroToggle.run {
++        if (!introCanCollapse || !isIntroTextViewAttached || pooledWebView != null) {
++            gone()
++            return@run
++        }
++        setText(
++            if (introExpanded) {
++                R.string.book_intro_collapse
++            } else {
++                R.string.book_intro_expand
++            }
++        )
++        visible()
++    }
++
++    private fun upKinds(book: Book) = binding.run {
++        lifecycleScope.launch {
++            var kinds = book.getKindList()
++            if (book.isLocal) {
++                withContext(IO) {
++                    val size = try {
++                        FileDoc.fromUri(book.getLocalUri(), false).size
++                    } catch (e: Exception) {
++                        currentCoroutineContext().ensureActive()
++                        0L
++                    }
++                    if (size > 0) {
++                        kinds = kinds.toMutableList()
++                        kinds.add(ConvertUtils.formatFileSize(size))
++                    }
++                }
++            }
++            if (kinds.isEmpty()) {
++                lbKind.gone()
++            } else {
++                lbKind.visible()
++                val source = viewModel.bookSource
++                if (source == null) {
++                    lbKind.setLabels(kinds)
++                    return@launch
++                }
++                lbKind.setLabels(
++                    kinds,
++                    { kind ->
++                        SourceCallBack.callBackBtn(
++                            this@BookInfoActivity,
++                            SourceCallBack.CLICK_BOOK_LABEL,
++                            source,
++                            book,
++                            null,
++                            result = kind
++                        ) {
++                            SearchActivity.start(this@BookInfoActivity, source, kind)
++                        }
++                    },
++                    { kind ->
++                        SourceCallBack.callBackBtn(
++                            this@BookInfoActivity,
++                            SourceCallBack.LONG_CLICK_BOOK_LABEL,
++                            source,
++                            book,
++                            null,
++                            result = kind
++                        )
++                        true
++                    }
++                )
++            }
++        }
++    }
++
++    private fun showCover(book: Book) {
++        binding.ivCover.load(book, false) {
++            if (!AppConfig.isEInkMode) {
++                BookCover.loadBlur(
++                    this,
++                    book.getDisplayCover(),
++                    false,
++                    book.getCoverSourceOrigin()
++                )
++                    .into(binding.bgBook)
++            }
++        }
++    }
++
++    private fun upLoading(isLoading: Boolean, chapterList: List<BookChapter>? = null) {
++        when {
++            isLoading -> {
++                binding.tvToc.text = getString(R.string.toc_s, getString(R.string.loading))
++            }
++
++            chapterList.isNullOrEmpty() -> {
++                binding.tvToc.text = getString(
++                    R.string.toc_s,
++                    getString(R.string.error_load_toc)
++                )
++                binding.tvLasted.text = getString(R.string.lasted_show, book?.latestChapterTitle)
++            }
++
++            else -> {
++                book?.let {
++                    val tocTitle = resolveBookInfoTocTitle(
++                        it.durChapterTitle,
++                        it.durChapterIndex,
++                        chapterList,
++                    ) ?: getString(R.string.no_last_chapter)
++                    val readStatus = resolveBookInfoReadProgress(it)?.let { percent ->
++                        getString(R.string.read_y, "$percent%")
++                    }
++                    binding.tvToc.text = getString(
++                        R.string.toc_s,
++                        listOfNotNull(tocTitle, readStatus).joinToString("  ·  "),
++                    )
++                    binding.tvLasted.text = getString(R.string.lasted_show, it.latestChapterTitle)
++                }
++            }
++        }
++    }
++
++    private fun upTvBookshelf() {
++        if (viewModel.inBookshelf) {
++            binding.tvShelf.text = getString(R.string.remove_from_bookshelf)
++        } else {
++            binding.tvShelf.text = getString(R.string.add_to_bookshelf)
++        }
++        editMenuItem?.isVisible = viewModel.inBookshelf && !isVaultShelfTransientBook()
+     }
+ 
+     private fun upGroup(groupId: Long) {
