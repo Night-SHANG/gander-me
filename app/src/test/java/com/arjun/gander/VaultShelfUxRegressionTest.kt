@@ -248,6 +248,9 @@ class VaultShelfUxRegressionTest {
         assertThat(dispatcher).contains("VaultShelfExternalMediaRouter.supports")
         assertThat(mediaRouter).contains("AudioPlayer::class.java")
         assertThat(mediaRouter).contains("VideoPlayer::class.java")
+        assertThat(mediaRouter).contains("EXTRA_PROGRESS_KEY")
+        assertThat(dispatcher).contains("Positions.keyFor")
+        assertThat(dispatcher).contains("readerLauncher.launch")
         assertThat(main).contains("FileDispatchActivity::class.java")
     }
 

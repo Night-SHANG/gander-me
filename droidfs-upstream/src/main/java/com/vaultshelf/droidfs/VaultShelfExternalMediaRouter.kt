@@ -15,6 +15,7 @@ object VaultShelfExternalMediaRouter {
 
     const val EXTRA_PLAIN_MEDIA = "vaultshelf.media.plain"
     const val EXTRA_DISPLAY_NAME = "vaultshelf.media.display_name"
+    const val EXTRA_PROGRESS_KEY = "vaultshelf.media.progress_key"
 
     private val audioExt = setOf("mp3", "ogg", "m4a", "wav", "flac", "opus")
     private val videoExt = setOf("mp4", "webm", "mkv", "mov", "m4v")
@@ -31,6 +32,7 @@ object VaultShelfExternalMediaRouter {
         uri: Uri,
         name: String,
         mime: String?,
+        progressKey: String?,
     ): Intent {
         val ext = File(name).extension.lowercase()
         val audio = ext in audioExt || mime?.startsWith("audio/") == true
@@ -41,6 +43,7 @@ object VaultShelfExternalMediaRouter {
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             .putExtra(EXTRA_PLAIN_MEDIA, true)
             .putExtra(EXTRA_DISPLAY_NAME, name)
+            .putExtra(EXTRA_PROGRESS_KEY, progressKey)
             .putExtra("path", name)
     }
 }

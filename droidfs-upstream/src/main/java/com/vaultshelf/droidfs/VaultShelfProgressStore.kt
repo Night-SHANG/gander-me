@@ -29,6 +29,22 @@ object VaultShelfProgressStore {
         return digest.digest().take(16).toHex()
     }
 
+    fun plainMediaPosition(context: Context, opaqueContentKey: String): Long =
+        load(context)
+            .firstOrNull { it.key == plainMediaKey(opaqueContentKey) }
+            ?.positionMs
+            ?: 0L
+
+    fun savePlainMediaPosition(
+        context: Context,
+        opaqueContentKey: String,
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        val key = plainMediaKey(opaqueContentKey)
+        savePosition(context, key, emptySet(), positionMs, durationMs)
+    }
+
     fun mediaPosition(
         context: Context,
         volumeId: Int,
@@ -71,23 +87,7 @@ object VaultShelfProgressStore {
     ) {
         val key = fileKey(volumeUuid, path)
         val legacy = legacyFileKey(volumeUuid, path)
-        val all = load(context)
-        val others = all.filter { it.key != key && it.key != legacy }
-
-        // Finished media reopens from the beginning.
-        val safe = positionMs.coerceAtLeast(0L)
-        val keep = safe >= 5_000L &&
-            (durationMs <= 0L || safe < (durationMs - 5_000L).coerceAtLeast(0L))
-
-        if (!keep && others.size == all.size) return
-
-        val entries = if (keep) {
-            others + Entry(key, safe, System.currentTimeMillis())
-        } else {
-            others
-        }
-
-        write(context, entries.sortedByDescending { it.time }.take(MAX))
+        savePosition(context, key, setOf(legacy), positionMs, durationMs)
     }
 
     fun exportOpaque(context: Context, volumeUuid: String? = null): ByteArray {
@@ -108,6 +108,33 @@ object VaultShelfProgressStore {
             .sortedByDescending { it.time }
             .take(MAX)
         write(context, merged)
+    }
+
+    private fun plainMediaKey(opaqueContentKey: String) = "plain:$opaqueContentKey"
+
+    private fun savePosition(
+        context: Context,
+        key: String,
+        aliases: Set<String>,
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        val all = load(context)
+        val others = all.filter { it.key != key && it.key !in aliases }
+
+        // Near the start and near the end both reopen from the beginning.
+        val safe = positionMs.coerceAtLeast(0L)
+        val keep = safe >= 5_000L &&
+            (durationMs <= 0L || safe < (durationMs - 5_000L).coerceAtLeast(0L))
+
+        if (!keep && others.size == all.size) return
+
+        val entries = if (keep) {
+            others + Entry(key, safe, System.currentTimeMillis())
+        } else {
+            others
+        }
+        write(context, entries.sortedByDescending { it.time }.take(MAX))
     }
 
     private fun volumeUuid(context: Context, volumeId: Int): String? =

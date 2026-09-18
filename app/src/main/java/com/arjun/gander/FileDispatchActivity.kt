@@ -61,15 +61,7 @@ class FileDispatchActivity : ComponentActivity() {
             )
 
             VaultShelfExternalMediaRouter.supports(meta.name, meta.mime) -> {
-                startActivity(
-                    VaultShelfExternalMediaRouter.intent(
-                        this,
-                        uri,
-                        meta.name,
-                        meta.mime,
-                    ),
-                )
-                finish()
+                openWithExternalMedia(uri, meta)
             }
 
             else -> {
@@ -87,6 +79,27 @@ class FileDispatchActivity : ComponentActivity() {
         transientBookUrl?.let { outState.putString(STATE_TRANSIENT_BOOK_URL, it) }
         positionKey?.let { outState.putString(STATE_POSITION_KEY, it) }
         super.onSaveInstanceState(outState)
+    }
+
+    private fun openWithExternalMedia(uri: Uri, meta: Metadata) {
+        lifecycleScope.launch {
+            // Same opaque content key strategy used by document/book progress: no URI,
+            // display name or path is persisted in the media position store.
+            val key = withContext(Dispatchers.IO) {
+                Positions.keyFor(contentResolver, uri, meta.size)
+            }
+            positionKey = key
+
+            readerLauncher.launch(
+                VaultShelfExternalMediaRouter.intent(
+                    this@FileDispatchActivity,
+                    uri,
+                    meta.name,
+                    meta.mime,
+                    key,
+                ),
+            )
+        }
     }
 
     private fun openWithLegado(
