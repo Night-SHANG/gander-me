@@ -202,3 +202,29 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragm
          volumeDatabase = VolumeDatabase(requireContext())
          filesDir = requireContext().filesDir.path
          binding.containerHiddenVolume.setOnClickListener {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
+@@ -20,7 +20,6 @@ import kotlinx.coroutines.runBlocking
+-import sushi.hardcore.droidfs.BuildConfig
+ import sushi.hardcore.droidfs.EncryptedFileProvider
+ import sushi.hardcore.droidfs.FileTypes
+ import sushi.hardcore.droidfs.R
+@@ -40,7 +39,6 @@ class VolumeProvider: DocumentsProvider() {
+     companion object {
+         private const val TAG = "DocumentsProvider"
+-        private const val AUTHORITY = BuildConfig.APPLICATION_ID + ".volume_provider"
+         private val DEFAULT_ROOT_PROJECTION = arrayOf(
+             DocumentsContract.Root.COLUMN_ROOT_ID,
+             DocumentsContract.Root.COLUMN_FLAGS,
+@@ -56,7 +54,10 @@ class VolumeProvider: DocumentsProvider() {
+         )
+ 
+         fun notifyRootsChanged(context: Context) {
+-            context.contentResolver.notifyChange(DocumentsContract.buildRootsUri(AUTHORITY), null)
++            context.contentResolver.notifyChange(
++                DocumentsContract.buildRootsUri(context.packageName + ".volume_provider"),
++                null,
++            )
+         }
+     }
