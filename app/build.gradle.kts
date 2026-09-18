@@ -164,6 +164,8 @@ val permissionAllowlist = setOf(
     "android.permission.USE_BIOMETRIC",
     "android.permission.CAMERA",
     "android.permission.RECORD_AUDIO",
+    "android.permission.MANAGE_EXTERNAL_STORAGE",
+    "android.permission.WRITE_EXTERNAL_STORAGE",
 )
 
 val permissionAllowlistSuffixes = setOf(
