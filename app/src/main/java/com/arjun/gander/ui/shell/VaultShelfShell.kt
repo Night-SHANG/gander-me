@@ -168,8 +168,19 @@ private fun HomeScreen(
 
     val readerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
-    ) {
-        refreshRecent()
+    ) { result ->
+        val data = result.data
+        val bookId = data?.getStringExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID)
+        val hasProgress = data?.hasExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS) == true
+        if (result.resultCode == android.app.Activity.RESULT_OK && bookId != null && hasProgress) {
+            val progress = data.getFloatExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS, 0f)
+            scope.launch {
+                libraryRepository.updateViewerProgress(bookId, progress)
+                refreshRecent()
+            }
+        } else {
+            refreshRecent()
+        }
     }
 
     fun openBook(book: LibraryBook) {
@@ -188,6 +199,7 @@ private fun HomeScreen(
                             ViewerActivity.EXTRA_PATH,
                             libraryRepository.bookFile(book.id).absolutePath,
                         )
+                        .putExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID, book.id)
                 }
 
                 BookFormat.UMD -> Intent(context, UmdReaderActivity::class.java)
