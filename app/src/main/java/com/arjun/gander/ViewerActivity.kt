@@ -1368,6 +1368,8 @@ class ViewerActivity : AppCompatActivity() {
                 detail: android.webkit.RenderProcessGoneDetail
             ): Boolean {
                 if (webView === view) {
+                    saveScrollPosition()
+                    publishLibraryProgress()
                     webView = null
                     (view.parent as? ViewGroup)?.removeView(view)
                     view.destroy()
