@@ -79,6 +79,20 @@ object VaultShelfProgressStore {
         write(context, entries.sortedByDescending { it.time }.take(MAX))
     }
 
+    fun exportOpaque(context: Context): ByteArray = runCatching {
+        file(context).readFully()
+    }.getOrDefault(ByteArray(0))
+
+    fun mergeOpaque(context: Context, bytes: ByteArray) {
+        if (bytes.isEmpty()) return
+        val merged = (load(context) + parse(bytes))
+            .groupBy { it.key }
+            .mapNotNull { (_, values) -> values.maxByOrNull { it.time } }
+            .sortedByDescending { it.time }
+            .take(MAX)
+        write(context, merged)
+    }
+
     private fun volumeUuid(context: Context, volumeId: Int): String? =
         (context.applicationContext as? VolumeManagerApp)
             ?.volumeManager
@@ -97,7 +111,11 @@ object VaultShelfProgressStore {
         AtomicFile(File(context.noBackupFilesDir, MEDIA_FILE))
 
     private fun load(context: Context): List<Entry> = runCatching {
-        String(file(context).readFully())
+        parse(file(context).readFully())
+    }.getOrDefault(emptyList())
+
+    private fun parse(bytes: ByteArray): List<Entry> =
+        String(bytes)
             .lineSequence()
             .mapNotNull { line ->
                 val parts = line.split(' ')
@@ -110,7 +128,6 @@ object VaultShelfProgressStore {
                 }
             }
             .toList()
-    }.getOrDefault(emptyList())
 
     private fun write(context: Context, entries: List<Entry>) {
         val atomic = file(context)
