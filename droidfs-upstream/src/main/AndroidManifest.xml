@@ -91,6 +91,17 @@
         </receiver>
 
         <provider
+            android:name="sushi.hardcore.droidfs.content_providers.VolumeProvider"
+            android:authorities="${applicationId}.volume_provider"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
+        <provider
             android:name="sushi.hardcore.droidfs.content_providers.TemporaryFileProvider"
             android:authorities="${applicationId}.temporary_provider"
             android:exported="true" />
