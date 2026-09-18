@@ -1,13 +1,10 @@
 package com.arjun.gander.library
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.arjun.gander.R
-import com.arjun.gander.epub.EpubLibraryMetadataReader
-import io.legado.app.ui.book.read.mobi.LegadoMobiDocument
-import io.legado.app.ui.book.read.umd.LegadoUmdDocument
+import com.vaultshelf.legado.LegadoReaderBridge
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -39,9 +36,11 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     }
 
     override suspend fun importTxt(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
-        importFile(uri, BookFormat.TXT, "txt") { storedFile ->
-            TxtDecoder.decode(storedFile.readBytes()).length
-        }
+        attachLegado(
+            importFile(uri, BookFormat.TXT, "txt") { storedFile ->
+                TxtDecoder.decode(storedFile.readBytes()).length
+            },
+        )
     }
 
     override suspend fun importMarkdown(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
@@ -55,30 +54,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     }
 
     override suspend fun importUmd(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
-        val imported = importFile(uri, BookFormat.UMD, "umd") { 0 }
-        val storedFile = bookFileInternal(imported)
-        val document = LegadoUmdDocument.open(storedFile).getOrNull()
-            ?: return@withContext imported
-        try {
-            val coverFileName = document.coverBitmap(720, 1080)?.let { cover ->
-                val name = "${imported.id}.cover.png"
-                val file = File(libraryDirectory(), name)
-                val saved = runCatching {
-                    file.outputStream().buffered().use { output ->
-                        cover.compress(Bitmap.CompressFormat.PNG, 100, output)
-                    }
-                }.getOrDefault(false)
-                cover.recycle()
-                if (saved && file.isFile) name else null
-            }
-            val updated = imported.copy(
-                title = document.title.takeIf { it.isNotBlank() } ?: imported.title,
-                coverFileName = coverFileName,
-            )
-            if (saveBook(updated)) updated else imported
-        } finally {
-            document.close()
-        }
+        attachLegado(importFile(uri, BookFormat.UMD, "umd") { 0 })
     }
 
     override suspend fun importMobi(
@@ -94,53 +70,43 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             BookFormat.AZW -> "azw"
             else -> error("Unsupported MOBI-family format")
         }
-        val imported = importFile(uri, format, extension) { 0 }
-        val storedFile = bookFileInternal(imported)
-        val document = LegadoMobiDocument.open(storedFile).getOrNull()
-            ?: return@withContext imported
-        try {
-            val coverFileName = document.coverBitmap(720, 1080)?.let { cover ->
-                val name = "${imported.id}.cover.png"
-                val file = File(libraryDirectory(), name)
-                val saved = runCatching {
-                    file.outputStream().buffered().use { output ->
-                        cover.compress(Bitmap.CompressFormat.PNG, 100, output)
-                    }
-                }.getOrDefault(false)
-                cover.recycle()
-                if (saved && file.isFile) name else null
-            }
-            val updated = imported.copy(
-                title = document.title.takeIf { it.isNotBlank() } ?: imported.title,
-                coverFileName = coverFileName,
-            )
-            if (saveBook(updated)) updated else imported
-        } finally {
-            document.close()
-        }
+        attachLegado(importFile(uri, format, extension) { 0 })
     }
 
     override suspend fun importEpub(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
-        val imported = importFile(uri, BookFormat.EPUB, "epub") { 0 }
-        val storedFile = bookFileInternal(imported)
-        val metadata = EpubLibraryMetadataReader.read(storedFile).getOrNull()
-            ?: return@withContext imported
+        attachLegado(importFile(uri, BookFormat.EPUB, "epub") { 0 })
+    }
 
-        val coverFileName = metadata.cover?.let { cover ->
-            val name = "${imported.id}.cover.png"
-            val file = File(libraryDirectory(), name)
-            val saved = runCatching {
-                file.outputStream().buffered().use { output ->
-                    cover.compress(Bitmap.CompressFormat.PNG, 100, output)
-                }
-            }.getOrDefault(false)
-            if (saved && file.isFile) name else null
-        }
-        val updated = imported.copy(
-            title = metadata.title ?: imported.title,
-            coverFileName = coverFileName,
+    private fun attachLegado(book: LibraryBook): LibraryBook {
+        val snapshot = runCatching {
+            LegadoReaderBridge.ensureLocalBook(
+                appContext,
+                bookFileInternal(book),
+                book.title,
+            )
+        }.getOrNull() ?: return book
+
+        val coverFileName = copyLegadoCover(book.id, snapshot.coverPath)
+        val updated = book.copy(
+            title = snapshot.title.takeIf { it.isNotBlank() } ?: book.title,
+            publicationProgression = snapshot.progress,
+            coverFileName = coverFileName ?: book.coverFileName,
+            legadoBookUrl = snapshot.bookUrl,
         )
-        if (saveBook(updated)) updated else imported
+        return if (saveBook(updated)) updated else book
+    }
+
+    private fun copyLegadoCover(bookId: String, coverPath: String?): String? {
+        val source = coverPath
+            ?.let(::File)
+            ?.takeIf { it.isFile && it.length() > 0L }
+            ?: return null
+        val name = "$bookId.cover"
+        val target = File(libraryDirectory(), name)
+        return runCatching {
+            source.copyTo(target, overwrite = true)
+            name
+        }.getOrNull()
     }
 
     private fun importFile(
@@ -309,8 +275,25 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         if (updated == current) current else if (saveBook(updated)) updated else current
     }
 
+    override suspend fun updateLegadoProgress(
+        id: String,
+        legadoBookUrl: String,
+        progressFraction: Float,
+    ): LibraryBook? = withContext(Dispatchers.IO) {
+        val current = getBook(id) ?: return@withContext null
+        val updated = current.copy(
+            legadoBookUrl = legadoBookUrl,
+            publicationProgression = progressFraction.coerceIn(0f, 1f),
+            lastOpenedAtEpochMillis = System.currentTimeMillis(),
+        )
+        if (saveBook(updated)) updated else current
+    }
+
     override suspend fun deleteBook(id: String): Boolean = withContext(Dispatchers.IO) {
         val current = getBook(id) ?: return@withContext false
+        current.legadoBookUrl?.let { bookUrl ->
+            runCatching { LegadoReaderBridge.forgetLocalBook(appContext, bookUrl) }
+        }
         File(libraryDirectory(), current.storedFileName).delete()
         current.coverFileName?.let { File(libraryDirectory(), it).delete() }
         preferences.edit().remove(bookKey(id)).commit()
@@ -361,6 +344,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         .put("readingLocatorJson", book.readingLocatorJson ?: JSONObject.NULL)
         .put("publicationProgression", book.publicationProgression ?: JSONObject.NULL)
         .put("coverFileName", book.coverFileName ?: JSONObject.NULL)
+        .put("legadoBookUrl", book.legadoBookUrl ?: JSONObject.NULL)
         .toString()
 
     private fun decodeBook(json: String): LibraryBook {
@@ -376,6 +360,8 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         }
         val coverFileName = value.optString("coverFileName")
             .takeIf { it.isNotBlank() && it != "null" }
+        val legadoBookUrl = value.optString("legadoBookUrl")
+            .takeIf { it.isNotBlank() && it != "null" }
         return LibraryBook(
             id = value.getString("id"),
             title = value.getString("title"),
@@ -389,6 +375,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             readingLocatorJson = locatorJson,
             publicationProgression = publicationProgression,
             coverFileName = coverFileName,
+            legadoBookUrl = legadoBookUrl,
         )
     }
 
