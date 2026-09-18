@@ -28,5 +28,3 @@ rootProject.name = "Gander"
 include(":app")
 include(":legado-upstream")
 include(":droidfs-upstream")
-include(":droidfs-pdfviewer")
-project(":droidfs-pdfviewer").projectDir = file("third_party/droidfs/libpdfviewer/app")
