@@ -282,7 +282,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun openInViewer(uri: Uri) {
         startActivity(
-            Intent(this, ViewerActivity::class.java)
+            Intent(this, FileDispatchActivity::class.java)
                 .setData(uri)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         )
