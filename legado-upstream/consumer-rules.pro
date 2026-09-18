@@ -55,3 +55,14 @@ org.htmlunit.corejs.javascript.** { *; }
 -dontwarn javax.script.**
 -dontwarn jdk.dynalink.**
 
+# Rhino exposes these implementations to user-authored local reader scripts by method name.
+# The interface itself is @Keep upstream, but that does not preserve all implementors.
+-keep class * implements io.legado.app.help.JsExtensions { *; }
+
+# Optional/platform-only references already suppressed by Legado's reviewed release rules.
+# Keeping these scoped warnings avoids turning an otherwise dead optional path into an R8 failure.
+-dontwarn android.app.privatecompute.PccSandboxManager
+-dontwarn java.lang.management.ManagementFactory
+-dontwarn java.lang.management.RuntimeMXBean
+-dontwarn com.gemalto.jp2.JP2Decoder
+

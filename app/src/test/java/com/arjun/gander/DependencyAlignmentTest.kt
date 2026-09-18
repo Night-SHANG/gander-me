@@ -44,4 +44,15 @@ class DependencyAlignmentTest {
         assertThat(legado).contains("androidx.lifecycle:lifecycle-common-java8:2.10.0")
         assertThat(legado).contains("androidx.lifecycle:lifecycle-service:2.10.0")
     }
+    @Test
+    fun legadoReleaseRulesKeepLocalRhinoReflectionWithoutKeepingOnlineStacks() {
+        val rules = File(repo, "legado-upstream/consumer-rules.pro").readText()
+
+        assertThat(rules).contains("implements io.legado.app.help.JsExtensions")
+        assertThat(rules).contains("android.app.privatecompute.PccSandboxManager")
+        assertThat(rules).contains("com.gemalto.jp2.JP2Decoder")
+        assertThat(rules).doesNotContain("-keep class okhttp3.")
+        assertThat(rules).doesNotContain("GSYBaseVideoPlayer")
+    }
+
 }
