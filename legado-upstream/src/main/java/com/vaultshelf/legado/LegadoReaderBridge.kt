@@ -27,6 +27,8 @@ import io.legado.app.data.entities.rule.SearchRule
 import io.legado.app.help.DefaultData
 import io.legado.app.help.LifecycleHelp
 import io.legado.app.help.book.ResourceThemeGeneration
+import io.legado.app.help.book.BookHelp
+import io.legado.app.help.book.ReadRecordCoverCache
 import io.legado.app.help.book.readProgress
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
@@ -35,8 +37,10 @@ import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.rhino.NativeBaseSource
 import io.legado.app.lib.theme.WallpaperTheme
 import io.legado.app.model.BookCover
+import io.legado.app.model.ReadBook
 import io.legado.app.model.localBook.LocalBook
 import io.legado.app.ui.book.read.ReadBookActivity
+import io.legado.app.help.book.removeLocalUriCache
 import io.legado.app.utils.ChineseUtils
 import io.legado.app.utils.defaultSharedPreferences
 import java.io.File
@@ -51,6 +55,14 @@ import java.util.concurrent.atomic.AtomicBoolean
  * VaultShelf's app-private books to Legado bookUrl values.
  */
 object LegadoReaderBridge {
+
+    private const val TRANSIENT_PREFS = "vaultshelf_legado_transient"
+    private const val TRANSIENT_URLS = "book_urls"
+
+    data class TransientBookSession(
+        val bookUrl: String,
+        val title: String,
+    )
 
     data class LocalBookSnapshot(
         val bookUrl: String,
@@ -96,6 +108,7 @@ object LegadoReaderBridge {
         // Online Cronet/WebDAV/source sync/auto-task initialization is intentionally omitted.
         Coroutine.async {
             DefaultData.upVersion()
+            cleanupOrphanedTransientSessions(appContext)
             BookCover.toString()
             ReadBookConfig.clearBgAndCache()
             when (AppConfig.chineseConverterType) {
@@ -136,6 +149,91 @@ object LegadoReaderBridge {
                 setSound(null, null)
             },
         )
+    }
+
+    /**
+     * Register a DroidFS temporary content URI as an ephemeral Legado local book.
+     *
+     * previewImportFile reads the original metadata first. Passing that preview back into
+     * importFile uses Legado's own collision handling (it renames the temporary identity
+     * when a normal bookshelf book has the same name/author) instead of replacing it.
+     */
+    fun createTransientBookSession(
+        context: Context,
+        uri: Uri,
+    ): TransientBookSession {
+        initialize(context)
+        val preview = LocalBook.previewImportFile(uri)
+        val book = LocalBook.importFile(uri, preview)
+        rememberTransientUrl(context, book.bookUrl)
+        return TransientBookSession(book.bookUrl, book.name)
+    }
+
+    /**
+     * Remove every plaintext artifact that the original Legado reader may have produced
+     * for a temporary vault book: EPUB chapter cache, cover, TOC rows, highlights,
+     * bookmarks, memo, reading history, parser/URI caches and the temporary book row.
+     */
+    fun cleanupTransientBookSession(
+        context: Context,
+        bookUrl: String,
+    ) {
+        initialize(context)
+        val book = appDb.bookDao.getBook(bookUrl)
+        if (book == null) {
+            forgetTransientUrl(context, bookUrl)
+            return
+        }
+
+        if (ReadBook.book?.bookUrl == bookUrl) {
+            ReadBook.book = null
+        }
+
+        LocalBook.withParserCacheInvalidated(book) {
+            BookHelp.clearCache(book)
+
+            appDb.bookHighlightDao.getByBook(bookUrl)
+                .takeIf { it.isNotEmpty() }
+                ?.toTypedArray()
+                ?.let(appDb.bookHighlightDao::delete)
+
+            appDb.bookmarkDao.getByBook(book.name, book.author)
+                .takeIf { it.isNotEmpty() }
+                ?.toTypedArray()
+                ?.let(appDb.bookmarkDao::delete)
+
+            appDb.readRecordDao.deleteByBook(book.name, book.author)
+            book.removeLocalUriCache()
+
+            // Uses Legado's own local-book cleanup for its generated cover/cache files.
+            LocalBook.deleteBook(book, deleteOriginal = false)
+            appDb.bookDao.delete(book)
+        }
+
+        ReadRecordCoverCache.prune()
+        forgetTransientUrl(context, bookUrl)
+    }
+
+    private fun cleanupOrphanedTransientSessions(context: Context) {
+        transientUrls(context).forEach { bookUrl ->
+            runCatching { cleanupTransientBookSession(context, bookUrl) }
+        }
+    }
+
+    private fun transientPrefs(context: Context) =
+        context.getSharedPreferences(TRANSIENT_PREFS, Context.MODE_PRIVATE)
+
+    private fun transientUrls(context: Context): Set<String> =
+        transientPrefs(context).getStringSet(TRANSIENT_URLS, emptySet()).orEmpty().toSet()
+
+    private fun rememberTransientUrl(context: Context, bookUrl: String) {
+        val urls = transientUrls(context).toMutableSet().apply { add(bookUrl) }
+        transientPrefs(context).edit().putStringSet(TRANSIENT_URLS, urls).apply()
+    }
+
+    private fun forgetTransientUrl(context: Context, bookUrl: String) {
+        val urls = transientUrls(context).toMutableSet().apply { remove(bookUrl) }
+        transientPrefs(context).edit().putStringSet(TRANSIENT_URLS, urls).apply()
     }
 
     fun ensureLocalBook(
