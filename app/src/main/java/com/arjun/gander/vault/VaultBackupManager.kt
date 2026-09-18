@@ -108,8 +108,10 @@ object VaultBackupManager {
                 }
             }
         } catch (error: BackupException) {
+            runCatching { appContext.contentResolver.delete(destination, null, null) }
             throw error
         } catch (error: Throwable) {
+            runCatching { appContext.contentResolver.delete(destination, null, null) }
             throw BackupException(Failure.IO, error)
         }
     }
@@ -241,8 +243,10 @@ object VaultBackupManager {
 
                 // Opaque keys were derived from this preserved volume UUID, so they become
                 // valid again without ever putting plaintext vault paths in the backup.
-                bookMetadata?.let { BookReadingPositions.mergeOpaque(appContext, it) }
-                mediaMetadata?.let { VaultShelfProgressStore.mergeOpaque(appContext, it) }
+                runCatching {
+                    bookMetadata?.let { BookReadingPositions.mergeOpaque(appContext, it) }
+                    mediaMetadata?.let { VaultShelfProgressStore.mergeOpaque(appContext, it) }
+                }
 
                 RestoredVolume(volume)
             }
