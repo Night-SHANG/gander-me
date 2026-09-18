@@ -5,7 +5,6 @@ import android.content.Intent
 import sushi.hardcore.droidfs.FileShare
 import sushi.hardcore.droidfs.content_providers.TemporaryFileProvider
 import java.io.File
-import java.security.MessageDigest
 import java.util.UUID
 
 /**
@@ -28,22 +27,15 @@ object VaultShelfFileRouter {
         "docx",
         "xlsx", "xls", "xlsm", "xlsb", "csv", "ods",
         "pptx",
+        "pdf",
         "md", "markdown",
 
-        // Legado local ebook formats not natively handled by DroidFS.
-        "epub", "umd", "mobi", "azw3", "azw",
+        // Legado local ebook formats. TXT is intentionally a reader format here.
+        "txt", "epub", "umd", "mobi", "azw3", "azw",
     )
 
     fun supports(path: String): Boolean =
         File(path).extension.lowercase() in extraFormats
-
-    private fun stableFileKey(volumeId: Int, path: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        digest.update(volumeId.toString().toByteArray())
-        digest.update(0)
-        digest.update(path.toByteArray())
-        return digest.digest().take(16).joinToString("") { "%02x".format(it) }
-    }
 
     fun open(
         activity: Activity,
@@ -71,7 +63,7 @@ object VaultShelfFileRouter {
             )
             putExtra(EXTRA_VOLUME_ID, volumeId)
             putExtra(EXTRA_SESSION_TOKEN, UUID.randomUUID().toString())
-            putExtra(EXTRA_FILE_KEY, stableFileKey(volumeId, path))
+            putExtra(EXTRA_FILE_KEY, VaultShelfProgressStore.fileKey(volumeId, path))
         }
 
         return runCatching {
