@@ -10,6 +10,7 @@ android {
 
     defaultConfig {
         minSdk = 26
+        consumerProguardFiles("consumer-rules.pro")
 
         buildConfigField("boolean", "CRYFS_DISABLED", "true")
         buildConfigField("boolean", "GOCRYPTFS_DISABLED", "false")
@@ -91,6 +92,7 @@ dependencies {
     implementation("androidx.camera:camera-extensions:1.4.2")
     implementation("androidx.concurrent:concurrent-futures:1.3.0")
     implementation("com.google.auto.value:auto-value-annotations:1.11.1")
+    annotationProcessor("com.google.auto.value:auto-value:1.11.1")
 }
 
 
