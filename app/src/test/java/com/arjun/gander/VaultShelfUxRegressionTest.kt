@@ -33,6 +33,20 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun transientVaultEpubDeletesItsFullPlaintextContentUriCache() {
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+        val patch = File(repo, "patches/legado-vaultshelf-runtime.patch").readText()
+
+        assertThat(bridge).contains("BookHelp.clearEpubContentUriCache(book)")
+        assertThat(patch).contains("clearEpubContentUriCache")
+        assertThat(patch).contains(".temporary_provider")
+        assertThat(patch).contains("MD5Utils.md5Encode16(book.bookUrl)")
+    }
+
+    @Test
     fun transientVaultBooksCannotExportOrEditTheirTemporaryIdentity() {
         val patch = File(repo, "patches/legado-vaultshelf-runtime.patch").readText()
 

@@ -235,6 +235,7 @@ object LegadoReaderBridge {
             if (!existedBeforeImport) {
                 LocalBook.withParserCacheInvalidated(book) {
                     BookHelp.clearCache(book)
+                    BookHelp.clearEpubContentUriCache(book)
                     book.removeLocalUriCache()
                     LocalBook.deleteBook(book, deleteOriginal = false)
                     appDb.bookDao.delete(book)
@@ -297,6 +298,7 @@ object LegadoReaderBridge {
 
         LocalBook.withParserCacheInvalidated(book) {
             BookHelp.clearCache(book)
+            BookHelp.clearEpubContentUriCache(book)
 
             appDb.bookHighlightDao.getByBook(bookUrl)
                 .takeIf { it.isNotEmpty() }
