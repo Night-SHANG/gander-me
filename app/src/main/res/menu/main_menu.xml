@@ -10,7 +10,7 @@
         app:showAsAction="never" />
     <item
         android:id="@+id/action_share_app"
-        android:title="@string/share_app"
+        android:title="@string/gander_share_app"
         app:showAsAction="never" />
     <item
         android:id="@+id/action_about"

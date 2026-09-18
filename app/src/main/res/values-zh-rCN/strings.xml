@@ -41,7 +41,7 @@
     <string name="back">返回</string>
     <string name="about_gander">关于 VaultShelf</string>
     <string name="rate_app">评分</string>
-    <string name="share_app">分享</string>
+    <string name="gander_share_app">分享</string>
     <string name="share_app_text">VaultShelf，一款 Android 离线文档、阅读与私人保险库应用：%1$s</string>
     <string name="about_version">版本 %1$s</string>
     <string name="about_permissions_label">此应用申请的权限</string>

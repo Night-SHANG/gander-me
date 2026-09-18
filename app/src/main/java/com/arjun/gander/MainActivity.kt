@@ -425,7 +425,7 @@ class MainActivity : AppCompatActivity() {
             .setType("text/plain")
             .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name))
             .putExtra(Intent.EXTRA_TEXT, getString(R.string.share_app_text, getString(R.string.url_site)))
-        val chooser = Intent.createChooser(send, getString(R.string.share_app))
+        val chooser = Intent.createChooser(send, getString(R.string.gander_share_app))
             .putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(ComponentName(this, ViewerActivity::class.java)))
         runCatching { startActivity(chooser) }
     }

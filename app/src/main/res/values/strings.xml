@@ -41,7 +41,7 @@
     <string name="back">Back</string>
     <string name="about_gander">About VaultShelf</string>
     <string name="rate_app">Rate</string>
-    <string name="share_app">Share</string>
+    <string name="gander_share_app">Share</string>
     <string name="share_app_text">VaultShelf, an offline Android document, reading and private-vault app: %1$s</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_permissions_label">Permissions this app requests</string>
