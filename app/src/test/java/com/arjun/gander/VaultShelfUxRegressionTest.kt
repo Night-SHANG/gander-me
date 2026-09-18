@@ -244,6 +244,21 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun vaultLockGuardCoversNestedLegadoActivitiesInTheSameTask() {
+        val guard = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultSessionGuard.kt",
+        ).readText()
+
+        assertThat(guard).contains("val taskId: Int")
+        assertThat(guard).contains("LEGADO_PACKAGE_PREFIX")
+        assertThat(guard).contains("activity.javaClass.name.startsWith")
+        assertThat(guard).contains("current.activities.entries.toList().forEach")
+        assertThat(guard).contains("activity.finish()")
+        assertThat(guard).contains("WindowManager.LayoutParams.FLAG_SECURE")
+    }
+
+    @Test
     fun vaultFormatsUseTheMatureViewerForEachDomain() {
         val router = File(
             repo,
