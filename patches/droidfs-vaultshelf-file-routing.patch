@@ -1,7 +1,7 @@
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-@@ -24,6 +24,7 @@ import kotlinx.coroutines.MainScope
+@@ -26,6 +26,7 @@ import kotlinx.coroutines.MainScope
  import kotlinx.coroutines.cancel
  import kotlinx.coroutines.cancelAndJoin
  import kotlinx.coroutines.launch
@@ -9,7 +9,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
  import kotlinx.coroutines.yield
  import sushi.hardcore.droidfs.BaseActivity
  import sushi.hardcore.droidfs.Constants
-@@ -304,6 +305,14 @@ open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener
+@@ -304,6 +305,15 @@ open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener
                  explorerElements[position].isParentFolder -> {
                      changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
                  }
@@ -28,7 +28,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
-@@ -10,7 +10,6 @@ import android.provider.OpenableColumns
+@@ -11,9 +11,8 @@ import android.provider.OpenableColumns
  import android.util.Log
  import android.webkit.MimeTypeMap
  import kotlinx.coroutines.Dispatchers
@@ -38,7 +38,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/Temporar
  import sushi.hardcore.droidfs.EncryptedFileProvider
  import sushi.hardcore.droidfs.VolumeManager
  import sushi.hardcore.droidfs.VolumeManagerApp
-@@ -24,8 +23,7 @@ class TemporaryFileProvider : ContentProvider() {
+@@ -31,8 +30,7 @@ class TemporaryFileProvider : ContentProvider() {
  
      companion object {
          private const val TAG = "TemporaryFileProvider"
@@ -48,7 +48,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/Temporar
  
          lateinit var instance: TemporaryFileProvider
              private set
-@@ -38,6 +36,7 @@ class TemporaryFileProvider : ContentProvider() {
+@@ -46,6 +44,7 @@ class TemporaryFileProvider : ContentProvider() {
  
      override fun onCreate(): Boolean {
          return context?.let {
@@ -59,7 +59,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/Temporar
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
-@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
+@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
  import kotlinx.coroutines.sync.Mutex
  import kotlinx.coroutines.sync.withLock
  import kotlinx.coroutines.withContext
@@ -67,7 +67,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerAct
  import sushi.hardcore.droidfs.BaseActivity
  import sushi.hardcore.droidfs.FileTypes
  import sushi.hardcore.droidfs.R
-@@ -31,6 +32,10 @@ abstract class FileViewerActivity: BaseActivity() {
+@@ -35,5 +36,10 @@ abstract class FileViewerActivity: BaseActivity() {
      protected lateinit var encryptedVolume: EncryptedVolume
      protected val volumeId: Int by lazy { intent.getIntExtra("volumeId", -1) }
 +    protected val plainMediaUri by lazy {
@@ -78,7 +78,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerAct
      private lateinit var originalParentPath: String
      private lateinit var windowInsetsController: WindowInsetsControllerCompat
      private val playlistMutex = Mutex()
-@@ -48,13 +53,23 @@ abstract class FileViewerActivity: BaseActivity() {
+@@ -49,12 +55,22 @@ abstract class FileViewerActivity: BaseActivity() {
              windowInsetsController.isAppearanceLightNavigationBars = false
          }
          if (fileViewerViewModel.filePath == null) {
@@ -337,7 +337,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/MediaPlayer.k
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt b/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
-@@ -106,6 +106,10 @@ class SelectPathFragment : Fragment() {
+@@ -103,6 +103,10 @@ class SelectPathFragment : Fragment() {
              theme = Compat.getParcelable(arguments, KEY_THEME_VALUE)!!
              pickMode = arguments.getBoolean(KEY_PICK_MODE)
          }
@@ -351,19 +351,19 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragm
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
-@@ -20,7 +20,6 @@ import kotlinx.coroutines.runBlocking
+@@ -21,4 +21,3 @@ import kotlinx.coroutines.runBlocking
 -import sushi.hardcore.droidfs.BuildConfig
  import sushi.hardcore.droidfs.EncryptedFileProvider
  import sushi.hardcore.droidfs.FileTypes
  import sushi.hardcore.droidfs.R
-@@ -40,7 +39,6 @@ class VolumeProvider: DocumentsProvider() {
+@@ -35,6 +34,5 @@ class VolumeProvider: DocumentsProvider() {
      companion object {
          private const val TAG = "DocumentsProvider"
 -        private const val AUTHORITY = BuildConfig.APPLICATION_ID + ".volume_provider"
          private val DEFAULT_ROOT_PROJECTION = arrayOf(
              DocumentsContract.Root.COLUMN_ROOT_ID,
              DocumentsContract.Root.COLUMN_FLAGS,
-@@ -56,7 +54,10 @@ class VolumeProvider: DocumentsProvider() {
+@@ -52,6 +50,9 @@ class VolumeProvider: DocumentsProvider() {
          )
  
          fun notifyRootsChanged(context: Context) {
@@ -374,8 +374,6 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumePr
 +            )
          }
      }
-
-# Namespace DroidFS layouts that collide with pinned Legado resources.
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
@@ -520,13 +518,10 @@ diff --git a/app/src/main/res/layout/dialog_edit_text.xml b/app/src/main/res/lay
 similarity index 100%
 rename from app/src/main/res/layout/dialog_edit_text.xml
 rename to app/src/main/res/layout/droidfs_dialog_edit_text.xml
-
 diff --git a/app/src/main/res/xml/backup_rules.xml b/app/src/main/res/xml/droidfs_backup_rules.xml
 similarity index 100%
 rename from app/src/main/res/xml/backup_rules.xml
 rename to app/src/main/res/xml/droidfs_backup_rules.xml
-
-# VaultShelf excludes unused upstream source files by renaming them out of the Android source scanner.
 diff --git a/app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java b/app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java.vaultshelf-disabled
 similarity index 100%
 rename from app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java
