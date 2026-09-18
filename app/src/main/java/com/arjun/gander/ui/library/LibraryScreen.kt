@@ -143,8 +143,21 @@ fun LibraryScreen(
 
     val readerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
-    ) {
-        refresh()
+    ) { result ->
+        val data = result.data
+        val bookId = data?.getStringExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID)
+        val hasProgress = data?.hasExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS) == true
+        if (result.resultCode == android.app.Activity.RESULT_OK && bookId != null && hasProgress) {
+            val progress = data.getFloatExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS, 0f)
+            scope.launch {
+                repository.updateViewerProgress(bookId, progress)
+                books = repository.listBooks()
+                selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
+                loading = false
+            }
+        } else {
+            refresh()
+        }
     }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments(),
@@ -186,6 +199,7 @@ fun LibraryScreen(
                     repository.updateProgress(book.id, book.readingOffset)
                     Intent(context, ViewerActivity::class.java)
                         .putExtra(ViewerActivity.EXTRA_PATH, repository.bookFile(book.id).absolutePath)
+                        .putExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID, book.id)
                 }
 
                 BookFormat.UMD -> Intent(context, UmdReaderActivity::class.java)
