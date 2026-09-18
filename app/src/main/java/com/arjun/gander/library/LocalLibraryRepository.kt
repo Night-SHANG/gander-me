@@ -42,6 +42,12 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         }
     }
 
+    override suspend fun importMarkdown(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
+        importFile(uri, BookFormat.MARKDOWN, "md") { storedFile ->
+            TxtDecoder.decode(storedFile.readBytes()).length
+        }
+    }
+
     override suspend fun importEpub(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
         val imported = importFile(uri, BookFormat.EPUB, "epub") { 0 }
         val storedFile = bookFileInternal(imported)
