@@ -66,8 +66,8 @@ class VaultContentActivity : ComponentActivity() {
             .lowercase()
 
         when (extension) {
-            "epub", "umd", "mobi", "azw3", "azw" -> openWithLegado(uri, token)
-            "docx", "xlsx", "xls", "xlsm", "xlsb", "csv", "ods",
+            "txt", "epub", "umd", "mobi", "azw3", "azw" -> openWithLegado(uri, token)
+            "pdf", "docx", "xlsx", "xls", "xlsm", "xlsb", "csv", "ods",
             "pptx", "md", "markdown" -> openWithGander(uri, token)
             else -> cleanupAndFinish()
         }
