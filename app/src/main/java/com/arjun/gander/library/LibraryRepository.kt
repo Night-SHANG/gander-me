@@ -12,6 +12,8 @@ interface LibraryRepository {
 
     suspend fun importEpub(uri: Uri): LibraryBook
 
+    suspend fun importMarkdown(uri: Uri): LibraryBook
+
     suspend fun readText(id: String): String
 
     suspend fun bookFile(id: String): File
