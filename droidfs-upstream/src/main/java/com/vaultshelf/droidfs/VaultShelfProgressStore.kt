@@ -15,12 +15,18 @@ object VaultShelfProgressStore {
     private const val MEDIA_FILE = "vault_media_positions"
     private const val MAX = 500
 
-    fun fileKey(volumeUuid: String, path: String): String {
+    fun volumePrefix(volumeUuid: String): String =
+        "v1-" + digest(volumeUuid.toByteArray()).take(8).toHex()
+
+    fun fileKey(volumeUuid: String, path: String): String =
+        volumePrefix(volumeUuid) + ":" + legacyFileKey(volumeUuid, path)
+
+    fun legacyFileKey(volumeUuid: String, path: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
         digest.update(volumeUuid.toByteArray())
         digest.update(0)
         digest.update(path.toByteArray())
-        return digest.digest().take(16).joinToString("") { "%02x".format(it) }
+        return digest.digest().take(16).toHex()
     }
 
     fun mediaPosition(
@@ -36,10 +42,14 @@ object VaultShelfProgressStore {
         context: Context,
         volumeUuid: String,
         path: String,
-    ): Long = load(context)
-        .firstOrNull { it.key == fileKey(volumeUuid, path) }
-        ?.positionMs
-        ?: 0L
+    ): Long {
+        val current = fileKey(volumeUuid, path)
+        val legacy = legacyFileKey(volumeUuid, path)
+        return load(context)
+            .firstOrNull { it.key == current || it.key == legacy }
+            ?.positionMs
+            ?: 0L
+    }
 
     fun saveMediaPosition(
         context: Context,
@@ -60,8 +70,9 @@ object VaultShelfProgressStore {
         durationMs: Long,
     ) {
         val key = fileKey(volumeUuid, path)
+        val legacy = legacyFileKey(volumeUuid, path)
         val all = load(context)
-        val others = all.filter { it.key != key }
+        val others = all.filter { it.key != key && it.key != legacy }
 
         // Finished media reopens from the beginning.
         val safe = positionMs.coerceAtLeast(0L)
@@ -79,9 +90,15 @@ object VaultShelfProgressStore {
         write(context, entries.sortedByDescending { it.time }.take(MAX))
     }
 
-    fun exportOpaque(context: Context): ByteArray = runCatching {
-        file(context).readFully()
-    }.getOrDefault(ByteArray(0))
+    fun exportOpaque(context: Context, volumeUuid: String? = null): ByteArray {
+        val entries = if (volumeUuid == null) {
+            load(context)
+        } else {
+            val prefix = volumePrefix(volumeUuid) + ":"
+            load(context).filter { it.key.startsWith(prefix) }
+        }
+        return encode(entries)
+    }
 
     fun mergeOpaque(context: Context, bytes: ByteArray) {
         if (bytes.isEmpty()) return
@@ -129,15 +146,22 @@ object VaultShelfProgressStore {
             }
             .toList()
 
+    private fun digest(bytes: ByteArray): ByteArray =
+        MessageDigest.getInstance("SHA-256").digest(bytes)
+
+    private fun ByteArray.toHex(): String =
+        joinToString("") { "%02x".format(it) }
+
+    private fun encode(entries: List<Entry>): ByteArray =
+        entries.joinToString("") {
+            "${it.key} ${it.positionMs} ${it.time}\n"
+        }.toByteArray()
+
     private fun write(context: Context, entries: List<Entry>) {
         val atomic = file(context)
         val output = runCatching { atomic.startWrite() }.getOrNull() ?: return
         runCatching {
-            output.write(
-                entries.joinToString("") {
-                    "${it.key} ${it.positionMs} ${it.time}\n"
-                }.toByteArray(),
-            )
+            output.write(encode(entries))
             atomic.finishWrite(output)
         }.onFailure {
             atomic.failWrite(output)
