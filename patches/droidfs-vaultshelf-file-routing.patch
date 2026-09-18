@@ -228,3 +228,149 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumePr
 +            )
          }
      }
+
+# Namespace DroidFS layouts that collide with pinned Legado resources.
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
+@@ -18,46 +18,46 @@
+ import sushi.hardcore.droidfs.adapters.VolumeAdapter
+ import sushi.hardcore.droidfs.add_volume.AddVolumeActivity
+ import sushi.hardcore.droidfs.content_providers.VolumeProvider
+-import sushi.hardcore.droidfs.databinding.ActivityMainBinding
+-import sushi.hardcore.droidfs.databinding.DialogDeleteVolumeBinding
+-import sushi.hardcore.droidfs.explorers.ExplorerRouter
+-import sushi.hardcore.droidfs.file_operations.FileOperationService
+-import sushi.hardcore.droidfs.file_operations.TaskResult
+-import sushi.hardcore.droidfs.util.IntentUtils
+-import sushi.hardcore.droidfs.util.PathUtils
+-import sushi.hardcore.droidfs.widgets.EditTextDialog
+-import java.io.File
+-
+-class MainActivity : BaseActivity(), VolumeAdapter.Listener {
+-    companion object {
+-        private const val OPEN_DEFAULT_VOLUME = "openDefault"
+-    }
+-
+-    private lateinit var binding: ActivityMainBinding
+-    private lateinit var volumeDatabase: VolumeDatabase
+-    private lateinit var volumeManager: VolumeManager
+-    private lateinit var volumeAdapter: VolumeAdapter
+-    private lateinit var volumeOpener: VolumeOpener
+-    private var addVolume = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+-        if ((explorerRouter.pickMode || explorerRouter.dropMode) && result.resultCode != AddVolumeActivity.RESULT_USER_BACK) {
+-            setResult(result.resultCode, result.data) // forward result
+-            finish()
+-        }
+-    }
+-    private var selectedVolumePosition: Int? = null
+-    private var changePassword = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+-        selectedVolumePosition?.let { unselect(it) }
+-    }
+-    private val pickDirectory = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+-        if (uri != null)
+-            onDirectoryPicked(uri)
+-    }
+-    private lateinit var fileOperationService: FileOperationService
+-    private lateinit var explorerRouter: ExplorerRouter
+-
+-    override fun onCreate(savedInstanceState: Bundle?) {
+-        super.onCreate(savedInstanceState)
+-        binding = ActivityMainBinding.inflate(layoutInflater)
++import sushi.hardcore.droidfs.databinding.DroidfsActivityMainBinding
++import sushi.hardcore.droidfs.databinding.DialogDeleteVolumeBinding
++import sushi.hardcore.droidfs.explorers.ExplorerRouter
++import sushi.hardcore.droidfs.file_operations.FileOperationService
++import sushi.hardcore.droidfs.file_operations.TaskResult
++import sushi.hardcore.droidfs.util.IntentUtils
++import sushi.hardcore.droidfs.util.PathUtils
++import sushi.hardcore.droidfs.widgets.EditTextDialog
++import java.io.File
++
++class MainActivity : BaseActivity(), VolumeAdapter.Listener {
++    companion object {
++        private const val OPEN_DEFAULT_VOLUME = "openDefault"
++    }
++
++    private lateinit var binding: DroidfsActivityMainBinding
++    private lateinit var volumeDatabase: VolumeDatabase
++    private lateinit var volumeManager: VolumeManager
++    private lateinit var volumeAdapter: VolumeAdapter
++    private lateinit var volumeOpener: VolumeOpener
++    private var addVolume = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
++        if ((explorerRouter.pickMode || explorerRouter.dropMode) && result.resultCode != AddVolumeActivity.RESULT_USER_BACK) {
++            setResult(result.resultCode, result.data) // forward result
++            finish()
++        }
++    }
++    private var selectedVolumePosition: Int? = null
++    private var changePassword = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
++        selectedVolumePosition?.let { unselect(it) }
++    }
++    private val pickDirectory = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
++        if (uri != null)
++            onDirectoryPicked(uri)
++    }
++    private lateinit var fileOperationService: FileOperationService
++    private lateinit var explorerRouter: ExplorerRouter
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        binding = DroidfsActivityMainBinding.inflate(layoutInflater)
+         setContentView(binding.root)
+         setSupportActionBar(findViewById(R.id.toolbar))
+         if (sharedPrefs.getBoolean("applicationFirstOpening", true)) {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
+@@ -12,16 +12,16 @@
+ import androidx.media3.exoplayer.ExoPlayer
+ import androidx.media3.ui.PlayerView
+ import sushi.hardcore.droidfs.R
+-import sushi.hardcore.droidfs.databinding.ActivityVideoPlayerBinding
+-
+-class VideoPlayer: MediaPlayer() {
+-    private val autoFit by lazy {
+-        sharedPrefs.getBoolean("autoFit", false)
+-    }
+-    private lateinit var binding: ActivityVideoPlayerBinding
+-
+-    override fun viewFile() {
+-        binding = ActivityVideoPlayerBinding.inflate(layoutInflater)
++import sushi.hardcore.droidfs.databinding.DroidfsActivityVideoPlayerBinding
++
++class VideoPlayer: MediaPlayer() {
++    private val autoFit by lazy {
++        sharedPrefs.getBoolean("autoFit", false)
++    }
++    private lateinit var binding: DroidfsActivityVideoPlayerBinding
++
++    override fun viewFile() {
++        binding = DroidfsActivityVideoPlayerBinding.inflate(layoutInflater)
+         setContentView(binding.root)
+         binding.topBar.fitsSystemWindows = true
+         binding.videoPlayer.doubleTapOverlay = binding.doubleTapOverlay
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt b/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
+@@ -10,7 +10,7 @@
+ class EditTextDialog(
+     activity: Activity,
+     private val titleId: Int,
+-    viewId: Int = R.layout.dialog_edit_text,
++    viewId: Int = R.layout.droidfs_dialog_edit_text,
+ ) : MaterialAlertDialogBuilder(activity) {
+     val root = activity.layoutInflater.inflate(viewId, null)
+     val dialogEditText = root.findViewById<EditText>(R.id.dialog_edit_text)
+diff --git a/app/src/main/res/layout/activity_main.xml b/app/src/main/res/layout/droidfs_activity_main.xml
+similarity index 100%
+rename from app/src/main/res/layout/activity_main.xml
+rename to app/src/main/res/layout/droidfs_activity_main.xml
+diff --git a/app/src/main/res/layout/activity_video_player.xml b/app/src/main/res/layout/droidfs_activity_video_player.xml
+similarity index 100%
+rename from app/src/main/res/layout/activity_video_player.xml
+rename to app/src/main/res/layout/droidfs_activity_video_player.xml
+diff --git a/app/src/main/res/layout/dialog_edit_text.xml b/app/src/main/res/layout/droidfs_dialog_edit_text.xml
+similarity index 100%
+rename from app/src/main/res/layout/dialog_edit_text.xml
+rename to app/src/main/res/layout/droidfs_dialog_edit_text.xml
