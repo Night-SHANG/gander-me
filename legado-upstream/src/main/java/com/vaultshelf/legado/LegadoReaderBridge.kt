@@ -76,8 +76,11 @@ import javax.crypto.spec.GCMParameterSpec
  */
 object LegadoReaderBridge {
 
-    private const val TRANSIENT_PREFS = "vaultshelf_legado_transient"
-    private const val TRANSIENT_URLS = "book_urls"
+    private const val TRANSIENT_ORIGIN = "vaultshelf::transient-local-book"
+    // One-time migration only: development builds before the database marker stored raw
+    // temporary URIs here. New sessions never write this SharedPreferences registry.
+    private const val LEGACY_TRANSIENT_PREFS = "vaultshelf_legado_transient"
+    private const val LEGACY_TRANSIENT_URLS = "book_urls"
     private const val TRANSIENT_METADATA_KEY_ALIAS = "vaultshelf_legado_transient_metadata_v1"
     private const val TRANSIENT_METADATA_VERSION = 1
     private const val GCM_TAG_BITS = 128
@@ -261,8 +264,13 @@ object LegadoReaderBridge {
         initialize(context)
         ensureLocalTxtTocRules()
         val preview = LocalBook.previewImportFile(uri)
-        val existedBeforeImport = appDb.bookDao.getBook(preview.bookUrl) != null
-        val book = LocalBook.importFile(uri, preview)
+        val existing = appDb.bookDao.getBook(preview.bookUrl)
+        check(existing == null || existing.origin == TRANSIENT_ORIGIN) {
+            "Refusing to turn a durable Legado book into a transient session"
+        }
+        val existedBeforeImport = existing != null
+        val transientPreview = preview.copy(origin = TRANSIENT_ORIGIN)
+        val book = LocalBook.importFile(uri, transientPreview)
         try {
             rememberTransientMetadataSnapshot(context, book)
         } catch (error: Throwable) {
@@ -282,7 +290,6 @@ object LegadoReaderBridge {
             }
             throw error
         }
-        rememberTransientUrl(context, book.bookUrl)
         return TransientBookSession(book.bookUrl, book.name)
     }
 
@@ -327,7 +334,6 @@ object LegadoReaderBridge {
         if (book == null) {
             metadataSnapshot?.let(::restoreTransientMetadataSnapshot)
             forgetTransientMetadataSnapshot(context, bookUrl)
-            forgetTransientUrl(context, bookUrl)
             return
         }
 
@@ -369,13 +375,31 @@ object LegadoReaderBridge {
         metadataSnapshot?.let(::restoreTransientMetadataSnapshot)
         ReadRecordCoverCache.prune()
         forgetTransientMetadataSnapshot(context, bookUrl)
-        forgetTransientUrl(context, bookUrl)
     }
 
     private fun cleanupOrphanedTransientSessions(context: Context) {
-        transientUrls(context).forEach { bookUrl ->
+        val markedUrls = appDb.bookDao.all
+            .asSequence()
+            .filter { it.origin == TRANSIENT_ORIGIN }
+            .map { it.bookUrl }
+            .toSet()
+
+        // Migrate any development-build registry once, then erase it. This path is
+        // intentionally read-only for compatibility; createTransientBookSession never
+        // writes raw temporary URIs outside Legado's transient Book row.
+        val legacyPrefs = context.getSharedPreferences(
+            LEGACY_TRANSIENT_PREFS,
+            Context.MODE_PRIVATE,
+        )
+        val legacyUrls = legacyPrefs
+            .getStringSet(LEGACY_TRANSIENT_URLS, emptySet())
+            .orEmpty()
+            .toSet()
+
+        (markedUrls + legacyUrls).forEach { bookUrl ->
             runCatching { cleanupTransientBookSession(context, bookUrl) }
         }
+        legacyPrefs.edit().clear().apply()
     }
 
     private fun rememberTransientMetadataSnapshot(context: Context, book: Book) {
@@ -517,22 +541,6 @@ object LegadoReaderBridge {
             .digest(bookUrl.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
         return File(directory, "$digest.json")
-    }
-
-    private fun transientPrefs(context: Context) =
-        context.getSharedPreferences(TRANSIENT_PREFS, Context.MODE_PRIVATE)
-
-    private fun transientUrls(context: Context): Set<String> =
-        transientPrefs(context).getStringSet(TRANSIENT_URLS, emptySet()).orEmpty().toSet()
-
-    private fun rememberTransientUrl(context: Context, bookUrl: String) {
-        val urls = transientUrls(context).toMutableSet().apply { add(bookUrl) }
-        transientPrefs(context).edit().putStringSet(TRANSIENT_URLS, urls).apply()
-    }
-
-    private fun forgetTransientUrl(context: Context, bookUrl: String) {
-        val urls = transientUrls(context).toMutableSet().apply { remove(bookUrl) }
-        transientPrefs(context).edit().putStringSet(TRANSIENT_URLS, urls).apply()
     }
 
     fun ensureLocalBook(

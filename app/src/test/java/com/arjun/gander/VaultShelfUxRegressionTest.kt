@@ -33,6 +33,21 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun transientLegadoSessionsUseDatabaseMarkerInsteadOfPlainUriRegistry() {
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+
+        assertThat(bridge).contains("TRANSIENT_ORIGIN")
+        assertThat(bridge).contains("preview.copy(origin = TRANSIENT_ORIGIN)")
+        assertThat(bridge).contains("appDb.bookDao.all")
+        assertThat(bridge).contains("it.origin == TRANSIENT_ORIGIN")
+        assertThat(bridge).doesNotContain("putStringSet(TRANSIENT_URLS")
+        assertThat(bridge).doesNotContain("fun rememberTransientUrl")
+    }
+
+    @Test
     fun transientLegadoHistorySnapshotIsEncryptedAtRest() {
         val bridge = File(
             repo,
