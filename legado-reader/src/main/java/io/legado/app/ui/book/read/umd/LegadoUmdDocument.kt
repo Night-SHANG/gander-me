@@ -7,6 +7,7 @@ package io.legado.app.ui.book.read.umd
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import io.legado.app.ui.book.read.page.ReaderImageProvider
 import io.legado.app.ui.book.read.page.entities.TextChapter
 import io.legado.app.ui.book.read.page.provider.ReaderBlock
 import io.legado.app.ui.book.read.page.provider.ReaderLayoutConfig
@@ -30,7 +31,7 @@ class LegadoUmdDocument private constructor(
     val title: String,
     val chapters: List<UmdSourceChapter>,
     private val coverBytes: ByteArray?,
-) : Closeable {
+) : Closeable, ReaderImageProvider {
 
     fun paginate(
         viewportWidthPx: Int,
@@ -134,6 +135,8 @@ class LegadoUmdDocument private constructor(
         if (scaled !== decoded) decoded.recycle()
         return scaled
     }
+
+    override fun load(source: String): Bitmap? = null
 
     override fun close() = Unit
 
