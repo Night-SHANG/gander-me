@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keep the shared upstream compatibility labels deterministic in Simplified Chinese. -->
+    <string name="about">关于</string>
+    <string name="add">添加</string>
+    <string name="audio">音频</string>
+    <string name="cancel">取消</string>
+    <string name="create">创建</string>
+    <string name="debug">调试</string>
+    <string name="error">错误</string>
+    <string name="loading">加载中…</string>
+    <string name="no">否</string>
+    <string name="ok">确定</string>
+    <string name="open">打开</string>
+    <string name="select_all">全选</string>
+    <string name="share">分享</string>
+    <string name="text">文本</string>
+    <string name="theme">主题</string>
+    <string name="unknown_error">未知错误</string>
+    <string name="version">版本</string>
+    <string name="video">视频</string>
+    <string name="yes">是</string>
+</resources>
