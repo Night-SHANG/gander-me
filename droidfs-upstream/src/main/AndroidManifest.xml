@@ -98,6 +98,7 @@
         <provider
             android:name="sushi.hardcore.droidfs.content_providers.TemporaryFileProvider"
             android:authorities="${applicationId}.temporary_provider"
-            android:exported="true" />
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

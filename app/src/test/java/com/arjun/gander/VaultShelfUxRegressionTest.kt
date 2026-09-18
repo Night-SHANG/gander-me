@@ -279,6 +279,18 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun temporaryVaultProviderUsesPerUriGrantsInsteadOfGlobalExport() {
+        val manifest = File(
+            repo,
+            "droidfs-upstream/src/main/AndroidManifest.xml",
+        ).readText()
+        val provider = manifest.substringAfter("TemporaryFileProvider").substringBefore("</application>")
+
+        assertThat(provider).contains("android:exported=\"false\"")
+        assertThat(provider).contains("android:grantUriPermissions=\"true\"")
+    }
+
+    @Test
     fun droidFsPatchKeepsHiddenVaultDefaultAndMigrationAvailable() {
         val patch = File(
             repo,
