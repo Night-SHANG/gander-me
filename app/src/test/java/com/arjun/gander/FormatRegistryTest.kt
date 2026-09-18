@@ -88,7 +88,7 @@ class FormatRegistryTest {
     fun theUnifiedDispatcherIsTheActivityThatAnswers() {
         mimesFor("VIEW").forEach { mime ->
             assertThat("$mime resolves to the dispatcher: ${resolves(Intent.ACTION_VIEW, mime)}")
-                .isEqualTo("$mime resolves to the viewer: true")
+                .isEqualTo("$mime resolves to the dispatcher: true")
         }
     }
 
