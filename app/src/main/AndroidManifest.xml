@@ -38,6 +38,11 @@
         </provider>
 
         <activity
+            android:name=".FileDispatchActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.NoDisplay" />
+
+        <activity
             android:name=".vault.VaultContentActivity"
             android:exported="false"
             android:theme="@android:style/Theme.NoDisplay" />
