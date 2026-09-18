@@ -32,6 +32,7 @@ import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ReadRecordCoverCache
 import io.legado.app.help.book.readProgress
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.LocalConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ThemeConfig.applyDayNight
 import io.legado.app.help.config.ThemeConfig.applyDayNightInit
@@ -130,7 +131,12 @@ object LegadoReaderBridge {
         // Legado performs these local data/cache initializers asynchronously too.
         // Online Cronet/WebDAV/source sync/auto-task initialization is intentionally omitted.
         Coroutine.async {
-            DefaultData.upVersion()
+            // VaultShelf is offline-only. Legado's DefaultData.upVersion() also installs
+            // network HTTP-TTS, RSS and dictionary definitions, so only seed the mature
+            // local TXT chapter rules required by the reader.
+            if (LocalConfig.needUpTxtTocRule) {
+                DefaultData.importDefaultTocRules()
+            }
             cleanupOrphanedTransientSessions(appContext)
             BookCover.toString()
             ReadBookConfig.clearBgAndCache()
