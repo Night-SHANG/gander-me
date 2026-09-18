@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.ui.theme.VaultShelfTheme
+import sushi.hardcore.droidfs.MainActivity as DroidFsMainActivity
 
 /**
  * VaultShelf's product shell.
@@ -32,6 +33,11 @@ class VaultShelfActivity : AppCompatActivity() {
                         libraryRepository = libraryRepository,
                         onOpenFiles = {
                             startActivity(Intent(this@VaultShelfActivity, MainActivity::class.java))
+                        },
+                        onOpenVault = {
+                            startActivity(
+                                Intent(this@VaultShelfActivity, DroidFsMainActivity::class.java),
+                            )
                         },
                         // Android 15+ is edge-to-edge by default. Use the platform-provided
                         // safe drawing area instead of fixed offsets so status bars, display
