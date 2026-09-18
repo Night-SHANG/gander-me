@@ -16,12 +16,6 @@ android {
         buildConfigField("String", "Cronet_Version", "\"153.0.8010.27\"")
         buildConfigField("String", "Cronet_Main_Version", "\"153.0.0.0\"")
 
-        ksp {
-            arg("room.incremental", "true")
-            arg("room.expandProjection", "true")
-            arg("room.generateKotlin", "false")
-            arg("room.schemaLocation", file("schemas").absolutePath)
-        }
     }
 
     buildFeatures {
@@ -170,4 +164,11 @@ dependencies {
     })
 
     testImplementation("junit:junit:4.13.2")
+}
+
+ksp {
+    arg("room.incremental", "true")
+    arg("room.expandProjection", "true")
+    arg("room.generateKotlin", "false")
+    arg("room.schemaLocation", file("schemas").absolutePath)
 }
