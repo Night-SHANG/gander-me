@@ -30,24 +30,6 @@ interface LibraryRepository {
 
     suspend fun updateProgress(id: String, readingOffset: Int): LibraryBook?
 
-    suspend fun updateEpubProgress(
-        id: String,
-        locatorJson: String,
-        publicationProgression: Float?,
-    ): LibraryBook?
-
-    suspend fun updateUmdProgress(
-        id: String,
-        locatorJson: String,
-        publicationProgression: Float?,
-    ): LibraryBook?
-
-    suspend fun updateMobiProgress(
-        id: String,
-        locatorJson: String,
-        publicationProgression: Float?,
-    ): LibraryBook?
-
     suspend fun updateViewerProgress(
         id: String,
         progressFraction: Float,
