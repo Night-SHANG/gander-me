@@ -286,6 +286,29 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         if (saveBook(updated)) updated else current
     }
 
+    override suspend fun updateViewerProgress(
+        id: String,
+        progressFraction: Float,
+    ): LibraryBook? = withContext(Dispatchers.IO) {
+        val current = getBook(id) ?: return@withContext null
+        val safe = progressFraction.coerceIn(0f, 1f)
+        val updated = when (current.format) {
+            BookFormat.MARKDOWN -> current.copy(
+                readingOffset = (current.totalCharacters * safe).toInt()
+                    .coerceIn(0, current.totalCharacters.coerceAtLeast(0)),
+                lastOpenedAtEpochMillis = System.currentTimeMillis(),
+            )
+
+            BookFormat.PDF -> current.copy(
+                publicationProgression = safe,
+                lastOpenedAtEpochMillis = System.currentTimeMillis(),
+            )
+
+            else -> current
+        }
+        if (updated == current) current else if (saveBook(updated)) updated else current
+    }
+
     override suspend fun deleteBook(id: String): Boolean = withContext(Dispatchers.IO) {
         val current = getBook(id) ?: return@withContext false
         File(libraryDirectory(), current.storedFileName).delete()
