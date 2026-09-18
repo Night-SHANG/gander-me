@@ -148,7 +148,7 @@ fun LibraryScreen(
         val bookId = data?.getStringExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID)
         val hasProgress = data?.hasExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS) == true
         if (result.resultCode == android.app.Activity.RESULT_OK && bookId != null && hasProgress) {
-            val progress = data.getFloatExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS, 0f)
+            val progress = data?.getFloatExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS, 0f) ?: 0f
             scope.launch {
                 repository.updateViewerProgress(bookId, progress)
                 books = repository.listBooks()
