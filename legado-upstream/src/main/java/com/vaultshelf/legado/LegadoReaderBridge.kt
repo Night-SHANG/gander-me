@@ -50,6 +50,7 @@ import io.legado.app.help.book.removeLocalUriCache
 import io.legado.app.utils.ChineseUtils
 import io.legado.app.utils.GSON
 import io.legado.app.utils.defaultSharedPreferences
+import splitties.init.injectAsAppCtx
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
@@ -98,9 +99,13 @@ object LegadoReaderBridge {
     private val initialized = AtomicBoolean(false)
 
     fun initialize(context: Context) {
-        if (!initialized.compareAndSet(false, true)) return
-
         val appContext = context.applicationContext
+        // GanderStartupProvider has a high initOrder and can run before AndroidX
+        // Startup's Splitties AppCtxInitializer. Legado reads appCtx immediately
+        // through AppConfig/appDb, so establish the exact Application context first.
+        appContext.injectAsAppCtx()
+
+        if (!initialized.compareAndSet(false, true)) return
         val configuration = Configuration(appContext.resources.configuration)
         var observedNightMode = configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
 

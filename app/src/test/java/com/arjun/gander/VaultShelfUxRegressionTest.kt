@@ -43,6 +43,19 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun legadoBridgeInitializesSplittiesBeforeReadingAppConfig() {
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+
+        val inject = bridge.indexOf("appContext.injectAsAppCtx()")
+        val firstAppConfig = bridge.indexOf("AppConfig.themeMode")
+        assertThat(inject).isAtLeast(0)
+        assertThat(firstAppConfig).isGreaterThan(inject)
+    }
+
+    @Test
     fun localLegadoManifestKeepsReaderReachableActivitiesOnly() {
         val manifest = File(repo, "legado-upstream/src/main/AndroidManifest.xml").readText()
 
