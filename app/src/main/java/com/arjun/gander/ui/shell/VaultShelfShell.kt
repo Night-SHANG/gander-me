@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.arjun.gander.EpubReaderActivity
+import com.arjun.gander.MobiReaderActivity
 import com.arjun.gander.R
 import com.arjun.gander.TxtReaderActivity
 import com.arjun.gander.UmdReaderActivity
@@ -191,6 +192,10 @@ private fun HomeScreen(
 
                 BookFormat.UMD -> Intent(context, UmdReaderActivity::class.java)
                     .putExtra(UmdReaderActivity.EXTRA_BOOK_ID, book.id)
+
+                BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
+                    Intent(context, MobiReaderActivity::class.java)
+                        .putExtra(MobiReaderActivity.EXTRA_BOOK_ID, book.id)
             }
             readerLauncher.launch(intent)
         }
