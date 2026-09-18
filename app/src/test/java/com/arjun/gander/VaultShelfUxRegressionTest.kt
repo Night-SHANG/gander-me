@@ -87,6 +87,21 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun localBookEntryWaitsForTxtTocRulesWithoutPrematureVersionMarking() {
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+
+        assertThat(bridge).contains("private fun ensureLocalTxtTocRules()")
+        assertThat(bridge).contains("runBlocking(Dispatchers.IO)")
+        assertThat(bridge).contains("appDb.txtTocRuleDao.count")
+        assertThat(bridge).contains("DefaultData.importDefaultTocRules()")
+        assertThat(bridge).contains(".putInt(TXT_TOC_RULE_VERSION_KEY, TXT_TOC_RULE_VERSION)")
+        assertThat(bridge).doesNotContain("LocalConfig.needUpTxtTocRule")
+    }
+
+    @Test
     fun legadoBridgeInitializesSplittiesBeforeReadingAppConfig() {
         val bridge = File(
             repo,

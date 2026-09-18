@@ -53,6 +53,8 @@ import io.legado.app.help.book.removeLocalUriCache
 import io.legado.app.utils.ChineseUtils
 import io.legado.app.utils.GSON
 import io.legado.app.utils.defaultSharedPreferences
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import splitties.init.injectAsAppCtx
 import java.io.File
 import java.nio.ByteBuffer
@@ -79,6 +81,8 @@ object LegadoReaderBridge {
     private const val TRANSIENT_METADATA_KEY_ALIAS = "vaultshelf_legado_transient_metadata_v1"
     private const val TRANSIENT_METADATA_VERSION = 1
     private const val GCM_TAG_BITS = 128
+    private const val TXT_TOC_RULE_VERSION_KEY = "txtTocRuleVersion"
+    private const val TXT_TOC_RULE_VERSION = 3
 
     data class TransientBookSession(
         val bookUrl: String,
@@ -160,12 +164,9 @@ object LegadoReaderBridge {
         // Legado performs these local data/cache initializers asynchronously too.
         // Online Cronet/WebDAV/source sync/auto-task initialization is intentionally omitted.
         Coroutine.async {
-            // VaultShelf is offline-only. Legado's DefaultData.upVersion() also installs
-            // network HTTP-TTS, RSS and dictionary definitions, so only seed the mature
-            // local TXT chapter rules required by the reader.
-            if (LocalConfig.needUpTxtTocRule) {
-                DefaultData.importDefaultTocRules()
-            }
+            // Online Cronet/WebDAV/source sync/auto-task initialization is omitted.
+            // TXT rules are initialized by a synchronous reader-entry barrier below so an
+            // external "Open with VaultShelf" intent cannot race the database seed.
             cleanupOrphanedTransientSessions(appContext)
             BookCover.toString()
             ReadBookConfig.clearBgAndCache()
@@ -209,6 +210,28 @@ object LegadoReaderBridge {
         )
     }
 
+    @Synchronized
+    private fun ensureLocalTxtTocRules() {
+        runBlocking(Dispatchers.IO) {
+            val storedVersion = LocalConfig.getInt(TXT_TOC_RULE_VERSION_KEY, 0)
+            val ruleCount = appDb.txtTocRuleDao.count
+            if (storedVersion >= TXT_TOC_RULE_VERSION && ruleCount > 0) {
+                return@runBlocking
+            }
+
+            // Do not use LocalConfig.needUpTxtTocRule here: its getter advances the
+            // version marker before the database import succeeds.
+            DefaultData.importDefaultTocRules()
+            check(
+                LocalConfig.edit()
+                    .putInt(TXT_TOC_RULE_VERSION_KEY, TXT_TOC_RULE_VERSION)
+                    .commit(),
+            ) {
+                "Unable to persist Legado TXT TOC rule version"
+            }
+        }
+    }
+
     /**
      * Keep a normal Files URI in Legado when VaultShelf has durable read access to it.
      * This intentionally preserves Legado's own progress, bookmarks, highlights and history.
@@ -218,6 +241,7 @@ object LegadoReaderBridge {
         uri: Uri,
     ): LocalBookSnapshot {
         initialize(context)
+        ensureLocalTxtTocRules()
         val preview = LocalBook.previewImportFile(uri)
         val book = appDb.bookDao.getBook(preview.bookUrl)
             ?: LocalBook.importFile(uri, preview)
@@ -235,6 +259,7 @@ object LegadoReaderBridge {
         uri: Uri,
     ): TransientBookSession {
         initialize(context)
+        ensureLocalTxtTocRules()
         val preview = LocalBook.previewImportFile(uri)
         val existedBeforeImport = appDb.bookDao.getBook(preview.bookUrl) != null
         val book = LocalBook.importFile(uri, preview)
