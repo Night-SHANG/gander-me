@@ -16,6 +16,8 @@ interface LibraryRepository {
 
     suspend fun importPdf(uri: Uri): LibraryBook
 
+    suspend fun importUmd(uri: Uri): LibraryBook
+
     suspend fun readText(id: String): String
 
     suspend fun bookFile(id: String): File
@@ -27,6 +29,12 @@ interface LibraryRepository {
     suspend fun updateProgress(id: String, readingOffset: Int): LibraryBook?
 
     suspend fun updateEpubProgress(
+        id: String,
+        locatorJson: String,
+        publicationProgression: Float?,
+    ): LibraryBook?
+
+    suspend fun updateUmdProgress(
         id: String,
         locatorJson: String,
         publicationProgression: Float?,
