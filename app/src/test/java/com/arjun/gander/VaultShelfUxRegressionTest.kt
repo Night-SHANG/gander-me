@@ -59,6 +59,28 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun vaultUsesPinnedDroidFsHiddenVolumeSubsystem() {
+        val gitmodules = File(repo, ".gitmodules").readText()
+        val activity = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
+        ).readText()
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+        val droidFsBuild = File(repo, "droidfs-upstream/build.gradle.kts").readText()
+
+        assertThat(gitmodules).contains("third_party/droidfs")
+        assertThat(gitmodules).contains("https://github.com/hardcore-sushi/DroidFS.git")
+        assertThat(activity).contains("DroidFsMainActivity")
+        assertThat(shell).contains("VaultShelfDestination.VAULT -> onOpenVault()")
+        assertThat(droidFsBuild).contains("../third_party/droidfs/app/src/main/java")
+        assertThat(droidFsBuild).contains("\"CRYFS_DISABLED\", \"true\"")
+        assertThat(droidFsBuild).contains("\"GOCRYPTFS_DISABLED\", \"false\"")
+    }
+
+    @Test
     fun libraryKeepsLegadoLocalFormatsPlusMarkdown() {
         val bookModel = File(
             repo,
