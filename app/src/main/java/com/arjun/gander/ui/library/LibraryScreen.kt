@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import com.arjun.gander.EpubReaderActivity
 import com.arjun.gander.R
 import com.arjun.gander.TxtReaderActivity
+import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
@@ -142,6 +143,7 @@ fun LibraryScreen(
                         when (detectBookFormat(context, uri)) {
                             BookFormat.TXT -> repository.importTxt(uri)
                             BookFormat.EPUB -> repository.importEpub(uri)
+                            BookFormat.MARKDOWN -> repository.importMarkdown(uri)
                             null -> error("Unsupported library format")
                         }
                     }.onFailure { failed = true }
@@ -153,14 +155,22 @@ fun LibraryScreen(
     }
 
     fun openBook(book: LibraryBook) {
-        val intent = when (book.format) {
-            BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
-                .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
+        scope.launch {
+            val intent = when (book.format) {
+                BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
+                    .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
 
-            BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
-                .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+                BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
+                    .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+
+                BookFormat.MARKDOWN -> {
+                    repository.updateProgress(book.id, book.readingOffset)
+                    Intent(context, ViewerActivity::class.java)
+                        .putExtra(ViewerActivity.EXTRA_PATH, repository.bookFile(book.id).absolutePath)
+                }
+            }
+            readerLauncher.launch(intent)
         }
-        readerLauncher.launch(intent)
     }
 
     fun onBookClick(book: LibraryBook) {
@@ -984,11 +994,6 @@ private fun RenameBookDialog(
 }
 
 private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
-    when (context.contentResolver.getType(uri)?.lowercase()) {
-        "application/epub+zip" -> return BookFormat.EPUB
-        "text/plain" -> return BookFormat.TXT
-    }
-
     val displayName = context.contentResolver.query(
         uri,
         arrayOf(OpenableColumns.DISPLAY_NAME),
@@ -1000,14 +1005,21 @@ private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
         if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
     } ?: uri.lastPathSegment
 
-    return when (displayName?.substringAfterLast('.', missingDelimiterValue = "")?.lowercase()) {
-        "txt" -> BookFormat.TXT
-        "epub" -> BookFormat.EPUB
+    when (displayName?.substringAfterLast('.', missingDelimiterValue = "")?.lowercase()) {
+        "txt" -> return BookFormat.TXT
+        "epub" -> return BookFormat.EPUB
+        "md", "markdown" -> return BookFormat.MARKDOWN
+    }
+
+    return when (context.contentResolver.getType(uri)?.lowercase()) {
+        "application/epub+zip" -> BookFormat.EPUB
+        "text/markdown" -> BookFormat.MARKDOWN
+        "text/plain" -> BookFormat.TXT
         else -> null
     }
 }
 
-private val IMPORT_MIME_TYPES = arrayOf("text/plain", "application/epub+zip")
+private val IMPORT_MIME_TYPES = arrayOf("text/plain", "text/markdown", "application/epub+zip")
 
 private val COVER_COLORS = listOf(
     Color(0xFF315A7D),
