@@ -157,6 +157,7 @@ fun LibraryScreen(
                             BookFormat.TXT -> repository.importTxt(uri)
                             BookFormat.EPUB -> repository.importEpub(uri)
                             BookFormat.MARKDOWN -> repository.importMarkdown(uri)
+                            BookFormat.PDF -> repository.importPdf(uri)
                             null -> error("Unsupported library format")
                         }
                     }.onFailure { failed = true }
@@ -176,7 +177,7 @@ fun LibraryScreen(
                 BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
                     .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
 
-                BookFormat.MARKDOWN -> {
+                BookFormat.MARKDOWN, BookFormat.PDF -> {
                     repository.updateProgress(book.id, book.readingOffset)
                     Intent(context, ViewerActivity::class.java)
                         .putExtra(ViewerActivity.EXTRA_PATH, repository.bookFile(book.id).absolutePath)
@@ -1065,17 +1066,24 @@ private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
         "txt" -> return BookFormat.TXT
         "epub" -> return BookFormat.EPUB
         "md", "markdown" -> return BookFormat.MARKDOWN
+        "pdf" -> return BookFormat.PDF
     }
 
     return when (context.contentResolver.getType(uri)?.lowercase()) {
         "application/epub+zip" -> BookFormat.EPUB
         "text/markdown" -> BookFormat.MARKDOWN
+        "application/pdf" -> BookFormat.PDF
         "text/plain" -> BookFormat.TXT
         else -> null
     }
 }
 
-private val IMPORT_MIME_TYPES = arrayOf("text/plain", "text/markdown", "application/epub+zip")
+private val IMPORT_MIME_TYPES = arrayOf(
+    "text/plain",
+    "text/markdown",
+    "application/epub+zip",
+    "application/pdf",
+)
 
 private val COVER_COLORS = listOf(
     Color(0xFF315A7D),
