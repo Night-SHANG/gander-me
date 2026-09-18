@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
+import com.arjun.gander.BookReadingPositions
 import com.arjun.gander.ViewerActivity
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import com.vaultshelf.legado.LegadoReaderBridge
@@ -94,7 +95,7 @@ class VaultContentActivity : ComponentActivity() {
 
             transientBookUrl = session.bookUrl
             fileKey?.let { key ->
-                VaultReadingPositions.book(applicationContext, key)?.let { saved ->
+                BookReadingPositions.get(applicationContext, key)?.let { saved ->
                     withContext(Dispatchers.IO) {
                         LegadoReaderBridge.restoreTransientReadingPosition(
                             applicationContext,
@@ -153,7 +154,7 @@ class VaultContentActivity : ComponentActivity() {
                                 applicationContext,
                                 bookUrl,
                             )?.let { position ->
-                                VaultReadingPositions.saveBook(
+                                BookReadingPositions.save(
                                     applicationContext,
                                     key,
                                     position.chapterIndex,
@@ -196,7 +197,7 @@ class VaultContentActivity : ComponentActivity() {
                                 applicationContext,
                                 bookUrl,
                             )?.let { position ->
-                                VaultReadingPositions.saveBook(
+                                BookReadingPositions.save(
                                     applicationContext,
                                     key,
                                     position.chapterIndex,
