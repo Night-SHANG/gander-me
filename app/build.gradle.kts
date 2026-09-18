@@ -175,10 +175,10 @@ android {
     }
 }
 
-// Requesting nothing is the whole promise, but permissions arrive transitively: Media3 contributes
-// ACCESS_NETWORK_STATE, stripped in the manifest. Naming one permission there does not stop the next
-// dependency bump adding another, and that would surface in the store listing rather than the build.
-// So assert the invariant on the merged manifest instead of trusting the strip.
+// VaultShelf now embeds DroidFS and Legado local-reading features, so a small reviewed permission
+// set is intentional. Permissions also arrive transitively: Media3 contributes ACCESS_NETWORK_STATE,
+// which is stripped in the manifest. Assert the final merged manifest against the explicit allowlist
+// so a dependency bump cannot silently expand the app's permissions.
 //
 // Held as suffixes on the variant's own applicationId, since a debug build carries
 // one and would otherwise fail against a hardcoded package name.
