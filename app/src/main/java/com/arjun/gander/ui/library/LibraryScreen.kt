@@ -155,14 +155,14 @@ fun LibraryScreen(
                 var failed = false
                 uris.forEach { uri ->
                     runCatching {
-                        when (detectBookFormat(context, uri)) {
+                        when (val format = detectBookFormat(context, uri)) {
                             BookFormat.TXT -> repository.importTxt(uri)
                             BookFormat.EPUB -> repository.importEpub(uri)
                             BookFormat.MARKDOWN -> repository.importMarkdown(uri)
                             BookFormat.PDF -> repository.importPdf(uri)
                             BookFormat.UMD -> repository.importUmd(uri)
                             BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
-                                repository.importMobi(uri, detectBookFormat(context, uri)!!)
+                                repository.importMobi(uri, format)
                             null -> error("Unsupported library format")
                         }
                     }.onFailure { failed = true }
