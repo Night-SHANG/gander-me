@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.AtomicFile
 import com.github.liuyueyi.quick.transfer.constants.TransType
 import com.jeremyliao.liveeventbus.LiveEventBus
@@ -53,8 +55,14 @@ import io.legado.app.utils.GSON
 import io.legado.app.utils.defaultSharedPreferences
 import splitties.init.injectAsAppCtx
 import java.io.File
+import java.nio.ByteBuffer
+import java.security.KeyStore
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 /**
  * Thin VaultShelf boundary around the pinned upstream Legado local-reader subsystem.
@@ -68,6 +76,9 @@ object LegadoReaderBridge {
 
     private const val TRANSIENT_PREFS = "vaultshelf_legado_transient"
     private const val TRANSIENT_URLS = "book_urls"
+    private const val TRANSIENT_METADATA_KEY_ALIAS = "vaultshelf_legado_transient_metadata_v1"
+    private const val TRANSIENT_METADATA_VERSION = 1
+    private const val GCM_TAG_BITS = 128
 
     data class TransientBookSession(
         val bookUrl: String,
@@ -349,14 +360,18 @@ object LegadoReaderBridge {
             bookmarks = appDb.bookmarkDao.getByBook(book.name, book.author),
             readRecords = appDb.readRecordDao.getRecords(book.name, book.author),
         )
+        val plain = GSON.toJson(snapshot).toByteArray(Charsets.UTF_8)
+        val encrypted = encryptTransientMetadata(book.bookUrl, plain)
         val atomic = transientMetadataFile(context, book.bookUrl)
         val output = atomic.startWrite()
         try {
-            output.write(GSON.toJson(snapshot).toByteArray(Charsets.UTF_8))
+            output.write(encrypted)
             atomic.finishWrite(output)
         } catch (error: Throwable) {
             atomic.failWrite(output)
             throw error
+        } finally {
+            plain.fill(0)
         }
     }
 
@@ -364,11 +379,18 @@ object LegadoReaderBridge {
         context: Context,
         bookUrl: String,
     ): TransientMetadataSnapshot? = runCatching {
-        val json = String(
+        val plain = decryptTransientMetadata(
+            bookUrl,
             transientMetadataFile(context, bookUrl).readFully(),
-            Charsets.UTF_8,
         )
-        GSON.fromJson(json, TransientMetadataSnapshot::class.java)
+        try {
+            GSON.fromJson(
+                String(plain, Charsets.UTF_8),
+                TransientMetadataSnapshot::class.java,
+            )
+        } finally {
+            plain.fill(0)
+        }
     }.getOrNull()
 
     private fun restoreTransientMetadataSnapshot(snapshot: TransientMetadataSnapshot) {
@@ -382,6 +404,64 @@ object LegadoReaderBridge {
         }
     }
 
+    @Synchronized
+    private fun transientMetadataKey(): SecretKey {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (keyStore.getKey(TRANSIENT_METADATA_KEY_ALIAS, null) as? SecretKey)?.let { return it }
+
+        return KeyGenerator.getInstance(
+            KeyProperties.KEY_ALGORITHM_AES,
+            "AndroidKeyStore",
+        ).run {
+            init(
+                KeyGenParameterSpec.Builder(
+                    TRANSIENT_METADATA_KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .build(),
+            )
+            generateKey()
+        }
+    }
+
+    private fun encryptTransientMetadata(bookUrl: String, plain: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, transientMetadataKey())
+        cipher.updateAAD(bookUrl.toByteArray(Charsets.UTF_8))
+        val iv = cipher.iv
+        check(iv.isNotEmpty() && iv.size <= 255)
+        val encrypted = cipher.doFinal(plain)
+        return ByteBuffer.allocate(2 + iv.size + encrypted.size).apply {
+            put(TRANSIENT_METADATA_VERSION.toByte())
+            put(iv.size.toByte())
+            put(iv)
+            put(encrypted)
+        }.array()
+    }
+
+    private fun decryptTransientMetadata(bookUrl: String, payload: ByteArray): ByteArray {
+        require(payload.size >= 3)
+        val buffer = ByteBuffer.wrap(payload)
+        val version = buffer.get().toInt() and 0xff
+        require(version == TRANSIENT_METADATA_VERSION)
+        val ivSize = buffer.get().toInt() and 0xff
+        require(ivSize > 0 && buffer.remaining() > ivSize)
+
+        val iv = ByteArray(ivSize).also(buffer::get)
+        val encrypted = ByteArray(buffer.remaining()).also(buffer::get)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            transientMetadataKey(),
+            GCMParameterSpec(GCM_TAG_BITS, iv),
+        )
+        cipher.updateAAD(bookUrl.toByteArray(Charsets.UTF_8))
+        return cipher.doFinal(encrypted)
+    }
+
     private fun transientMetadataFile(context: Context, bookUrl: String): AtomicFile {
         val directory = File(
             context.noBackupFilesDir,
@@ -393,11 +473,25 @@ object LegadoReaderBridge {
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(bookUrl.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
-        return AtomicFile(File(directory, "$digest.json"))
+        return AtomicFile(File(directory, "$digest.bin"))
     }
 
     private fun forgetTransientMetadataSnapshot(context: Context, bookUrl: String) {
         transientMetadataFile(context, bookUrl).delete()
+        // Development builds before encrypted snapshots used a .json file. Never read
+        // that plaintext legacy form; erase it opportunistically if one is present.
+        transientMetadataLegacyFile(context, bookUrl).delete()
+    }
+
+    private fun transientMetadataLegacyFile(context: Context, bookUrl: String): File {
+        val directory = File(
+            context.noBackupFilesDir,
+            "vaultshelf_legado_transient_metadata",
+        )
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(bookUrl.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        return File(directory, "$digest.json")
     }
 
     private fun transientPrefs(context: Context) =

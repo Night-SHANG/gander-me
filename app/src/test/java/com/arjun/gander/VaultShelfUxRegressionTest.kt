@@ -33,6 +33,21 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun transientLegadoHistorySnapshotIsEncryptedAtRest() {
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+
+        assertThat(bridge).contains("AndroidKeyStore")
+        assertThat(bridge).contains("AES/GCM/NoPadding")
+        assertThat(bridge).contains("GCMParameterSpec")
+        assertThat(bridge).contains("cipher.updateAAD(bookUrl.toByteArray")
+        assertThat(bridge).contains("\"$digest.bin\"")
+        assertThat(bridge).doesNotContain("output.write(GSON.toJson(snapshot).toByteArray")
+    }
+
+    @Test
     fun transientVaultBookDeletesMemoAndRuleBigData() {
         val bridge = File(
             repo,
