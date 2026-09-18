@@ -66,16 +66,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
-import com.arjun.gander.EpubReaderActivity
-import com.arjun.gander.MobiReaderActivity
 import com.arjun.gander.R
-import com.arjun.gander.TxtReaderActivity
-import com.arjun.gander.UmdReaderActivity
 import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
+import com.arjun.gander.library.createReaderLaunchPlan
+import com.arjun.gander.library.syncLegadoReaderProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -119,6 +117,8 @@ fun LibraryScreen(
     var bookToRename by remember { mutableStateOf<LibraryBook?>(null) }
     var bookToDelete by remember { mutableStateOf<LibraryBook?>(null) }
     var bookToInspect by remember { mutableStateOf<LibraryBook?>(null) }
+    var pendingLegadoBookId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingLegadoBookUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
     val viewMode = runCatching { ShelfViewMode.valueOf(viewModeName) }.getOrDefault(ShelfViewMode.GRID)
     val sort = runCatching { ShelfSort.valueOf(sortName) }.getOrDefault(ShelfSort.LAST_ACTIVITY)
@@ -144,6 +144,18 @@ fun LibraryScreen(
     val readerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
     ) { result ->
+        val legadoId = pendingLegadoBookId
+        val legadoUrl = pendingLegadoBookUrl
+        if (legadoId != null && legadoUrl != null) {
+            pendingLegadoBookId = null
+            pendingLegadoBookUrl = null
+            scope.launch {
+                syncLegadoReaderProgress(context, repository, legadoId, legadoUrl)
+                refresh()
+            }
+            return@rememberLauncherForActivityResult
+        }
+
         val data = result.data
         val bookId = data?.getStringExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID)
         val hasProgress = data?.hasExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS) == true
@@ -151,9 +163,7 @@ fun LibraryScreen(
             val progress = data?.getFloatExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS, 0f) ?: 0f
             scope.launch {
                 repository.updateViewerProgress(bookId, progress)
-                books = repository.listBooks()
-                selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
-                loading = false
+                refresh()
             }
         } else {
             refresh()
@@ -188,28 +198,17 @@ fun LibraryScreen(
 
     fun openBook(book: LibraryBook) {
         scope.launch {
-            val intent = when (book.format) {
-                BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
-                    .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
-
-                BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
-                    .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
-
-                BookFormat.MARKDOWN, BookFormat.PDF -> {
-                    repository.updateProgress(book.id, book.readingOffset)
-                    Intent(context, ViewerActivity::class.java)
-                        .putExtra(ViewerActivity.EXTRA_PATH, repository.bookFile(book.id).absolutePath)
-                        .putExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID, book.id)
+            runCatching {
+                createReaderLaunchPlan(context, repository, book)
+            }.onSuccess { plan ->
+                if (plan.legadoBookUrl != null) {
+                    pendingLegadoBookId = book.id
+                    pendingLegadoBookUrl = plan.legadoBookUrl
                 }
-
-                BookFormat.UMD -> Intent(context, UmdReaderActivity::class.java)
-                    .putExtra(UmdReaderActivity.EXTRA_BOOK_ID, book.id)
-
-                BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
-                    Intent(context, MobiReaderActivity::class.java)
-                        .putExtra(MobiReaderActivity.EXTRA_BOOK_ID, book.id)
+                readerLauncher.launch(plan.intent)
+            }.onFailure {
+                importFailed = true
             }
-            readerLauncher.launch(intent)
         }
     }
 
