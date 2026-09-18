@@ -9,9 +9,9 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
  import kotlinx.coroutines.yield
  import sushi.hardcore.droidfs.BaseActivity
  import sushi.hardcore.droidfs.Constants
-@@ -310,6 +311,14 @@ open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener
-                 FileTypes.isVideo(fullPath) -> {
-                     startFileViewer(VideoPlayer::class.java, fullPath)
+@@ -304,6 +305,14 @@ open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener
+                 explorerElements[position].isParentFolder -> {
+                     changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
                  }
 +                VaultShelfFileRouter.supports(fullPath) -> {
 +                    val element = explorerElements[position]
@@ -22,8 +22,8 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +                        showOpenAsDialog(element)
 +                    }
 +                }
-                 FileTypes.isText(fullPath) -> {
-                     startFileViewer(TextEditor::class.java, fullPath)
+                 FileTypes.isImage(fullPath) -> {
+                     startFileViewer(ImageViewer::class.java, fullPath)
                  }
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt

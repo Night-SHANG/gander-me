@@ -75,6 +75,8 @@ class VaultContentActivity : ComponentActivity() {
 
         when (extension) {
             "txt", "epub", "umd", "mobi", "azw3", "azw" -> openWithLegado(uri, token)
+            "jpg", "jpeg", "png", "webp", "bmp", "heic", "heif",
+            "gif", "svg", "avif", "ico",
             "pdf", "docx", "xlsx", "xls", "xlsm", "xlsb", "csv", "ods",
             "pptx", "md", "markdown" -> openWithGander(uri, token)
             else -> cleanupAndFinish()

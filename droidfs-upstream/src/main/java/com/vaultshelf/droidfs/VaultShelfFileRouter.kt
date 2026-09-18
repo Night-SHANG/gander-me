@@ -25,6 +25,11 @@ object VaultShelfFileRouter {
     const val EXTRA_LEGACY_FILE_KEY = "vaultshelf.vault.legacy_file_key"
 
     private val extraFormats = setOf(
+        // Gander is the single image viewer for both ordinary Files and vault content:
+        // tiled large-image zoom plus WebView fallback for animated/vector/new formats.
+        "jpg", "jpeg", "png", "webp", "bmp", "heic", "heif",
+        "gif", "svg", "avif", "ico",
+
         // Gander document/Markdown formats not natively handled by DroidFS.
         "docx",
         "xlsx", "xls", "xlsm", "xlsb", "csv", "ods",

@@ -218,9 +218,12 @@ class VaultShelfUxRegressionTest {
         ).readText()
 
         assertThat(router).contains("\"txt\", \"epub\", \"umd\", \"mobi\", \"azw3\", \"azw\"")
+        assertThat(router).contains("\"jpg\", \"jpeg\", \"png\", \"webp\"")
+        assertThat(router).contains("\"gif\", \"svg\", \"avif\", \"ico\"")
         assertThat(router).contains("\"pdf\"")
         assertThat(router).contains("\"md\", \"markdown\"")
         assertThat(bridge).contains("\"txt\", \"epub\", \"umd\", \"mobi\", \"azw3\", \"azw\" -> openWithLegado")
+        assertThat(bridge).contains("\"jpg\", \"jpeg\", \"png\", \"webp\"")
         assertThat(bridge).contains("\"pdf\", \"docx\"")
         assertThat(bridge).contains("openWithGander")
     }
