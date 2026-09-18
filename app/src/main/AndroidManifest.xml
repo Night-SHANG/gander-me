@@ -41,30 +41,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Private readers: books are opened only from VaultShelf's imported local library. -->
-        <activity
-            android:name=".TxtReaderActivity"
-            android:exported="false"
-            android:label="@string/vaultshelf_reader_title" />
-
-        <activity
-            android:name=".EpubReaderActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:exported="false"
-            android:label="@string/vaultshelf_reader_title" />
-
-        <activity
-            android:name=".UmdReaderActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:exported="false"
-            android:label="@string/vaultshelf_reader_title" />
-
-        <activity
-            android:name=".MobiReaderActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:exported="false"
-            android:label="@string/vaultshelf_reader_title" />
-
         <activity
             android:name=".MainActivity"
             android:exported="true"
