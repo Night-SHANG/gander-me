@@ -55,14 +55,12 @@ object VaultShelfFileRouter {
 
         val target = baseIntent.apply {
             action = ACTION_OPEN_VAULT_FILE
-            setPackage(activity.packageName)
+            setClassName(
+                activity.packageName,
+                "com.arjun.gander.vault.VaultContentActivity",
+            )
             putExtra(EXTRA_VOLUME_ID, volumeId)
             putExtra(EXTRA_SESSION_TOKEN, UUID.randomUUID().toString())
-        }
-
-        if (target.resolveActivity(activity.packageManager) == null) {
-            runCatching { activity.contentResolver.delete(uri, null, null) }
-            return false
         }
 
         return runCatching {
