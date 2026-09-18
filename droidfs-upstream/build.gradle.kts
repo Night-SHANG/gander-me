@@ -43,6 +43,9 @@ android {
             res.srcDir("../third_party/droidfs/app/src/main/res")
             manifest.srcFile("src/main/AndroidManifest.xml")
             java.exclude("androidx/camera/video/originals/**")
+            // PDF is routed to Gander; keep the upstream DroidFS PDF implementation out
+            // of this build instead of carrying a second PDF engine.
+            java.exclude("sushi/hardcore/droidfs/file_viewers/PdfViewer.kt")
         }
     }
 
@@ -60,8 +63,6 @@ android {
 }
 
 dependencies {
-    implementation(project(":droidfs-pdfviewer"))
-
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
