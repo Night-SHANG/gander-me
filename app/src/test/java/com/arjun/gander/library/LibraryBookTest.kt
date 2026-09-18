@@ -42,6 +42,25 @@ class LibraryBookTest {
     }
 
     @Test
+    fun pdfUsesPublicationProgression() {
+        val book = LibraryBook(
+            id = "pdf",
+            title = "Manual",
+            storedFileName = "manual.pdf",
+            format = BookFormat.PDF,
+            sizeBytes = 1_000L,
+            totalCharacters = 0,
+            addedAtEpochMillis = 0L,
+            lastOpenedAtEpochMillis = 0L,
+            readingOffset = 0,
+            publicationProgression = 0.4f,
+        )
+
+        assertThat(book.progressFraction).isEqualTo(0.4f)
+        assertThat(book.progressPercent).isEqualTo(40)
+    }
+
+    @Test
     fun emptyBookHasZeroProgress() {
         val book = LibraryBook(
             id = "book",
