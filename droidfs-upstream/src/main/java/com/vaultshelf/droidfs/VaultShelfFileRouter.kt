@@ -22,6 +22,7 @@ object VaultShelfFileRouter {
     const val EXTRA_VOLUME_ID = "vaultshelf.vault.volume_id"
     const val EXTRA_SESSION_TOKEN = "vaultshelf.vault.session_token"
     const val EXTRA_FILE_KEY = "vaultshelf.vault.file_key"
+    const val EXTRA_LEGACY_FILE_KEY = "vaultshelf.vault.legacy_file_key"
 
     private val extraFormats = setOf(
         // Gander document/Markdown formats not natively handled by DroidFS.
@@ -73,6 +74,10 @@ object VaultShelfFileRouter {
             putExtra(EXTRA_VOLUME_ID, volumeId)
             putExtra(EXTRA_SESSION_TOKEN, UUID.randomUUID().toString())
             putExtra(EXTRA_FILE_KEY, VaultShelfProgressStore.fileKey(volumeUuid, path))
+            putExtra(
+                EXTRA_LEGACY_FILE_KEY,
+                VaultShelfProgressStore.legacyFileKey(volumeUuid, path),
+            )
         }
 
         return runCatching {
