@@ -2,6 +2,7 @@ package com.arjun.gander
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
@@ -34,7 +35,7 @@ class FileDispatchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val uri = intent.data ?: run {
+        val uri = intent.data ?: sharedStreamUri(intent) ?: run {
             finish()
             return
         }
@@ -201,6 +202,14 @@ class FileDispatchActivity : ComponentActivity() {
         }
         super.onDestroy()
     }
+
+    @Suppress("DEPRECATION")
+    private fun sharedStreamUri(intent: Intent): Uri? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        }
 
     private data class Metadata(
         val name: String,
