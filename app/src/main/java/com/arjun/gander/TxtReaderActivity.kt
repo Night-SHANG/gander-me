@@ -61,6 +61,8 @@ import com.arjun.gander.library.LibraryRepository
 import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.library.TxtChapter
 import com.arjun.gander.library.TxtChapterParser
+import com.arjun.gander.ui.reader.MatureReaderContentsSheet
+import com.arjun.gander.ui.reader.MatureReaderSettingsSheet
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import io.legado.app.constant.PageAnim
 import io.legado.app.ui.book.read.page.ReadView
@@ -580,7 +582,6 @@ private fun ReaderBottomChrome(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReaderSettingsSheet(
     pageAnimation: Int,
@@ -595,133 +596,24 @@ private fun ReaderSettingsSheet(
     onTheme: (ReaderThemeMode) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(stringResource(R.string.vaultshelf_reader_settings), style = MaterialTheme.typography.titleLarge)
-            SettingsLabel(stringResource(R.string.vaultshelf_reader_turn_mode))
-            PageModeRows(pageAnimation = pageAnimation, onPageAnimation = onPageAnimation)
-            HorizontalDivider()
-
-            SettingsLabel(stringResource(R.string.vaultshelf_reader_font_size))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { onFontSize(fontSizeSp - 1f) }) {
-                    Text(stringResource(R.string.vaultshelf_reader_font_smaller))
-                }
-                Text(
-                    text = stringResource(R.string.vaultshelf_reader_font_value, fontSizeSp.toInt()),
-                    modifier = Modifier.weight(1f),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
-                TextButton(onClick = { onFontSize(fontSizeSp + 1f) }) {
-                    Text(stringResource(R.string.vaultshelf_reader_font_larger))
-                }
-            }
-
-            SettingsLabel(stringResource(R.string.vaultshelf_reader_line_spacing))
-            ChoiceRow(
-                choices = listOf(
-                    stringResource(R.string.vaultshelf_reader_compact) to 1.35f,
-                    stringResource(R.string.vaultshelf_reader_standard) to 1.55f,
-                    stringResource(R.string.vaultshelf_reader_relaxed) to 1.78f,
-                ),
-                selected = lineSpacing,
-                onSelected = onLineSpacing,
-            )
-
-            SettingsLabel(stringResource(R.string.vaultshelf_reader_margins))
-            ChoiceRow(
-                choices = listOf(
-                    stringResource(R.string.vaultshelf_reader_narrow) to 16,
-                    stringResource(R.string.vaultshelf_reader_standard) to 24,
-                    stringResource(R.string.vaultshelf_reader_wide) to 36,
-                ),
-                selected = marginDp,
-                onSelected = onMargin,
-            )
-
-            SettingsLabel(stringResource(R.string.vaultshelf_reader_theme))
-            ChoiceRow(
-                choices = listOf(
-                    stringResource(R.string.vaultshelf_epub_theme_light) to ReaderThemeMode.LIGHT,
-                    stringResource(R.string.vaultshelf_epub_theme_sepia) to ReaderThemeMode.SEPIA,
-                    stringResource(R.string.vaultshelf_epub_theme_dark) to ReaderThemeMode.DARK,
-                ),
-                selected = themeMode,
-                onSelected = onTheme,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PageModeRows(
-    pageAnimation: Int,
-    onPageAnimation: (Int) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        ChoiceRow(
-            choices = listOf(
-                stringResource(R.string.vaultshelf_reader_mode_cover) to PageAnim.coverPageAnim,
-                stringResource(R.string.vaultshelf_reader_mode_slide) to PageAnim.slidePageAnim,
-                stringResource(R.string.vaultshelf_reader_mode_simulation) to PageAnim.simulationPageAnim,
-            ),
-            selected = pageAnimation,
-            onSelected = onPageAnimation,
-        )
-        ChoiceRow(
-            choices = listOf(
-                stringResource(R.string.vaultshelf_reader_mode_scroll) to PageAnim.scrollPageAnim,
-                stringResource(R.string.vaultshelf_reader_mode_none) to PageAnim.noAnim,
-            ),
-            selected = pageAnimation,
-            onSelected = onPageAnimation,
-        )
-    }
-}
-
-@Composable
-private fun SettingsLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    MatureReaderSettingsSheet(
+        pageAnimation = pageAnimation,
+        fontSizeSp = fontSizeSp,
+        lineSpacing = lineSpacing,
+        marginDp = marginDp,
+        themeMode = themeMode,
+        themeChoices = listOf(
+            stringResource(R.string.vaultshelf_epub_theme_light) to ReaderThemeMode.LIGHT,
+            stringResource(R.string.vaultshelf_epub_theme_sepia) to ReaderThemeMode.SEPIA,
+            stringResource(R.string.vaultshelf_epub_theme_dark) to ReaderThemeMode.DARK,
+        ),
+        onPageAnimation = onPageAnimation,
+        onFontSize = onFontSize,
+        onLineSpacing = onLineSpacing,
+        onMargin = onMargin,
+        onTheme = onTheme,
+        onDismiss = onDismiss,
     )
-}
-
-@Composable
-private fun <T> ChoiceRow(
-    choices: List<Pair<String, T>>,
-    selected: T,
-    onSelected: (T) -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        choices.forEach { (label, value) ->
-            val active = value == selected
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(10.dp),
-                color = if (active) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surfaceVariant,
-                onClick = { onSelected(value) },
-            ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (active) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 11.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -731,35 +623,12 @@ private fun ChapterContentsDialog(
     onSelect: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.vaultshelf_reader_contents)) },
-        text = {
-            LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
-                itemsIndexed(chapters) { index, chapter ->
-                    TextButton(
-                        onClick = { onSelect(index) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                    ) {
-                        Text(
-                            text = chapter.title ?: stringResource(R.string.vaultshelf_reader_start),
-                            color = if (index == selectedIndex) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.about_close))
-            }
-        },
+    val startLabel = stringResource(R.string.vaultshelf_reader_start)
+    MatureReaderContentsSheet(
+        chapterTitles = chapters.map { it.title ?: startLabel },
+        selectedIndex = selectedIndex,
+        onSelect = onSelect,
+        onDismiss = onDismiss,
     )
 }
 
