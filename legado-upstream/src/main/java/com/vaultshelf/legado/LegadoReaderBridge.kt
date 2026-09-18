@@ -157,13 +157,6 @@ object LegadoReaderBridge {
     }
 
     /**
-     * Register a DroidFS temporary content URI as an ephemeral Legado local book.
-     *
-     * previewImportFile reads the original metadata first. Passing that preview back into
-     * importFile uses Legado's own collision handling (it renames the temporary identity
-     * when a normal bookshelf book has the same name/author) instead of replacing it.
-     */
-    /**
      * Keep a normal Files URI in Legado when VaultShelf has durable read access to it.
      * This intentionally preserves Legado's own progress, bookmarks, highlights and history.
      */
@@ -173,10 +166,17 @@ object LegadoReaderBridge {
     ): LocalBookSnapshot {
         initialize(context)
         val preview = LocalBook.previewImportFile(uri)
-        val book = LocalBook.importFile(uri, preview)
+        val book = appDb.bookDao.getBook(preview.bookUrl)
+            ?: LocalBook.importFile(uri, preview)
         return book.snapshot()
     }
 
+    /**
+     * Register a DroidFS temporary content URI as an ephemeral Legado local book.
+     *
+     * previewImportFile reads the original metadata first. Passing that preview back into
+     * importFile uses Legado's own collision handling instead of replacing a durable book.
+     */
     fun createTransientBookSession(
         context: Context,
         uri: Uri,
