@@ -177,6 +177,103 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun vaultReadersKeepProgressWithoutPersistingPlaintext() {
+        val vaultBridge = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultContentActivity.kt",
+        ).readText()
+        val positions = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/BookReadingPositions.kt",
+        ).readText()
+        val legadoBridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+        val droidFsProgress = File(
+            repo,
+            "droidfs-upstream/src/main/java/com/vaultshelf/droidfs/VaultShelfProgressStore.kt",
+        ).readText()
+
+        assertThat(vaultBridge).contains("BookReadingPositions.get")
+        assertThat(vaultBridge).contains("BookReadingPositions.save")
+        assertThat(vaultBridge).contains("cleanupTransientBookSession")
+        assertThat(legadoBridge).contains("restoreTransientReadingPosition")
+        assertThat(legadoBridge).contains("transientReadingPosition")
+        assertThat(positions).contains("noBackupFilesDir")
+        assertThat(positions).doesNotContain("DISPLAY_NAME")
+        assertThat(droidFsProgress).contains("MessageDigest.getInstance(\"SHA-256\")")
+        assertThat(droidFsProgress).contains("VolumeManagerApp")
+    }
+
+    @Test
+    fun vaultFormatsUseTheMatureViewerForEachDomain() {
+        val router = File(
+            repo,
+            "droidfs-upstream/src/main/java/com/vaultshelf/droidfs/VaultShelfFileRouter.kt",
+        ).readText()
+        val bridge = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultContentActivity.kt",
+        ).readText()
+
+        assertThat(router).contains("\"txt\", \"epub\", \"umd\", \"mobi\", \"azw3\", \"azw\"")
+        assertThat(router).contains("\"pdf\"")
+        assertThat(router).contains("\"md\", \"markdown\"")
+        assertThat(bridge).contains("\"txt\", \"epub\", \"umd\", \"mobi\", \"azw3\", \"azw\" -> openWithLegado")
+        assertThat(bridge).contains("\"pdf\", \"docx\"")
+        assertThat(bridge).contains("openWithGander")
+    }
+
+    @Test
+    fun normalFilesReuseLegadoAndDroidFsInsteadOfDuplicatingViewers() {
+        val dispatcher = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/FileDispatchActivity.kt",
+        ).readText()
+        val mediaRouter = File(
+            repo,
+            "droidfs-upstream/src/main/java/com/vaultshelf/droidfs/VaultShelfExternalMediaRouter.kt",
+        ).readText()
+        val main = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/MainActivity.kt",
+        ).readText()
+
+        assertThat(dispatcher).contains("EBOOK_EXTENSIONS")
+        assertThat(dispatcher).contains("LegadoReaderBridge.createTransientBookSession")
+        assertThat(dispatcher).contains("VaultShelfExternalMediaRouter.supports")
+        assertThat(mediaRouter).contains("AudioPlayer::class.java")
+        assertThat(mediaRouter).contains("VideoPlayer::class.java")
+        assertThat(main).contains("FileDispatchActivity::class.java")
+    }
+
+    @Test
+    fun droidFsPatchKeepsHiddenVaultDefaultAndMigrationAvailable() {
+        val patch = File(
+            repo,
+            "patches/droidfs-vaultshelf-file-routing.patch",
+        ).readText()
+        val manifest = File(
+            repo,
+            "droidfs-upstream/src/main/AndroidManifest.xml",
+        ).readText()
+
+        assertThat(patch).contains("binding.switchHiddenVolume.isChecked = true")
+        assertThat(patch).contains("VaultShelfExternalMediaRouter")
+        assertThat(patch).contains("VaultShelfProgressStore")
+        assertThat(manifest).contains("android.permission.MANAGE_EXTERNAL_STORAGE")
+        assertThat(manifest).contains("android.permission.WRITE_EXTERNAL_STORAGE")
+    }
+
+    @Test
+    fun networkPermissionRemainsStripped() {
+        val manifest = File(repo, "app/src/main/AndroidManifest.xml").readText()
+        assertThat(manifest).contains("android.permission.INTERNET")
+        assertThat(manifest).contains("tools:node=\"remove\"")
+    }
+
+    @Test
     fun adaptedReaderActivitiesAndPanelsAreGone() {
         listOf(
             "app/src/main/java/com/arjun/gander/TxtReaderActivity.kt",
