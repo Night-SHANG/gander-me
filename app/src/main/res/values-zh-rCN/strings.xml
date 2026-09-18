@@ -124,7 +124,7 @@
     <string name="vaultshelf_foundation_status">基础框架已就绪</string>
 
     <string name="vaultshelf_library_search_hint">搜索书籍</string>
-    <string name="vaultshelf_library_search_result_count">显示 %1$d / %2$d 本</string>
+    <plurals name="vaultshelf_library_search_result_count">\n        <item quantity="other">显示 %1$d / %2$d 本</item>\n    </plurals>
     <string name="vaultshelf_library_search_empty_title">没有找到匹配的书籍</string>
     <string name="vaultshelf_library_search_empty_detail">可以换一个书名关键词，或清除搜索条件。</string>
     <string name="vaultshelf_library_search_clear">清除搜索</string>
@@ -135,10 +135,10 @@
     <string name="vaultshelf_library_sort_progress">阅读进度</string>
     <string name="vaultshelf_library_manage_hint">长按书籍可进入多选管理。</string>
     <string name="vaultshelf_library_manage_done">完成</string>
-    <string name="vaultshelf_library_selected_count">已选择 %1$d 本</string>
+    <plurals name="vaultshelf_library_selected_count">\n        <item quantity="other">已选择 %1$d 本</item>\n    </plurals>
     <string name="vaultshelf_library_select_all">全选</string>
     <string name="vaultshelf_library_unselect_all">清除选择</string>
     <string name="vaultshelf_library_batch_delete_title">删除选中的书籍？</string>
-    <string name="vaultshelf_library_batch_delete_message">VaultShelf 将删除应用内部保存的 %1$d 本书副本，不会修改你最初导入的原文件。</string>
+    <plurals name="vaultshelf_library_batch_delete_message">\n        <item quantity="other">VaultShelf 将删除应用内部保存的 %1$d 本书副本，不会修改你最初导入的原文件。</item>\n    </plurals>
     <string name="vaultshelf_library_grid_meta">%1$s · %2$d%%</string>
 </resources>
