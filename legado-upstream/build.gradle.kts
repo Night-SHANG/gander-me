@@ -168,3 +168,36 @@ ksp {
     arg("room.generateKotlin", "false")
     arg("room.schemaLocation", file("schemas").absolutePath)
 }
+
+val applyVaultShelfLegadoPatch = tasks.register("applyVaultShelfLegadoPatch") {
+    val upstreamDir = rootProject.file("third_party/legado")
+    val patchFile = rootProject.file("patches/legado-vaultshelf-runtime.patch")
+    inputs.file(patchFile)
+
+    doLast {
+        val check = project.exec {
+            workingDir(upstreamDir)
+            commandLine("git", "apply", "--check", patchFile.absolutePath)
+            isIgnoreExitValue = true
+        }
+        if (check.exitValue == 0) {
+            project.exec {
+                workingDir(upstreamDir)
+                commandLine("git", "apply", patchFile.absolutePath)
+            }
+        } else {
+            val alreadyApplied = project.exec {
+                workingDir(upstreamDir)
+                commandLine("git", "apply", "--reverse", "--check", patchFile.absolutePath)
+                isIgnoreExitValue = true
+            }
+            check(alreadyApplied.exitValue == 0) {
+                "Pinned Legado source no longer matches the reviewed VaultShelf runtime patch"
+            }
+        }
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(applyVaultShelfLegadoPatch)
+}

@@ -1,0 +1,13 @@
+diff --git a/app/src/main/java/io/legado/app/constant/AppConst.kt b/app/src/main/java/io/legado/app/constant/AppConst.kt
+--- a/app/src/main/java/io/legado/app/constant/AppConst.kt
++++ b/app/src/main/java/io/legado/app/constant/AppConst.kt
+@@ -130,7 +130,8 @@
+     /**
+      * The authority of a FileProvider defined in a <provider> element in your app's manifest.
+      */
+-    const val authority = BuildConfig.APPLICATION_ID + ".fileProvider"
++    val authority: String
++        get() = "${appCtx.packageName}.fileProvider"
+ 
+ }
+ 
