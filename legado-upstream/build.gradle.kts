@@ -149,10 +149,6 @@ dependencies {
         exclude(group = "org.bouncycastle")
     }
 
-    implementation(platform("com.google.firebase:firebase-bom:34.14.1"))
-    implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-perf")
-
     implementation("com.github.Moriafly:LyricViewX:1.3.2")
     implementation(platform("io.github.rosemoe:editor-bom:0.24.6"))
     implementation("io.github.rosemoe:editor")
