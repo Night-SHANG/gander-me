@@ -46,6 +46,31 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun libraryKeepsLegadoLocalFormatsPlusMarkdown() {
+        val bookModel = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/library/LibraryBook.kt",
+        ).readText()
+        val library = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
+        ).readText()
+
+        listOf("TXT", "EPUB", "UMD", "PDF", "MOBI", "AZW3", "AZW", "MARKDOWN")
+            .forEach { format ->
+                assertThat(bookModel).contains("BookFormat.$format")
+                assertThat(library).contains("BookFormat.$format")
+            }
+
+        assertThat(library).contains("\"md\", \"markdown\"")
+        assertThat(library).contains("\"mobi\"")
+        assertThat(library).contains("\"azw3\"")
+        assertThat(library).contains("\"azw\"")
+        assertThat(library).contains("\"umd\"")
+        assertThat(library).contains("\"pdf\"")
+    }
+
+    @Test
     fun readerPanelsKeepSettingsPagedAndContentsSearchable() {
         val source = File(
             repo,
