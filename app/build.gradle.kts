@@ -70,8 +70,8 @@ android {
         }
     }
 
-    // No per-ABI split: with PDF rendering moved off Pdfium the app ships no native
-    // code at all, so one APK serves every architecture.
+    // No per-ABI split: DroidFS contributes its original gocryptfs/FFmpeg native
+    // libraries for all four Android ABIs, so the debug artifact remains one universal APK.
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
