@@ -69,6 +69,7 @@ import androidx.core.content.edit
 import com.arjun.gander.EpubReaderActivity
 import com.arjun.gander.R
 import com.arjun.gander.TxtReaderActivity
+import com.arjun.gander.UmdReaderActivity
 import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
@@ -158,6 +159,7 @@ fun LibraryScreen(
                             BookFormat.EPUB -> repository.importEpub(uri)
                             BookFormat.MARKDOWN -> repository.importMarkdown(uri)
                             BookFormat.PDF -> repository.importPdf(uri)
+                            BookFormat.UMD -> repository.importUmd(uri)
                             null -> error("Unsupported library format")
                         }
                     }.onFailure { failed = true }
@@ -182,6 +184,9 @@ fun LibraryScreen(
                     Intent(context, ViewerActivity::class.java)
                         .putExtra(ViewerActivity.EXTRA_PATH, repository.bookFile(book.id).absolutePath)
                 }
+
+                BookFormat.UMD -> Intent(context, UmdReaderActivity::class.java)
+                    .putExtra(UmdReaderActivity.EXTRA_BOOK_ID, book.id)
             }
             readerLauncher.launch(intent)
         }
@@ -1067,6 +1072,7 @@ private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
         "epub" -> return BookFormat.EPUB
         "md", "markdown" -> return BookFormat.MARKDOWN
         "pdf" -> return BookFormat.PDF
+        "umd" -> return BookFormat.UMD
     }
 
     return when (context.contentResolver.getType(uri)?.lowercase()) {
@@ -1078,12 +1084,7 @@ private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
     }
 }
 
-private val IMPORT_MIME_TYPES = arrayOf(
-    "text/plain",
-    "text/markdown",
-    "application/epub+zip",
-    "application/pdf",
-)
+private val IMPORT_MIME_TYPES = arrayOf("*/*")
 
 private val COVER_COLORS = listOf(
     Color(0xFF315A7D),
