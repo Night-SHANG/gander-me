@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Gander</string>
+    <string name="app_name">VaultShelf</string>
     <string name="main_subtitle">打开并查看文档、电子表格、幻灯片和照片。所有内容都在手机本地渲染，不会上传。</string>
     <string name="welcome_headline">打开看看任何文件。</string>
-    <string name="welcome_promise">不会上传任何内容。Gander 没有网络权限。</string>
+    <string name="welcome_promise">不会上传任何内容。VaultShelf 没有网络权限。</string>
     <string name="welcome_formats_spoken">可打开 PDF、Word 文档、Excel 电子表格、PowerPoint 幻灯片、图片、视频、音频、Markdown 和文本文件。</string>
     <string name="open_a_file">打开文件</string>
     <string name="recent_files">最近文件</string>
     <string name="folders">文件夹</string>
     <string name="add_folder">添加文件夹</string>
     <string name="no_recents_hint">你打开过的文件会显示在这里，方便快速访问。</string>
-    <string name="no_folders_hint">授权一个文件夹后即可在这里浏览其中的文件。Gander 无需存储权限。</string>
+    <string name="no_folders_hint">授权一个文件夹后即可在这里浏览。普通文件浏览使用 Android 系统授权，不需要授予广泛存储访问权限。</string>
     <string name="empty_folder">此文件夹中没有可显示的内容。</string>
     <string name="removed">已移除</string>
     <string name="remove_folder_title">移除文件夹？</string>
-    <string name="remove_folder_message">Gander 将失去对 %1$s 的访问权限。若要重新授权，需要再次在系统文件选择器中找到它。</string>
+    <string name="remove_folder_message">VaultShelf 将失去对 %1$s 的访问权限。若要重新授权，需要再次在系统文件选择器中找到它。</string>
     <string name="remove">移除</string>
     <string name="search_in_document">在文档中搜索</string>
     <string name="share_file">分享</string>
@@ -37,16 +37,16 @@
     <string name="go">跳转</string>
     <string name="scroll_position">%1$d%%</string>
     <string name="scroll_position_spoken">文档已浏览百分之 %1$d</string>
-    <string name="open_with_hint">提示：在文件管理器中点击任意文件，然后选择“打开方式 &gt; Gander”。</string>
+    <string name="open_with_hint">提示：在文件管理器中点击任意文件，然后选择“打开方式 &gt; VaultShelf”。</string>
     <string name="back">返回</string>
-    <string name="about_gander">关于 Gander</string>
+    <string name="about_gander">关于 VaultShelf</string>
     <string name="rate_app">评分</string>
     <string name="share_app">分享</string>
-    <string name="share_app_text">Gander，一款 Android 离线文件查看器：%1$s</string>
+    <string name="share_app_text">VaultShelf，一款 Android 离线文档、阅读与私人保险库应用：%1$s</string>
     <string name="about_version">版本 %1$s</string>
     <string name="about_permissions_label">此应用申请的权限</string>
     <string name="about_permissions_none">无</string>
-    <string name="about_permissions_detail">这是刚刚从 Android 系统读取的实际权限，而不是预先写死的说明。Gander 也没有网络权限，因此无法把你的文件发送到任何地方。</string>
+    <string name="about_permissions_detail">这是刚刚从 Android 系统读取的实际权限，而不是预先写死的说明。VaultShelf 没有网络权限，因此不会自行上传你的文件。</string>
     <string name="about_made_by">由 Arjun Maniyani 制作</string>
     <string name="about_source">源代码</string>
     <string name="about_licences">开源许可证</string>
@@ -79,7 +79,7 @@
     <string name="vaultshelf_offline_badge">离线优先</string>
     <string name="vaultshelf_action_browse_files">浏览文件</string>
     <string name="vaultshelf_files_title">文件</string>
-    <string name="vaultshelf_files_detail">VaultShelf 在继续扩展时，仍使用经过验证的 Gander 文件浏览器和查看器。</string>
+    <string name="vaultshelf_files_detail">使用成熟的本地文件浏览器和文档查看器。</string>
     <string name="vaultshelf_open_file_browser">打开文件浏览器</string>
 
     <string name="vaultshelf_library_title">书库</string>
