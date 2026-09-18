@@ -544,8 +544,9 @@ private fun ShelfHeader(
                 Box {
                     TextButton(onClick = { gridMenuExpanded = true }) {
                         Text(
-                            stringResource(
-                                R.string.vaultshelf_library_grid_columns,
+                            pluralStringResource(
+                                R.plurals.vaultshelf_library_grid_columns,
+                                gridColumns,
                                 gridColumns,
                             ),
                         )
@@ -558,8 +559,9 @@ private fun ShelfHeader(
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        stringResource(
-                                            R.string.vaultshelf_library_grid_columns,
+                                        pluralStringResource(
+                                            R.plurals.vaultshelf_library_grid_columns,
+                                            columns,
                                             columns,
                                         ),
                                     )
