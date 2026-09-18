@@ -154,9 +154,16 @@ android {
 // one and would otherwise fail against a hardcoded package name.
 val permissionAllowlist = setOf(
     // Legado's original local TTS reader runs as a media foreground service.
-    // These are normal permissions: Android does not show a runtime permission prompt.
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+
+    // DroidFS' original vault implementation. Biometric/camera permissions are only
+    // requested at runtime when the corresponding upstream feature is used.
+    "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.USE_BIOMETRIC",
+    "android.permission.CAMERA",
+    "android.permission.RECORD_AUDIO",
 )
 
 val permissionAllowlistSuffixes = setOf(
@@ -220,6 +227,9 @@ dependencies {
 
     // Original GPL-3.0 Legado / 阅读 3.0 local-reading subsystem, pinned as source.
     implementation(project(":legado-upstream"))
+
+    // Original DroidFS hidden-volume subsystem (gocryptfs, explorer, biometric unlock).
+    implementation(project(":droidfs-upstream"))
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
