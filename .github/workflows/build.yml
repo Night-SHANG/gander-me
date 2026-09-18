@@ -48,8 +48,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      - name: Checkout pinned upstream sources
+        run: |
+          git submodule update --init third_party/legado third_party/droidfs
+          git -C third_party/droidfs submodule update --init app/libgocryptfs app/ffmpeg/ffmpeg
+          git -C third_party/droidfs/app/libgocryptfs submodule update --init openssl
 
       # The wrapper jar is a binary that runs before any of this repo's own
       # code does, and pull requests arrive from 31 forks. This checks it is
@@ -69,6 +73,8 @@ jobs:
 
       - name: Install DroidFS native toolchain
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends             build-essential pkg-config git gnupg2 wget npm perl nasm
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
