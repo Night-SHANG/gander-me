@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import com.arjun.gander.EpubReaderActivity
 import com.arjun.gander.R
 import com.arjun.gander.TxtReaderActivity
+import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
@@ -163,14 +164,25 @@ private fun HomeScreen(
     }
 
     fun openBook(book: LibraryBook) {
-        val intent = when (book.format) {
-            BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
-                .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
+        scope.launch {
+            val intent = when (book.format) {
+                BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
+                    .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
 
-            BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
-                .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+                BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
+                    .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+
+                BookFormat.MARKDOWN -> {
+                    libraryRepository.updateProgress(book.id, book.readingOffset)
+                    Intent(context, ViewerActivity::class.java)
+                        .putExtra(
+                            ViewerActivity.EXTRA_PATH,
+                            libraryRepository.bookFile(book.id).absolutePath,
+                        )
+                }
+            }
+            readerLauncher.launch(intent)
         }
-        readerLauncher.launch(intent)
     }
 
     LaunchedEffect(libraryRepository) {
