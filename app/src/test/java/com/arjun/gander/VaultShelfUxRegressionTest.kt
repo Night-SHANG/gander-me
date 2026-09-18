@@ -81,6 +81,41 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun settingsRoutesToMatureSubsystems() {
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+        val activity = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
+        ).readText()
+        val main = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/MainActivity.kt",
+        ).readText()
+
+        assertThat(shell).contains("SettingsScreen(")
+        assertThat(shell).contains("onOpenVaultSettings")
+        assertThat(shell).contains("onOpenAbout")
+        assertThat(shell).doesNotContain("FoundationScreen")
+        assertThat(activity).contains("DroidFsSettingsActivity")
+        assertThat(main).contains("EXTRA_SHOW_ABOUT")
+    }
+
+    @Test
+    fun projectLicenceMatchesDroidFsIntegration() {
+        val licence = File(repo, "LICENSE").readText()
+        val notices = File(repo, "THIRD_PARTY_NOTICES.md").readText()
+        val inApp = File(repo, "app/src/main/assets/licences.md").readText()
+
+        assertThat(licence).contains("GNU AFFERO GENERAL PUBLIC LICENSE")
+        assertThat(notices).contains("DroidFS")
+        assertThat(notices).contains("Legado")
+        assertThat(inApp).contains("AGPL-3.0")
+    }
+
+    @Test
     fun libraryKeepsLegadoLocalFormatsPlusMarkdown() {
         val bookModel = File(
             repo,
