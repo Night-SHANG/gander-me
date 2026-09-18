@@ -147,4 +147,24 @@
     <string name="vaultshelf_library_batch_delete_title">删除选中的书籍？</string>
     <plurals name="vaultshelf_library_batch_delete_message">\n        <item quantity="other">VaultShelf 将删除应用内部保存的 %1$d 本书副本，不会修改你最初导入的原文件。</item>\n    </plurals>
     <string name="vaultshelf_library_grid_meta">%1$s · %2$d%%</string>
+    <string name="vaultshelf_settings_backup">保险库备份与恢复</string>
+    <string name="vaultshelf_settings_backup_detail">创建可迁移的加密 .vsbackup 备份包，或在另一台设备上恢复。</string>
+    <string name="vaultshelf_backup_back">返回</string>
+    <string name="vaultshelf_backup_title">保险库备份与恢复</string>
+    <string name="vaultshelf_backup_detail">备份包只包含已经加密的 gocryptfs 卷和不含文件名的阅读位置元数据。备份过程中不会解密文档正文；恢复后仍必须使用原密码解锁。</string>
+    <string name="vaultshelf_backup_hidden_volumes">隐藏保险库</string>
+    <string name="vaultshelf_backup_empty">当前还没有已保存的隐藏保险库。</string>
+    <string name="vaultshelf_backup_status_locked">已锁定 · 可以备份</string>
+    <string name="vaultshelf_backup_status_unlocked">已解锁 · 请先锁定再备份</string>
+    <string name="vaultshelf_backup_action">备份</string>
+    <string name="vaultshelf_restore_action">恢复 .vsbackup</string>
+    <string name="vaultshelf_backup_lock_first">请先锁定这个保险库，再创建备份。</string>
+    <string name="vaultshelf_backup_done">加密保险库备份已保存。</string>
+    <string name="vaultshelf_backup_failed">保险库备份或恢复失败。</string>
+    <string name="vaultshelf_backup_source_missing">找不到该保险库的加密数据。</string>
+    <string name="vaultshelf_restore_done">加密保险库已恢复，请使用原密码解锁。</string>
+    <string name="vaultshelf_restore_exists">这个保险库已经存在于当前设备。</string>
+    <string name="vaultshelf_restore_invalid">这不是有效的 VaultShelf 加密保险库备份。</string>
+    <string name="vaultshelf_restore_unsupported">该备份使用当前版本不支持的保险库格式。</string>
+
 </resources>
