@@ -3,6 +3,7 @@ package com.arjun.gander.vault
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,6 +39,9 @@ class VaultContentActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // This bridge is translucent while it owns a decrypted vault URI. Protect the
+        // bridge window immediately; child viewers are protected again by VaultSessionGuard.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
 
         val uri = intent.data
         val token = intent.getStringExtra(VaultShelfFileRouter.EXTRA_SESSION_TOKEN)

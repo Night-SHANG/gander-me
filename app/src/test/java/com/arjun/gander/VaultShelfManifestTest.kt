@@ -32,26 +32,37 @@ class VaultShelfManifestTest {
     }
 
     @Test
-    fun externalViewAndShareIntentsStillBelongToViewerActivity() {
-        val viewer = activities().single { it.name == ".ViewerActivity" }
+    fun externalViewAndShareIntentsGoThroughTheUnifiedDispatcher() {
+        val activities = activities()
+        val dispatcher = activities.single { it.name == ".FileDispatchActivity" }
+        val viewer = activities.single { it.name == ".ViewerActivity" }
 
-        assertThat(viewer.actions).contains("android.intent.action.VIEW")
-        assertThat(viewer.actions).contains("android.intent.action.SEND")
+        assertThat(dispatcher.exported).isTrue()
+        assertThat(dispatcher.actions).contains("android.intent.action.VIEW")
+        assertThat(dispatcher.actions).contains("android.intent.action.SEND")
+
+        assertThat(viewer.exported).isFalse()
+        assertThat(viewer.actions).isEmpty()
     }
 
     @Test
-    fun importedBookReadersAreNotExported() {
+    fun internalBrowserAndVaultBridgeAreNotExported() {
         val activities = activities()
-        val txtReader = activities.singleOrNull { it.name == ".TxtReaderActivity" }
-        val epubReader = activities.singleOrNull { it.name == ".EpubReaderActivity" }
+        val browser = activities.single { it.name == ".MainActivity" }
+        val vaultBridge = activities.single { it.name == ".vault.VaultContentActivity" }
 
-        assertWithMessage("TxtReaderActivity must be declared").that(txtReader).isNotNull()
-        assertThat(txtReader!!.exported).isFalse()
-        assertThat(txtReader.actions).isEmpty()
+        assertThat(browser.exported).isFalse()
+        assertThat(browser.actions).isEmpty()
+        assertThat(vaultBridge.exported).isFalse()
+        assertThat(vaultBridge.actions).isEmpty()
+    }
 
-        assertWithMessage("EpubReaderActivity must be declared").that(epubReader).isNotNull()
-        assertThat(epubReader!!.exported).isFalse()
-        assertThat(epubReader.actions).isEmpty()
+    @Test
+    fun dispatcherBridgesStayAliveAsTranslucentActivitiesRatherThanNoDisplay() {
+        val manifest = MANIFEST.readText()
+
+        assertThat(manifest).doesNotContain("@android:style/Theme.NoDisplay")
+        assertThat(manifest).contains("@android:style/Theme.Translucent.NoTitleBar")
     }
 
     private fun activities(): List<ActivityContract> {
