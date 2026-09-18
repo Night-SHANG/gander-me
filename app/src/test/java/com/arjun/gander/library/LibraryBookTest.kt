@@ -24,6 +24,24 @@ class LibraryBookTest {
     }
 
     @Test
+    fun markdownUsesTextProgressModel() {
+        val book = LibraryBook(
+            id = "markdown",
+            title = "Notes",
+            storedFileName = "notes.md",
+            format = BookFormat.MARKDOWN,
+            sizeBytes = 100L,
+            totalCharacters = 200,
+            addedAtEpochMillis = 0L,
+            lastOpenedAtEpochMillis = 0L,
+            readingOffset = 50,
+        )
+
+        assertThat(book.progressFraction).isEqualTo(0.25f)
+        assertThat(book.progressPercent).isEqualTo(25)
+    }
+
+    @Test
     fun emptyBookHasZeroProgress() {
         val book = LibraryBook(
             id = "book",
