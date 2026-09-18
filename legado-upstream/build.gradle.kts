@@ -166,7 +166,7 @@ ksp {
     arg("room.incremental", "true")
     arg("room.expandProjection", "true")
     arg("room.generateKotlin", "false")
-    arg("room.schemaLocation", file("schemas").absolutePath)
+    arg("room.schemaLocation", rootProject.file("third_party/legado/app/schemas").absolutePath)
 }
 
 val applyVaultShelfLegadoPatch = tasks.register("applyVaultShelfLegadoPatch") {
