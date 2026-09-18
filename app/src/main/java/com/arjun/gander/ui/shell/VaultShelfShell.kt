@@ -84,12 +84,15 @@ private enum class VaultShelfDestination(
 fun VaultShelfShell(
     libraryRepository: LibraryRepository,
     onOpenFiles: () -> Unit,
+    onOpenVault: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedName by rememberSaveable { mutableStateOf(VaultShelfDestination.HOME.name) }
     val selected = VaultShelfDestination.entries
         .firstOrNull { it.name == selectedName }
-        ?.takeUnless { it == VaultShelfDestination.FILES }
+        ?.takeUnless {
+            it == VaultShelfDestination.FILES || it == VaultShelfDestination.VAULT
+        }
         ?: VaultShelfDestination.HOME
 
     Scaffold(
@@ -99,10 +102,10 @@ fun VaultShelfShell(
             FluentBottomBar(
                 selected = selected,
                 onSelected = { destination ->
-                    if (destination == VaultShelfDestination.FILES) {
-                        onOpenFiles()
-                    } else {
-                        selectedName = destination.name
+                    when (destination) {
+                        VaultShelfDestination.FILES -> onOpenFiles()
+                        VaultShelfDestination.VAULT -> onOpenVault()
+                        else -> selectedName = destination.name
                     }
                 },
             )
@@ -114,7 +117,7 @@ fun VaultShelfShell(
                 modifier = Modifier.padding(innerPadding),
                 onOpenFiles = onOpenFiles,
                 onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
-                onOpenVault = { selectedName = VaultShelfDestination.VAULT.name },
+                onOpenVault = onOpenVault,
             )
 
             VaultShelfDestination.LIBRARY -> LibraryScreen(
@@ -127,10 +130,12 @@ fun VaultShelfShell(
                 modifier = Modifier.padding(innerPadding),
             )
 
-            VaultShelfDestination.VAULT -> FoundationScreen(
-                titleRes = R.string.vaultshelf_vault_title,
-                detailRes = R.string.vaultshelf_vault_placeholder,
+            VaultShelfDestination.VAULT -> HomeScreen(
+                libraryRepository = libraryRepository,
                 modifier = Modifier.padding(innerPadding),
+                onOpenFiles = onOpenFiles,
+                onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
+                onOpenVault = onOpenVault,
             )
 
             VaultShelfDestination.SETTINGS -> FoundationScreen(
