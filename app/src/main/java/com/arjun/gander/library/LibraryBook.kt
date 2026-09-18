@@ -5,6 +5,7 @@ enum class BookFormat {
     EPUB,
     MARKDOWN,
     PDF,
+    UMD,
 }
 
 data class LibraryBook(
@@ -32,6 +33,8 @@ data class LibraryBook(
             BookFormat.EPUB -> (publicationProgression ?: 0f).coerceIn(0f, 1f)
 
             BookFormat.PDF -> (publicationProgression ?: 0f).coerceIn(0f, 1f)
+
+            BookFormat.UMD -> (publicationProgression ?: 0f).coerceIn(0f, 1f)
         }
 
     val progressPercent: Int
