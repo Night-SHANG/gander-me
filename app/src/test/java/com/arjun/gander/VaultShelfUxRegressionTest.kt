@@ -33,16 +33,29 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun txtAndEpubShareTheSameSettingsAndContentsPanels() {
-        val txt = File(repo, "app/src/main/java/com/arjun/gander/TxtReaderActivity.kt").readText()
-        val epub = File(repo, "app/src/main/java/com/arjun/gander/EpubReaderActivity.kt").readText()
+    fun originalLegadoReaderIsPinnedAndUsedDirectly() {
+        val gitmodules = File(repo, ".gitmodules").readText()
+        val appBuild = File(repo, "app/build.gradle.kts").readText()
+        val upstreamBuild = File(repo, "legado-upstream/build.gradle.kts").readText()
+        val router = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/library/LibraryReaderRouter.kt",
+        ).readText()
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
 
-        listOf(txt, epub).forEach { source ->
-            assertThat(source).contains("MatureReaderSettingsSheet")
-            assertThat(source).contains("MatureReaderContentsSheet")
-        }
-        assertThat(txt).doesNotContain("private fun PageModeRows")
-        assertThat(epub).doesNotContain("private fun EpubPageModeRows")
+        assertThat(gitmodules).contains("third_party/legado")
+        assertThat(gitmodules).contains("https://github.com/LegadoTeam/legado.git")
+        assertThat(appBuild).contains("implementation(project(\":legado-upstream\"))")
+        assertThat(appBuild).doesNotContain("implementation(project(\":legado-reader\"))")
+        assertThat(upstreamBuild).contains("../third_party/legado/app/src/main/java")
+        assertThat(upstreamBuild).contains("../third_party/legado/app/src/main/res")
+        assertThat(bridge).contains("ReadBookActivity")
+        assertThat(bridge).contains("LocalBook.previewImportFile")
+        assertThat(router).contains("LegadoReaderBridge.readerIntent")
+        assertThat(router).contains("syncLegadoReaderProgress")
     }
 
     @Test
@@ -55,12 +68,20 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
         ).readText()
+        val router = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/library/LibraryReaderRouter.kt",
+        ).readText()
 
         listOf("TXT", "EPUB", "UMD", "PDF", "MOBI", "AZW3", "AZW", "MARKDOWN")
             .forEach { format ->
                 assertThat(bookModel).contains("BookFormat.$format")
                 assertThat(library).contains("BookFormat.$format")
             }
+
+        listOf("TXT", "EPUB", "UMD", "MOBI", "AZW3", "AZW").forEach { format ->
+            assertThat(router).contains("BookFormat.$format")
+        }
 
         assertThat(library).contains("\"md\", \"markdown\"")
         assertThat(library).contains("\"mobi\"")
@@ -99,17 +120,21 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun readerPanelsKeepSettingsPagedAndContentsSearchable() {
-        val source = File(
-            repo,
+    fun adaptedReaderActivitiesAndPanelsAreGone() {
+        listOf(
+            "app/src/main/java/com/arjun/gander/TxtReaderActivity.kt",
+            "app/src/main/java/com/arjun/gander/EpubReaderActivity.kt",
+            "app/src/main/java/com/arjun/gander/UmdReaderActivity.kt",
+            "app/src/main/java/com/arjun/gander/MobiReaderActivity.kt",
             "app/src/main/java/com/arjun/gander/ui/reader/ReaderPanels.kt",
-        ).readText()
+        ).forEach { relative ->
+            assertThat(File(repo, relative).exists()).isFalse()
+        }
 
-        assertThat(source).contains("ReaderSettingsPage.PAGE_TURN")
-        assertThat(source).contains("ReaderSettingsPage.FONT")
-        assertThat(source).contains("ReaderSettingsPage.LAYOUT")
-        assertThat(source).contains("ReaderSettingsPage.THEME")
-        assertThat(source).contains("vaultshelf_reader_contents_search")
-        assertThat(source).contains("rememberLazyListState")
+        val manifest = File(repo, "app/src/main/AndroidManifest.xml").readText()
+        assertThat(manifest).doesNotContain(".TxtReaderActivity")
+        assertThat(manifest).doesNotContain(".EpubReaderActivity")
+        assertThat(manifest).doesNotContain(".UmdReaderActivity")
+        assertThat(manifest).doesNotContain(".MobiReaderActivity")
     }
 }
