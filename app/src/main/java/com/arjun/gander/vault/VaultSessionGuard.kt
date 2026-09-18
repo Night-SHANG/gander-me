@@ -24,7 +24,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
 
     private data class Session(
         val volumeId: Int,
-        var activity: WeakReference<Activity>,
+        var activity: WeakReference<Activity?>,
     )
 
     private val sessions = ConcurrentHashMap<String, Session>()
@@ -50,7 +50,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
     ) {
         val application = activity.application as VolumeManagerApp
         initialize(application)
-        sessions[token] = Session(volumeId, WeakReference(activity))
+        sessions[token] = Session(volumeId, WeakReference<Activity?>(activity))
         enforce(token)
     }
 
@@ -85,7 +85,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
             ?: return
         val session = sessions[token] ?: return
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        session.activity = WeakReference(activity)
+        session.activity = WeakReference<Activity?>(activity)
         enforce(token)
     }
 
