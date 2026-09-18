@@ -30,6 +30,7 @@ import io.legado.app.data.entities.rule.ExploreRule
 import io.legado.app.data.entities.rule.SearchRule
 import io.legado.app.help.DefaultData
 import io.legado.app.help.LifecycleHelp
+import io.legado.app.help.RuleBigDataHelp
 import io.legado.app.help.book.ResourceThemeGeneration
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ReadRecordCoverCache
@@ -236,6 +237,8 @@ object LegadoReaderBridge {
                 LocalBook.withParserCacheInvalidated(book) {
                     BookHelp.clearCache(book)
                     BookHelp.clearEpubContentUriCache(book)
+                    appDb.bookMemoDao.delete(book.bookUrl)
+                    RuleBigDataHelp.clearBook(book.bookUrl)
                     book.removeLocalUriCache()
                     LocalBook.deleteBook(book, deleteOriginal = false)
                     appDb.bookDao.delete(book)
@@ -299,6 +302,8 @@ object LegadoReaderBridge {
         LocalBook.withParserCacheInvalidated(book) {
             BookHelp.clearCache(book)
             BookHelp.clearEpubContentUriCache(book)
+            appDb.bookMemoDao.delete(bookUrl)
+            RuleBigDataHelp.clearBook(bookUrl)
 
             appDb.bookHighlightDao.getByBook(bookUrl)
                 .takeIf { it.isNotEmpty() }

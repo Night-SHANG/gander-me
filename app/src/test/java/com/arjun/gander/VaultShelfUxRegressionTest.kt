@@ -33,6 +33,21 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun transientVaultBookDeletesMemoAndRuleBigData() {
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+        val patch = File(repo, "patches/legado-vaultshelf-runtime.patch").readText()
+
+        assertThat(bridge).contains("bookMemoDao.delete(bookUrl)")
+        assertThat(bridge).contains("RuleBigDataHelp.clearBook(bookUrl)")
+        assertThat(patch).contains("delete from book_memos where bookUrl = :bookUrl")
+        assertThat(patch).contains("fun clearBook(bookUrl: String)")
+        assertThat(patch).contains("deleteRootDir = true")
+    }
+
+    @Test
     fun transientVaultEpubDeletesItsFullPlaintextContentUriCache() {
         val bridge = File(
             repo,

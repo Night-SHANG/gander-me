@@ -2751,3 +2751,39 @@ diff --git a/app/src/main/java/io/legado/app/help/book/BookHelp.kt b/app/src/mai
              val doc = DocumentFile.fromSingleUri(appCtx, uri)
                  ?: throw IOException("文件不存在")
              if (!file.exists() || doc.lastModified() > book.latestChapterTime) {
+
+# Transient vault books must not leave standalone memo rows or rule-data files after the Book row is removed.
+diff --git a/app/src/main/java/io/legado/app/data/dao/BookMemoDao.kt b/app/src/main/java/io/legado/app/data/dao/BookMemoDao.kt
+--- a/app/src/main/java/io/legado/app/data/dao/BookMemoDao.kt
++++ b/app/src/main/java/io/legado/app/data/dao/BookMemoDao.kt
+@@ -16,6 +16,9 @@
+     @Query("select * from book_memos where bookUrl = :bookUrl")
+     fun flow(bookUrl: String): Flow<BookMemo?>
+ 
++    @Query("delete from book_memos where bookUrl = :bookUrl")
++    fun delete(bookUrl: String)
++
+     @Query("select book_memos.* from book_memos inner join books using (bookUrl)")
+     fun all(): List<BookMemo>
+ 
+
+diff --git a/app/src/main/java/io/legado/app/help/RuleBigDataHelp.kt b/app/src/main/java/io/legado/app/help/RuleBigDataHelp.kt
+--- a/app/src/main/java/io/legado/app/help/RuleBigDataHelp.kt
++++ b/app/src/main/java/io/legado/app/help/RuleBigDataHelp.kt
+@@ -127,6 +127,16 @@
+         }
+     }
+ 
++    fun clearBook(bookUrl: String) {
++        synchronized(accessLock) {
++            val md5BookUrl = MD5Utils.md5Encode(bookUrl)
++            deleteRuleDataEntry(
++                File(FileUtils.getPath(bookData, md5BookUrl)),
++                deleteRootDir = true,
++            )
++        }
++    }
++
+     fun putBookVariable(bookUrl: String, key: String, value: String?) {
+         synchronized(accessLock) {
+             val md5BookUrl = MD5Utils.md5Encode(bookUrl)
