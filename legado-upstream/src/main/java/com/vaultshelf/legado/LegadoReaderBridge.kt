@@ -163,6 +163,20 @@ object LegadoReaderBridge {
      * importFile uses Legado's own collision handling (it renames the temporary identity
      * when a normal bookshelf book has the same name/author) instead of replacing it.
      */
+    /**
+     * Keep a normal Files URI in Legado when VaultShelf has durable read access to it.
+     * This intentionally preserves Legado's own progress, bookmarks, highlights and history.
+     */
+    fun ensurePersistentUriBook(
+        context: Context,
+        uri: Uri,
+    ): LocalBookSnapshot {
+        initialize(context)
+        val preview = LocalBook.previewImportFile(uri)
+        val book = LocalBook.importFile(uri, preview)
+        return book.snapshot()
+    }
+
     fun createTransientBookSession(
         context: Context,
         uri: Uri,
