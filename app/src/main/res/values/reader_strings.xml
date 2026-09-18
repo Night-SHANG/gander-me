@@ -17,4 +17,11 @@
     <string name="vaultshelf_reader_relaxed">Relaxed</string>
     <string name="vaultshelf_reader_narrow">Narrow</string>
     <string name="vaultshelf_reader_wide">Wide</string>
+    <string name="vaultshelf_reader_layout">Layout</string>
+    <string name="vaultshelf_reader_contents_search">Search chapters</string>
+    <string name="vaultshelf_reader_chapter_position">%1$d / %2$d</string>
+    <string name="vaultshelf_reader_contents_first">Top</string>
+    <string name="vaultshelf_reader_contents_current">Current</string>
+    <string name="vaultshelf_reader_contents_last">Bottom</string>
+    <string name="vaultshelf_reader_contents_empty">No matching chapters</string>
 </resources>

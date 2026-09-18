@@ -72,6 +72,8 @@ class ViewerActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_PATH = "path"
+        const val EXTRA_LIBRARY_BOOK_ID = "vaultshelf.library_book_id"
+        const val EXTRA_LIBRARY_PROGRESS = "vaultshelf.library_progress"
         private const val STATE_COPY_SOURCE = "copy_source"
         private const val ASSET_HOST = "appassets.androidplatform.net"
 
@@ -211,6 +213,7 @@ class ViewerActivity : AppCompatActivity() {
         pageIndicator.setOnClickListener { askForPage() }
 
         copySource = savedInstanceState?.getString(STATE_COPY_SOURCE)?.let(Uri::parse)
+        libraryBookId = intent.getStringExtra(EXTRA_LIBRARY_BOOK_ID)
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         toolbar.setNavigationOnClickListener { finish() }
@@ -246,6 +249,7 @@ class ViewerActivity : AppCompatActivity() {
         // Held past the when because setUpSearch needs it to know whether the
         // format it is offering to search actually has anything findable in it
         val kind = detect(ext, mime)
+        viewerKind = kind
         when (kind) {
             FileKind.IMAGE -> showImage(container, uri, name, ext)
             FileKind.PLAYER -> showPlayer(container, uri, name, ext)
@@ -448,6 +452,13 @@ class ViewerActivity : AppCompatActivity() {
 
     /** What this PDF's page is saved under; see [Positions]. Null for every other format. */
     private var positionKey: String? = null
+
+    /** Markdown uses normalized scrolling rather than page numbers. */
+    private var scrollPositionKey: String? = null
+
+    /** Set only when VaultShelf opened the viewer from its private library. */
+    private var libraryBookId: String? = null
+    private var viewerKind: FileKind? = null
 
     /**
      * True while the find box is up. The page readout stands down for it: two counters
@@ -1357,6 +1368,8 @@ class ViewerActivity : AppCompatActivity() {
                 detail: android.webkit.RenderProcessGoneDetail
             ): Boolean {
                 if (webView === view) {
+                    saveScrollPosition()
+                    publishLibraryProgress()
                     webView = null
                     (view.parent as? ViewGroup)?.removeView(view)
                     view.destroy()
@@ -1409,12 +1422,17 @@ class ViewerActivity : AppCompatActivity() {
         // drawing a page nobody asked to see. Issue #25.
         positionKey =
             if (kind == FileKind.PDF) Positions.keyFor(contentResolver, uri, total) else null
+        scrollPositionKey =
+            if (kind == FileKind.MD) Positions.keyFor(contentResolver, uri, total) else null
+
         val resumeAt = positionKey?.let { Positions.page(this, it) } ?: 0
+        val resumeScroll = scrollPositionKey?.let { ScrollPositions.fraction(this, it) } ?: 0f
         web.loadUrl(
             "https://$ASSET_HOST/assets/viewer/${kind.page}" +
                 "?name=${Uri.encode(name)}&ext=${Uri.encode(ext)}&ranged=$ranged" +
                 "&night=$night" +
                 (if (resumeAt > 1) "&resume=$resumeAt" else "") +
+                (if (resumeScroll > 0f) "&resumeScroll=$resumeScroll" else "") +
                 pdfjsFloorParamsFor(kind, web.settings.userAgentString)
         )
     }
@@ -1556,6 +1574,8 @@ class ViewerActivity : AppCompatActivity() {
     override fun onStop() {
         player?.pause()
         savePosition()
+        saveScrollPosition()
+        publishLibraryProgress()
         super.onStop()
     }
 
@@ -1574,6 +1594,45 @@ class ViewerActivity : AppCompatActivity() {
         val key = positionKey ?: return
         if (pageAt < 1 || pageTotal < 2) return
         Positions.save(this, key, pageAt, pageTotal)
+    }
+
+    private fun saveScrollPosition() {
+        val key = scrollPositionKey ?: return
+        val fraction = currentScrollFraction() ?: return
+        ScrollPositions.save(this, key, fraction)
+    }
+
+    private fun currentScrollFraction(): Float? {
+        val web = webView ?: return null
+        val range = web.verticalRange()
+        val extent = web.verticalExtent()
+        val scrollable = range - extent
+        if (scrollable <= 0) return 0f
+        return (web.verticalOffset().toFloat() / scrollable.toFloat()).coerceIn(0f, 1f)
+    }
+
+    private fun publishLibraryProgress() {
+        val id = libraryBookId ?: return
+        val fraction = when (viewerKind) {
+            FileKind.PDF -> {
+                when {
+                    pageAt < 1 || pageTotal < 1 -> null
+                    pageTotal == 1 -> 1f
+                    else -> ((pageAt - 1).toFloat() / (pageTotal - 1).toFloat())
+                        .coerceIn(0f, 1f)
+                }
+            }
+
+            FileKind.MD -> currentScrollFraction()
+            else -> null
+        } ?: return
+
+        setResult(
+            RESULT_OK,
+            Intent()
+                .putExtra(EXTRA_LIBRARY_BOOK_ID, id)
+                .putExtra(EXTRA_LIBRARY_PROGRESS, fraction),
+        )
     }
 
     override fun onDestroy() {

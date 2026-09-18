@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.arjun.gander.ui.library
 
 import android.content.Context
@@ -8,9 +10,11 @@ import android.provider.OpenableColumns
 import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,15 +58,20 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import com.arjun.gander.EpubReaderActivity
+import com.arjun.gander.MobiReaderActivity
 import com.arjun.gander.R
 import com.arjun.gander.TxtReaderActivity
+import com.arjun.gander.UmdReaderActivity
+import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
@@ -73,6 +82,17 @@ import kotlinx.coroutines.withContext
 
 private enum class ShelfViewMode { GRID, LIST }
 
+private const val SHELF_UI_PREFERENCES = "vaultshelf_library_ui"
+private const val PREF_GRID_COLUMNS = "grid_columns"
+private const val DEFAULT_GRID_COLUMNS = 3
+
+private enum class ShelfSort(@StringRes val labelRes: Int) {
+    LAST_ACTIVITY(R.string.vaultshelf_library_sort_recent),
+    TITLE(R.string.vaultshelf_library_sort_title),
+    ADDED(R.string.vaultshelf_library_sort_added),
+    PROGRESS(R.string.vaultshelf_library_sort_progress),
+}
+
 @Composable
 fun LibraryScreen(
     repository: LibraryRepository,
@@ -80,56 +100,125 @@ fun LibraryScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val shelfPreferences = remember {
+        context.getSharedPreferences(SHELF_UI_PREFERENCES, Context.MODE_PRIVATE)
+    }
     var books by remember { mutableStateOf<List<LibraryBook>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var importFailed by remember { mutableStateOf(false) }
     var viewModeName by rememberSaveable { mutableStateOf(ShelfViewMode.GRID.name) }
-    val viewMode = runCatching { ShelfViewMode.valueOf(viewModeName) }.getOrDefault(ShelfViewMode.GRID)
+    var sortName by rememberSaveable { mutableStateOf(ShelfSort.LAST_ACTIVITY.name) }
+    var gridColumns by rememberSaveable {
+        mutableStateOf(
+            shelfPreferences.getInt(PREF_GRID_COLUMNS, DEFAULT_GRID_COLUMNS).coerceIn(2, 6),
+        )
+    }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var confirmBatchDelete by remember { mutableStateOf(false) }
     var bookToRename by remember { mutableStateOf<LibraryBook?>(null) }
     var bookToDelete by remember { mutableStateOf<LibraryBook?>(null) }
     var bookToInspect by remember { mutableStateOf<LibraryBook?>(null) }
+
+    val viewMode = runCatching { ShelfViewMode.valueOf(viewModeName) }.getOrDefault(ShelfViewMode.GRID)
+    val sort = runCatching { ShelfSort.valueOf(sortName) }.getOrDefault(ShelfSort.LAST_ACTIVITY)
+    val visibleBooks = remember(books, searchQuery, sort) {
+        filterAndSortBooks(books, searchQuery, sort)
+    }
 
     fun refresh() {
         scope.launch {
             loading = true
             books = repository.listBooks()
+            selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
             loading = false
+        }
+    }
+
+    fun toggleSelection(book: LibraryBook) {
+        selectedIds = selectedIds.toMutableSet().apply {
+            if (!add(book.id)) remove(book.id)
         }
     }
 
     val readerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
-    ) {
-        refresh()
+    ) { result ->
+        val data = result.data
+        val bookId = data?.getStringExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID)
+        val hasProgress = data?.hasExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS) == true
+        if (result.resultCode == android.app.Activity.RESULT_OK && bookId != null && hasProgress) {
+            val progress = data?.getFloatExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS, 0f) ?: 0f
+            scope.launch {
+                repository.updateViewerProgress(bookId, progress)
+                books = repository.listBooks()
+                selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
+                loading = false
+            }
+        } else {
+            refresh()
+        }
     }
     val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
+        contract = ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        if (uris.isNotEmpty()) {
             importFailed = false
             scope.launch {
-                runCatching {
-                    when (detectBookFormat(context, uri)) {
-                        BookFormat.TXT -> repository.importTxt(uri)
-                        BookFormat.EPUB -> repository.importEpub(uri)
-                        null -> error("Unsupported library format")
-                    }
+                var failed = false
+                uris.forEach { uri ->
+                    runCatching {
+                        when (val format = detectBookFormat(context, uri)) {
+                            BookFormat.TXT -> repository.importTxt(uri)
+                            BookFormat.EPUB -> repository.importEpub(uri)
+                            BookFormat.MARKDOWN -> repository.importMarkdown(uri)
+                            BookFormat.PDF -> repository.importPdf(uri)
+                            BookFormat.UMD -> repository.importUmd(uri)
+                            BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
+                                repository.importMobi(uri, format)
+                            null -> error("Unsupported library format")
+                        }
+                    }.onFailure { failed = true }
                 }
-                    .onSuccess { books = repository.listBooks() }
-                    .onFailure { importFailed = true }
+                books = repository.listBooks()
+                importFailed = failed
             }
         }
     }
 
     fun openBook(book: LibraryBook) {
-        val intent = when (book.format) {
-            BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
-                .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
+        scope.launch {
+            val intent = when (book.format) {
+                BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
+                    .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
 
-            BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
-                .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+                BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
+                    .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+
+                BookFormat.MARKDOWN, BookFormat.PDF -> {
+                    repository.updateProgress(book.id, book.readingOffset)
+                    Intent(context, ViewerActivity::class.java)
+                        .putExtra(ViewerActivity.EXTRA_PATH, repository.bookFile(book.id).absolutePath)
+                        .putExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID, book.id)
+                }
+
+                BookFormat.UMD -> Intent(context, UmdReaderActivity::class.java)
+                    .putExtra(UmdReaderActivity.EXTRA_BOOK_ID, book.id)
+
+                BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
+                    Intent(context, MobiReaderActivity::class.java)
+                        .putExtra(MobiReaderActivity.EXTRA_BOOK_ID, book.id)
+            }
+            readerLauncher.launch(intent)
         }
-        readerLauncher.launch(intent)
+    }
+
+    fun onBookClick(book: LibraryBook) {
+        if (selectedIds.isEmpty()) {
+            openBook(book)
+        } else {
+            toggleSelection(book)
+        }
     }
 
     LaunchedEffect(repository) {
@@ -138,18 +227,44 @@ fun LibraryScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        ShelfHeader(
-            bookCount = books.size,
-            viewMode = viewMode,
-            onViewModeChange = {
-                viewModeName = if (viewMode == ShelfViewMode.GRID) {
-                    ShelfViewMode.LIST.name
-                } else {
-                    ShelfViewMode.GRID.name
-                }
-            },
-            onImport = { importLauncher.launch(IMPORT_MIME_TYPES) },
-        )
+        if (selectedIds.isNotEmpty()) {
+            SelectionHeader(
+                selectedCount = selectedIds.size,
+                allVisibleSelected = visibleBooks.isNotEmpty() && visibleBooks.all { it.id in selectedIds },
+                onClose = { selectedIds = emptySet() },
+                onSelectAll = {
+                    selectedIds = if (visibleBooks.isNotEmpty() && visibleBooks.all { it.id in selectedIds }) {
+                        selectedIds - visibleBooks.mapTo(mutableSetOf()) { it.id }
+                    } else {
+                        selectedIds + visibleBooks.map { it.id }
+                    }
+                },
+                onDelete = { confirmBatchDelete = true },
+            )
+        } else {
+            ShelfHeader(
+                bookCount = books.size,
+                visibleCount = visibleBooks.size,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                sort = sort,
+                onSortChange = { sortName = it.name },
+                viewMode = viewMode,
+                onViewModeChange = {
+                    viewModeName = if (viewMode == ShelfViewMode.GRID) {
+                        ShelfViewMode.LIST.name
+                    } else {
+                        ShelfViewMode.GRID.name
+                    }
+                },
+                gridColumns = gridColumns,
+                onGridColumnsChange = { columns ->
+                    gridColumns = columns.coerceIn(2, 6)
+                    shelfPreferences.edit { putInt(PREF_GRID_COLUMNS, gridColumns) }
+                },
+                onImport = { importLauncher.launch(IMPORT_MIME_TYPES) },
+            )
+        }
 
         if (importFailed) {
             Text(
@@ -167,18 +282,26 @@ fun LibraryScreen(
                 modifier = Modifier.padding(16.dp),
             )
 
+            visibleBooks.isEmpty() -> EmptySearch(
+                onClear = { searchQuery = "" },
+                modifier = Modifier.padding(16.dp),
+            )
+
             viewMode == ShelfViewMode.GRID -> LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
+                columns = GridCells.Fixed(gridColumns),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 28.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                gridItems(books, key = { it.id }) { book ->
+                gridItems(visibleBooks, key = { it.id }) { book ->
                     BookGridItem(
                         book = book,
                         repository = repository,
-                        onOpen = { openBook(book) },
+                        selected = book.id in selectedIds,
+                        selectionMode = selectedIds.isNotEmpty(),
+                        onOpen = { onBookClick(book) },
+                        onLongPress = { toggleSelection(book) },
                         onRename = { bookToRename = book },
                         onDelete = { bookToDelete = book },
                         onInfo = { bookToInspect = book },
@@ -191,12 +314,15 @@ fun LibraryScreen(
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(books, key = { it.id }) { book ->
+                items(visibleBooks, key = { it.id }) { book ->
                     BookListItem(
                         book = book,
                         repository = repository,
                         sizeLabel = Formatter.formatShortFileSize(context, book.sizeBytes),
-                        onOpen = { openBook(book) },
+                        selected = book.id in selectedIds,
+                        selectionMode = selectedIds.isNotEmpty(),
+                        onOpen = { onBookClick(book) },
+                        onLongPress = { toggleSelection(book) },
                         onRename = { bookToRename = book },
                         onDelete = { bookToDelete = book },
                         onInfo = { bookToInspect = book },
@@ -233,6 +359,7 @@ fun LibraryScreen(
                         scope.launch {
                             repository.deleteBook(book.id)
                             books = repository.listBooks()
+                            selectedIds = selectedIds - book.id
                             bookToDelete = null
                         }
                     },
@@ -242,6 +369,41 @@ fun LibraryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { bookToDelete = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (confirmBatchDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmBatchDelete = false },
+            title = { Text(stringResource(R.string.vaultshelf_library_batch_delete_title)) },
+            text = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.vaultshelf_library_batch_delete_message,
+                        selectedIds.size,
+                        selectedIds.size,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            selectedIds.forEach { repository.deleteBook(it) }
+                            selectedIds = emptySet()
+                            books = repository.listBooks()
+                            confirmBatchDelete = false
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.vaultshelf_library_delete_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmBatchDelete = false }) {
                     Text(stringResource(android.R.string.cancel))
                 }
             },
@@ -273,33 +435,128 @@ fun LibraryScreen(
     }
 }
 
+private fun filterAndSortBooks(
+    books: List<LibraryBook>,
+    query: String,
+    sort: ShelfSort,
+): List<LibraryBook> {
+    val normalizedQuery = query.trim()
+    val filtered = if (normalizedQuery.isEmpty()) {
+        books
+    } else {
+        books.filter { it.title.contains(normalizedQuery, ignoreCase = true) }
+    }
+
+    return when (sort) {
+        ShelfSort.LAST_ACTIVITY -> filtered.sortedWith(
+            compareByDescending<LibraryBook> {
+                if (it.lastOpenedAtEpochMillis > 0L) it.lastOpenedAtEpochMillis else it.addedAtEpochMillis
+            }.thenBy { it.title.lowercase() },
+        )
+        ShelfSort.TITLE -> filtered.sortedBy { it.title.lowercase() }
+        ShelfSort.ADDED -> filtered.sortedByDescending { it.addedAtEpochMillis }
+        ShelfSort.PROGRESS -> filtered.sortedWith(
+            compareByDescending<LibraryBook> { it.progressFraction }
+                .thenByDescending { it.lastOpenedAtEpochMillis },
+        )
+    }
+}
+
 @Composable
 private fun ShelfHeader(
     bookCount: Int,
+    visibleCount: Int,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    sort: ShelfSort,
+    onSortChange: (ShelfSort) -> Unit,
     viewMode: ShelfViewMode,
     onViewModeChange: () -> Unit,
+    gridColumns: Int,
+    onGridColumnsChange: (Int) -> Unit,
     onImport: () -> Unit,
 ) {
-    Row(
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+    var gridMenuExpanded by remember { mutableStateOf(false) }
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = stringResource(R.string.vaultshelf_library_title),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.vaultshelf_library_book_count, bookCount),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = stringResource(R.string.vaultshelf_library_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = if (searchQuery.isBlank()) {
+                        stringResource(R.string.vaultshelf_library_book_count, bookCount)
+                    } else {
+                        pluralStringResource(
+                            R.plurals.vaultshelf_library_search_result_count,
+                            bookCount,
+                            visibleCount,
+                            bookCount,
+                        )
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Button(
+                onClick = onImport,
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp),
+            ) {
+                Text(stringResource(R.string.vaultshelf_library_import_short))
+            }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text(stringResource(R.string.vaultshelf_library_search_hint)) },
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box {
+                TextButton(onClick = { sortMenuExpanded = true }) {
+                    Text(
+                        stringResource(
+                            R.string.vaultshelf_library_sort_button,
+                            stringResource(sort.labelRes),
+                        ),
+                    )
+                }
+                DropdownMenu(
+                    expanded = sortMenuExpanded,
+                    onDismissRequest = { sortMenuExpanded = false },
+                ) {
+                    ShelfSort.entries.forEach { item ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(item.labelRes)) },
+                            onClick = {
+                                sortMenuExpanded = false
+                                onSortChange(item)
+                            },
+                        )
+                    }
+                }
+            }
             TextButton(onClick = onViewModeChange) {
                 Text(
                     stringResource(
@@ -311,12 +568,100 @@ private fun ShelfHeader(
                     ),
                 )
             }
-            Button(
-                onClick = onImport,
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp),
-            ) {
-                Text(stringResource(R.string.vaultshelf_library_import_short))
+            if (viewMode == ShelfViewMode.GRID) {
+                Box {
+                    TextButton(onClick = { gridMenuExpanded = true }) {
+                        Text(
+                            pluralStringResource(
+                                R.plurals.vaultshelf_library_grid_columns,
+                                gridColumns,
+                                gridColumns,
+                            ),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = gridMenuExpanded,
+                        onDismissRequest = { gridMenuExpanded = false },
+                    ) {
+                        (2..6).forEach { columns ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        pluralStringResource(
+                                            R.plurals.vaultshelf_library_grid_columns,
+                                            columns,
+                                            columns,
+                                        ),
+                                    )
+                                },
+                                onClick = {
+                                    gridMenuExpanded = false
+                                    onGridColumnsChange(columns)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+            Text(
+                text = stringResource(R.string.vaultshelf_library_manage_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectionHeader(
+    selectedCount: Int,
+    allVisibleSelected: Boolean,
+    onClose: () -> Unit,
+    onSelectAll: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onClose) {
+                Text(stringResource(R.string.vaultshelf_library_manage_done))
+            }
+            Text(
+                text = pluralStringResource(
+                    R.plurals.vaultshelf_library_selected_count,
+                    selectedCount,
+                    selectedCount,
+                ),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onSelectAll) {
+                Text(
+                    stringResource(
+                        if (allVisibleSelected) {
+                            R.string.vaultshelf_library_unselect_all
+                        } else {
+                            R.string.vaultshelf_library_select_all
+                        },
+                    ),
+                )
+            }
+            TextButton(onClick = onDelete) {
+                Text(
+                    text = stringResource(R.string.vaultshelf_library_delete),
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }
@@ -361,14 +706,58 @@ private fun EmptyLibrary(
 }
 
 @Composable
+private fun EmptySearch(
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.vaultshelf_library_search_empty_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                text = stringResource(R.string.vaultshelf_library_search_empty_detail),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = onClear) {
+                Text(stringResource(R.string.vaultshelf_library_search_clear))
+            }
+        }
+    }
+}
+
+@Composable
 private fun BookGridItem(
     book: LibraryBook,
     repository: LibraryRepository,
+    selected: Boolean,
+    selectionMode: Boolean,
     onOpen: () -> Unit,
+    onLongPress: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onInfo: () -> Unit,
 ) {
+    val selectedBorder = if (selected) {
+        Modifier.border(
+            width = 2.dp,
+            color = MaterialTheme.colorScheme.primary,
+            shape = RoundedCornerShape(12.dp),
+        )
+    } else {
+        Modifier
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box {
             BookCover(
@@ -377,15 +766,36 @@ private fun BookGridItem(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(0.68f)
-                    .clickable(onClick = onOpen),
+                    .then(selectedBorder)
+                    .combinedClickable(
+                        onClick = onOpen,
+                        onLongClick = onLongPress,
+                    ),
             )
-            BookMenuButton(
-                onOpen = onOpen,
-                onRename = onRename,
-                onDelete = onDelete,
-                onInfo = onInfo,
-                modifier = Modifier.align(Alignment.TopEnd),
-            )
+            if (selected) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                ) {
+                    Text(
+                        text = "✓",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+            } else if (!selectionMode) {
+                BookMenuButton(
+                    onOpen = onOpen,
+                    onRename = onRename,
+                    onDelete = onDelete,
+                    onInfo = onInfo,
+                    modifier = Modifier.align(Alignment.TopEnd),
+                )
+            }
         }
         Text(
             text = book.title,
@@ -399,9 +809,15 @@ private fun BookGridItem(
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            text = stringResource(R.string.vaultshelf_library_progress, book.progressPercent),
+            text = stringResource(
+                R.string.vaultshelf_library_grid_meta,
+                book.format.name,
+                book.progressPercent,
+            ),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -411,17 +827,35 @@ private fun BookListItem(
     book: LibraryBook,
     repository: LibraryRepository,
     sizeLabel: String,
+    selected: Boolean,
+    selectionMode: Boolean,
     onOpen: () -> Unit,
+    onLongPress: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onInfo: () -> Unit,
 ) {
+    val shape = RoundedCornerShape(12.dp)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
+            .then(
+                if (selected) {
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape)
+                } else {
+                    Modifier
+                },
+            )
+            .combinedClickable(
+                onClick = onOpen,
+                onLongClick = onLongPress,
+            ),
+        shape = shape,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
         tonalElevation = 1.dp,
     ) {
         Row(
@@ -443,6 +877,7 @@ private fun BookListItem(
                 Text(
                     text = book.title,
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -461,12 +896,21 @@ private fun BookListItem(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            BookMenuButton(
-                onOpen = onOpen,
-                onRename = onRename,
-                onDelete = onDelete,
-                onInfo = onInfo,
-            )
+            if (selected) {
+                Text(
+                    text = "✓",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+            } else if (!selectionMode) {
+                BookMenuButton(
+                    onOpen = onOpen,
+                    onRename = onRename,
+                    onDelete = onDelete,
+                    onInfo = onInfo,
+                )
+            }
         }
     }
 }
@@ -633,11 +1077,6 @@ private fun RenameBookDialog(
 }
 
 private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
-    when (context.contentResolver.getType(uri)?.lowercase()) {
-        "application/epub+zip" -> return BookFormat.EPUB
-        "text/plain" -> return BookFormat.TXT
-    }
-
     val displayName = context.contentResolver.query(
         uri,
         arrayOf(OpenableColumns.DISPLAY_NAME),
@@ -649,14 +1088,30 @@ private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
         if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
     } ?: uri.lastPathSegment
 
-    return when (displayName?.substringAfterLast('.', missingDelimiterValue = "")?.lowercase()) {
-        "txt" -> BookFormat.TXT
-        "epub" -> BookFormat.EPUB
+    when (displayName?.substringAfterLast('.', missingDelimiterValue = "")?.lowercase()) {
+        "txt" -> return BookFormat.TXT
+        "epub" -> return BookFormat.EPUB
+        "md", "markdown" -> return BookFormat.MARKDOWN
+        "pdf" -> return BookFormat.PDF
+        "umd" -> return BookFormat.UMD
+        "mobi" -> return BookFormat.MOBI
+        "azw3" -> return BookFormat.AZW3
+        "azw" -> return BookFormat.AZW
+    }
+
+    return when (context.contentResolver.getType(uri)?.lowercase()) {
+        "application/epub+zip" -> BookFormat.EPUB
+        "text/markdown" -> BookFormat.MARKDOWN
+        "application/pdf" -> BookFormat.PDF
+        "application/mobi", "application/x-mobipocket-ebook" -> BookFormat.MOBI
+        "application/azw3", "application/x-mobi8-ebook" -> BookFormat.AZW3
+        "application/azw" -> BookFormat.AZW
+        "text/plain" -> BookFormat.TXT
         else -> null
     }
 }
 
-private val IMPORT_MIME_TYPES = arrayOf("text/plain", "application/epub+zip")
+private val IMPORT_MIME_TYPES = arrayOf("*/*")
 
 private val COVER_COLORS = listOf(
     Color(0xFF315A7D),

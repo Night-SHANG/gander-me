@@ -57,8 +57,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.arjun.gander.EpubReaderActivity
+import com.arjun.gander.MobiReaderActivity
 import com.arjun.gander.R
 import com.arjun.gander.TxtReaderActivity
+import com.arjun.gander.UmdReaderActivity
+import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
@@ -88,6 +91,7 @@ fun VaultShelfShell(
     var selectedName by rememberSaveable { mutableStateOf(VaultShelfDestination.HOME.name) }
     val selected = VaultShelfDestination.entries
         .firstOrNull { it.name == selectedName }
+        ?.takeUnless { it == VaultShelfDestination.FILES }
         ?: VaultShelfDestination.HOME
 
     Scaffold(
@@ -96,7 +100,13 @@ fun VaultShelfShell(
         bottomBar = {
             FluentBottomBar(
                 selected = selected,
-                onSelected = { selectedName = it.name },
+                onSelected = { destination ->
+                    if (destination == VaultShelfDestination.FILES) {
+                        onOpenFiles()
+                    } else {
+                        selectedName = destination.name
+                    }
+                },
             )
         },
     ) { innerPadding ->
@@ -158,19 +168,49 @@ private fun HomeScreen(
 
     val readerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
-    ) {
-        refreshRecent()
+    ) { result ->
+        val data = result.data
+        val bookId = data?.getStringExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID)
+        val hasProgress = data?.hasExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS) == true
+        if (result.resultCode == android.app.Activity.RESULT_OK && bookId != null && hasProgress) {
+            val progress = data?.getFloatExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS, 0f) ?: 0f
+            scope.launch {
+                libraryRepository.updateViewerProgress(bookId, progress)
+                refreshRecent()
+            }
+        } else {
+            refreshRecent()
+        }
     }
 
     fun openBook(book: LibraryBook) {
-        val intent = when (book.format) {
-            BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
-                .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
+        scope.launch {
+            val intent = when (book.format) {
+                BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
+                    .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
 
-            BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
-                .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+                BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
+                    .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+
+                BookFormat.MARKDOWN, BookFormat.PDF -> {
+                    libraryRepository.updateProgress(book.id, book.readingOffset)
+                    Intent(context, ViewerActivity::class.java)
+                        .putExtra(
+                            ViewerActivity.EXTRA_PATH,
+                            libraryRepository.bookFile(book.id).absolutePath,
+                        )
+                        .putExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID, book.id)
+                }
+
+                BookFormat.UMD -> Intent(context, UmdReaderActivity::class.java)
+                    .putExtra(UmdReaderActivity.EXTRA_BOOK_ID, book.id)
+
+                BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
+                    Intent(context, MobiReaderActivity::class.java)
+                        .putExtra(MobiReaderActivity.EXTRA_BOOK_ID, book.id)
+            }
+            readerLauncher.launch(intent)
         }
-        readerLauncher.launch(intent)
     }
 
     LaunchedEffect(libraryRepository) {

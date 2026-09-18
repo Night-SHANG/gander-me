@@ -1,7 +1,6 @@
 package com.arjun.gander
 
 import android.content.Context
-import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
@@ -53,28 +52,31 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.edit
 import androidx.core.view.WindowCompat
-import com.arjun.gander.library.LegadoTxtBook
-import com.arjun.gander.library.LegadoTxtBookBuilder
+import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
 import com.arjun.gander.library.LocalLibraryRepository
-import com.arjun.gander.library.TxtChapter
-import com.arjun.gander.library.TxtChapterParser
 import com.arjun.gander.ui.reader.MatureReaderContentsSheet
 import com.arjun.gander.ui.reader.MatureReaderSettingsSheet
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import io.legado.app.constant.PageAnim
+import io.legado.app.ui.book.read.umd.LegadoUmdDocument
 import io.legado.app.ui.book.read.page.ReadView
 import io.legado.app.ui.book.read.page.entities.PageDirection
+import io.legado.app.ui.book.read.page.entities.TextChapter
 import io.legado.app.ui.book.read.page.entities.TextPage
 import io.legado.app.ui.book.read.page.provider.ReaderLayoutConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
-class TxtReaderActivity : AppCompatActivity() {
+class UmdReaderActivity : AppCompatActivity() {
+
+    private var documentToClose: LegadoUmdDocument? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,17 +84,20 @@ class TxtReaderActivity : AppCompatActivity() {
 
         val bookId = intent.getStringExtra(EXTRA_BOOK_ID)
         val repository = LocalLibraryRepository(applicationContext)
-
         val root = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 VaultShelfTheme {
                     if (bookId == null) {
-                        ReaderMessageScreen(onBack = { finishReader() })
+                        UmdReaderMessageScreen(onBack = { finishReader() })
                     } else {
-                        TxtReaderScreen(
+                        MatureUmdReaderScreen(
                             bookId = bookId,
                             repository = repository,
+                            onDocumentOpened = { document ->
+                                documentToClose?.takeIf { it !== document }?.close()
+                                documentToClose = document
+                            },
                             onBack = { finishReader() },
                         )
                     }
@@ -100,6 +105,12 @@ class TxtReaderActivity : AppCompatActivity() {
             }
         }
         setContentView(root)
+    }
+
+    override fun onDestroy() {
+        documentToClose?.close()
+        documentToClose = null
+        super.onDestroy()
     }
 
     private fun finishReader() {
@@ -112,57 +123,57 @@ class TxtReaderActivity : AppCompatActivity() {
     }
 }
 
-private sealed interface ReaderLoadState {
-    data object Loading : ReaderLoadState
-    data object Error : ReaderLoadState
+private sealed interface UmdLoadState {
+    data object Loading : UmdLoadState
+    data object Error : UmdLoadState
     data class Ready(
         val book: LibraryBook,
-        val text: String,
-        val chapters: List<TxtChapter>,
-    ) : ReaderLoadState
+        val document: LegadoUmdDocument,
+    ) : UmdLoadState
 }
 
-private enum class ReaderThemeMode(val key: String) {
+private enum class UmdThemeMode(val key: String) {
     LIGHT("light"),
     SEPIA("sepia"),
     DARK("dark");
 
     companion object {
-        fun fromKey(key: String?): ReaderThemeMode = entries.firstOrNull { it.key == key } ?: LIGHT
+        fun fromKey(key: String?): UmdThemeMode = entries.firstOrNull { it.key == key } ?: LIGHT
     }
 }
 
-private data class ReaderPalette(
+private data class UmdReaderPalette(
     val background: Color,
     val text: Color,
     val chrome: Color,
 )
 
 @Composable
-private fun TxtReaderScreen(
+private fun MatureUmdReaderScreen(
     bookId: String,
     repository: LibraryRepository,
+    onDocumentOpened: (LegadoUmdDocument) -> Unit,
     onBack: () -> Unit,
 ) {
-    var state by remember(bookId) { mutableStateOf<ReaderLoadState>(ReaderLoadState.Loading) }
+    var state by remember(bookId) { mutableStateOf<UmdLoadState>(UmdLoadState.Loading) }
 
     LaunchedEffect(bookId, repository) {
-        state = runCatching {
-            val book = repository.getBook(bookId) ?: error("Book metadata missing")
-            val text = repository.readText(bookId)
-            val updatedBook = repository.updateProgress(bookId, book.readingOffset) ?: book
-            ReaderLoadState.Ready(
-                book = updatedBook,
-                text = text,
-                chapters = TxtChapterParser.parse(text),
-            )
-        }.getOrElse { ReaderLoadState.Error }
+        state = withContext(Dispatchers.IO) {
+            runCatching {
+                val book = repository.getBook(bookId) ?: error("Book metadata missing")
+                require(book.format == BookFormat.UMD) { "Not an UMD library item" }
+                val file = repository.bookFile(bookId)
+                val document = LegadoUmdDocument.open(file).getOrThrow()
+                onDocumentOpened(document)
+                UmdLoadState.Ready(book = book, document = document)
+            }.getOrElse { UmdLoadState.Error }
+        }
     }
 
     when (val current = state) {
-        ReaderLoadState.Loading -> ReaderLoadingScreen()
-        ReaderLoadState.Error -> ReaderMessageScreen(onBack = onBack)
-        is ReaderLoadState.Ready -> MatureTxtReader(
+        UmdLoadState.Loading -> UmdReaderLoadingScreen()
+        UmdLoadState.Error -> UmdReaderMessageScreen(onBack = onBack)
+        is UmdLoadState.Ready -> MatureUmdReader(
             state = current,
             repository = repository,
             onBack = onBack,
@@ -171,8 +182,8 @@ private fun TxtReaderScreen(
 }
 
 @Composable
-private fun MatureTxtReader(
-    state: ReaderLoadState.Ready,
+private fun MatureUmdReader(
+    state: UmdLoadState.Ready,
     repository: LibraryRepository,
     onBack: () -> Unit,
 ) {
@@ -180,16 +191,16 @@ private fun MatureTxtReader(
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val preferences = remember {
-        context.getSharedPreferences("vaultshelf_reader", Context.MODE_PRIVATE)
+        context.getSharedPreferences(UMD_READER_PREFERENCES, Context.MODE_PRIVATE)
     }
 
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     var readView by remember { mutableStateOf<ReadView?>(null) }
-    var legadoBook by remember { mutableStateOf<LegadoTxtBook?>(null) }
-    var currentOffset by rememberSaveable(state.book.id) { mutableIntStateOf(state.book.readingOffset) }
-    var selectedChapter by rememberSaveable(state.book.id) {
-        mutableIntStateOf(TxtChapterParser.chapterIndexForOffset(state.chapters, state.book.readingOffset))
+    var pages by remember { mutableStateOf<List<TextChapter>?>(null) }
+    var currentProgression by rememberSaveable(state.book.id) {
+        mutableFloatStateOf(state.book.publicationProgression ?: 0f)
     }
+    var selectedChapter by rememberSaveable(state.book.id) { mutableIntStateOf(0) }
     var fontSizeSp by rememberSaveable(state.book.id) {
         mutableFloatStateOf(preferences.getFloat(PREF_FONT_SIZE, DEFAULT_FONT_SIZE))
     }
@@ -203,7 +214,7 @@ private fun MatureTxtReader(
         mutableIntStateOf(preferences.getInt(PREF_PAGE_ANIMATION, PageAnim.slidePageAnim))
     }
     var themeMode by rememberSaveable(state.book.id) {
-        mutableStateOf(ReaderThemeMode.fromKey(preferences.getString(PREF_THEME, ReaderThemeMode.LIGHT.key)))
+        mutableStateOf(UmdThemeMode.fromKey(preferences.getString(PREF_THEME, UmdThemeMode.LIGHT.key)))
     }
     var chromeVisible by rememberSaveable { mutableStateOf(false) }
     var chromeEpoch by rememberSaveable { mutableIntStateOf(0) }
@@ -211,17 +222,17 @@ private fun MatureTxtReader(
     var showSettings by rememberSaveable { mutableStateOf(false) }
 
     val palette = when (themeMode) {
-        ReaderThemeMode.LIGHT -> ReaderPalette(
+        UmdThemeMode.LIGHT -> UmdReaderPalette(
             background = Color(0xFFF6F3EC),
             text = Color(0xFF27231F),
             chrome = Color(0xFFFDFBF7),
         )
-        ReaderThemeMode.SEPIA -> ReaderPalette(
+        UmdThemeMode.SEPIA -> UmdReaderPalette(
             background = Color(0xFFECE0C6),
             text = Color(0xFF3D3023),
             chrome = Color(0xFFF4E8D0),
         )
-        ReaderThemeMode.DARK -> ReaderPalette(
+        UmdThemeMode.DARK -> UmdReaderPalette(
             background = Color(0xFF171717),
             text = Color(0xFFE8E3D8),
             chrome = Color(0xFF242424),
@@ -246,7 +257,6 @@ private fun MatureTxtReader(
             titleBottomSpacingPx = with(density) { 26.dp.toPx() },
         )
     }
-    val startLabel = stringResource(R.string.vaultshelf_reader_start)
 
     fun revealChrome() {
         chromeVisible = true
@@ -260,52 +270,46 @@ private fun MatureTxtReader(
         }
     }
 
-    LaunchedEffect(state.text, state.chapters, viewport, layoutConfig, startLabel) {
+    LaunchedEffect(state.document, viewport, layoutConfig) {
         if (viewport.width <= 0 || viewport.height <= 0) return@LaunchedEffect
-        val offsetToRestore = currentOffset
-        legadoBook = withContext(Dispatchers.Default) {
-            LegadoTxtBookBuilder.build(
-                text = state.text,
-                sourceChapters = state.chapters,
+        val progressionToRestore = currentProgression
+        val paginated = withContext(Dispatchers.Default) {
+            state.document.paginate(
                 viewportWidthPx = viewport.width,
                 viewportHeightPx = viewport.height,
                 config = layoutConfig,
-                startLabel = startLabel,
             )
         }
-        val book = legadoBook ?: return@LaunchedEffect
-        val position = book.positionForOffset(offsetToRestore)
+        pages = paginated
+        val position = state.document.positionForProgression(paginated, progressionToRestore)
         selectedChapter = position.chapterIndex
         readView?.apply {
+            imageProvider = state.document
             configurePages(
                 config = layoutConfig,
                 textColor = palette.text.toArgb(),
                 titleColor = palette.text.toArgb(),
+                backgroundColor = palette.background.toArgb(),
             )
-            pageBackgroundColor = palette.background.toArgb()
-            setBackgroundColor(palette.background.toArgb())
-            listOf(prevPage, curPage, nextPage).forEach { it.setBackgroundColor(palette.background.toArgb()) }
             setPageAnimation(pageAnimation)
-            setBook(book.chapters, position.chapterIndex, position.pageIndex)
+            setBook(paginated, position.chapterIndex, position.pageIndex)
         }
     }
 
-    LaunchedEffect(readView, legadoBook, pageAnimation, palette, layoutConfig) {
+    LaunchedEffect(readView, pages, pageAnimation, palette, layoutConfig) {
         val view = readView ?: return@LaunchedEffect
-        val book = legadoBook ?: return@LaunchedEffect
-        val position = book.positionForOffset(currentOffset)
+        val paginated = pages ?: return@LaunchedEffect
+        if (paginated.isEmpty()) return@LaunchedEffect
+        val position = state.document.positionForProgression(paginated, currentProgression)
+        view.imageProvider = state.document
         view.configurePages(
             config = layoutConfig,
             textColor = palette.text.toArgb(),
             titleColor = palette.text.toArgb(),
+            backgroundColor = palette.background.toArgb(),
         )
-        view.pageBackgroundColor = palette.background.toArgb()
-        view.setBackgroundColor(palette.background.toArgb())
-        listOf(view.prevPage, view.curPage, view.nextPage).forEach {
-            it.setBackgroundColor(palette.background.toArgb())
-        }
         view.setPageAnimation(pageAnimation)
-        view.setBook(book.chapters, position.chapterIndex, position.pageIndex)
+        view.setBook(paginated, position.chapterIndex, position.pageIndex)
     }
 
     Box(
@@ -319,91 +323,80 @@ private fun MatureTxtReader(
                 .fillMaxSize()
                 .onSizeChanged { viewport = it },
         ) {
-            val book = legadoBook
-            if (book == null || viewport.width <= 0 || viewport.height <= 0) {
-                ReaderLoadingScreen()
+            val paginated = pages
+            if (paginated == null || viewport.width <= 0 || viewport.height <= 0) {
+                UmdReaderLoadingScreen()
+            } else if (paginated.isEmpty()) {
+                UmdReaderMessageScreen(onBack = onBack)
             } else {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
                     factory = { androidContext ->
                         ReadView(androidContext).also { view ->
                             readView = view
-                            view.callback = object : ReadView.Callback {
-                                override fun onMenuRequested() {
+                            view.imageProvider = state.document
+                            view.callback = umdReadViewCallback(
+                                document = state.document,
+                                pages = paginated,
+                                repository = repository,
+                                book = state.book,
+                                scope = scope,
+                                onMenuRequested = {
                                     if (chromeVisible) chromeVisible = false else revealChrome()
-                                }
-
-                                override fun onPositionChanged(
-                                    chapterIndex: Int,
-                                    pageIndex: Int,
-                                    page: TextPage,
-                                ) {
+                                },
+                                onProgression = { progression, chapterIndex ->
+                                    currentProgression = progression
                                     selectedChapter = chapterIndex
-                                    val offset = book.offsetForPosition(chapterIndex, pageIndex)
-                                    currentOffset = offset
-                                    scope.launch { repository.updateProgress(state.book.id, offset) }
-                                }
-
-                                override fun onBoundary(direction: PageDirection) = Unit
-
-                                override fun onInteraction() {
+                                },
+                                onInteraction = {
                                     if (chromeVisible) chromeEpoch++
-                                }
-                            }
-                            val position = book.positionForOffset(currentOffset)
+                                },
+                            )
+                            val position = state.document.positionForProgression(
+                                paginated,
+                                currentProgression,
+                            )
                             view.configurePages(
                                 config = layoutConfig,
                                 textColor = palette.text.toArgb(),
                                 titleColor = palette.text.toArgb(),
+                                backgroundColor = palette.background.toArgb(),
                             )
-                            view.pageBackgroundColor = palette.background.toArgb()
-                            view.setBackgroundColor(palette.background.toArgb())
-                            listOf(view.prevPage, view.curPage, view.nextPage).forEach {
-                                it.setBackgroundColor(palette.background.toArgb())
-                            }
                             view.setPageAnimation(pageAnimation)
-                            view.setBook(book.chapters, position.chapterIndex, position.pageIndex)
+                            view.setBook(paginated, position.chapterIndex, position.pageIndex)
                         }
                     },
                     update = { view ->
-                        view.callback = object : ReadView.Callback {
-                            override fun onMenuRequested() {
+                        view.imageProvider = state.document
+                        view.callback = umdReadViewCallback(
+                            document = state.document,
+                            pages = paginated,
+                            repository = repository,
+                            book = state.book,
+                            scope = scope,
+                            onMenuRequested = {
                                 if (chromeVisible) chromeVisible = false else revealChrome()
-                            }
-
-                            override fun onPositionChanged(
-                                chapterIndex: Int,
-                                pageIndex: Int,
-                                page: TextPage,
-                            ) {
+                            },
+                            onProgression = { progression, chapterIndex ->
+                                currentProgression = progression
                                 selectedChapter = chapterIndex
-                                val offset = book.offsetForPosition(chapterIndex, pageIndex)
-                                currentOffset = offset
-                                scope.launch { repository.updateProgress(state.book.id, offset) }
-                            }
-
-                            override fun onBoundary(direction: PageDirection) = Unit
-
-                            override fun onInteraction() {
+                            },
+                            onInteraction = {
                                 if (chromeVisible) chromeEpoch++
-                            }
-                        }
+                            },
+                        )
                     },
                 )
             }
 
-            val progress = if (state.book.totalCharacters <= 0) 0 else {
-                ((currentOffset.coerceIn(0, state.book.totalCharacters).toFloat() /
-                    state.book.totalCharacters.toFloat()) * 100f).toInt().coerceIn(0, 100)
-            }
-
+            val progress = (currentProgression.coerceIn(0f, 1f) * 100f).toInt().coerceIn(0, 100)
             AnimatedVisibility(
                 visible = chromeVisible,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.TopCenter),
             ) {
-                ReaderTopChrome(
+                UmdReaderTopChrome(
                     title = state.book.title,
                     progress = progress,
                     chromeColor = palette.chrome,
@@ -418,7 +411,7 @@ private fun MatureTxtReader(
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter),
             ) {
-                ReaderBottomChrome(
+                UmdReaderBottomChrome(
                     chromeColor = palette.chrome,
                     textColor = palette.text,
                     onContents = {
@@ -435,19 +428,28 @@ private fun MatureTxtReader(
     }
 
     if (showContents) {
-        ChapterContentsDialog(
-            chapters = state.chapters,
+        UmdContentsDialog(
+            document = state.document,
             selectedIndex = selectedChapter,
             onSelect = { chapterIndex ->
                 showContents = false
-                val book = legadoBook ?: return@ChapterContentsDialog
-                val view = readView ?: return@ChapterContentsDialog
-                val safeIndex = chapterIndex.coerceIn(0, book.chapters.lastIndex.coerceAtLeast(0))
-                selectedChapter = safeIndex
-                val offset = state.chapters.getOrNull(safeIndex)?.startOffset ?: 0
-                currentOffset = offset
-                view.setBook(book.chapters, safeIndex, 0)
-                scope.launch { repository.updateProgress(state.book.id, offset) }
+                val paginated = pages ?: return@UmdContentsDialog
+                val view = readView ?: return@UmdContentsDialog
+                val safeChapter = chapterIndex.coerceIn(0, paginated.lastIndex)
+                selectedChapter = safeChapter
+                currentProgression = state.document.progressionForPosition(
+                    paginated,
+                    safeChapter,
+                    0,
+                )
+                view.setBook(paginated, safeChapter, 0)
+                scope.launch {
+                    repository.updateUmdProgress(
+                        id = state.book.id,
+                        locatorJson = umdLocatorJson(safeChapter, 0),
+                        publicationProgression = currentProgression,
+                    )
+                }
                 revealChrome()
             },
             onDismiss = {
@@ -458,7 +460,7 @@ private fun MatureTxtReader(
     }
 
     if (showSettings) {
-        ReaderSettingsSheet(
+        UmdReaderSettingsSheet(
             pageAnimation = pageAnimation,
             fontSizeSp = fontSizeSp,
             lineSpacing = lineSpacing,
@@ -466,24 +468,24 @@ private fun MatureTxtReader(
             themeMode = themeMode,
             onPageAnimation = { animation ->
                 pageAnimation = animation
-                preferences.edit().putInt(PREF_PAGE_ANIMATION, animation).apply()
+                preferences.edit { putInt(PREF_PAGE_ANIMATION, animation) }
                 readView?.setPageAnimation(animation)
             },
             onFontSize = { size ->
                 fontSizeSp = size.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
-                preferences.edit().putFloat(PREF_FONT_SIZE, fontSizeSp).apply()
+                preferences.edit { putFloat(PREF_FONT_SIZE, fontSizeSp) }
             },
             onLineSpacing = { spacing ->
                 lineSpacing = spacing
-                preferences.edit().putFloat(PREF_LINE_SPACING, spacing).apply()
+                preferences.edit { putFloat(PREF_LINE_SPACING, spacing) }
             },
             onMargin = { margin ->
                 marginDp = margin
-                preferences.edit().putInt(PREF_MARGIN_DP, margin).apply()
+                preferences.edit { putInt(PREF_MARGIN_DP, margin) }
             },
             onTheme = { mode ->
                 themeMode = mode
-                preferences.edit().putString(PREF_THEME, mode.key).apply()
+                preferences.edit { putString(PREF_THEME, mode.key) }
             },
             onDismiss = {
                 showSettings = false
@@ -493,8 +495,43 @@ private fun MatureTxtReader(
     }
 }
 
+private fun umdReadViewCallback(
+    document: LegadoUmdDocument,
+    pages: List<TextChapter>,
+    repository: LibraryRepository,
+    book: LibraryBook,
+    scope: kotlinx.coroutines.CoroutineScope,
+    onMenuRequested: () -> Unit,
+    onProgression: (Float, Int) -> Unit,
+    onInteraction: () -> Unit,
+): ReadView.Callback = object : ReadView.Callback {
+    override fun onMenuRequested() = onMenuRequested.invoke()
+
+    override fun onPositionChanged(chapterIndex: Int, pageIndex: Int, page: TextPage) {
+        val progression = document.progressionForPosition(pages, chapterIndex, pageIndex)
+        onProgression(progression, chapterIndex)
+        scope.launch {
+            repository.updateUmdProgress(
+                id = book.id,
+                locatorJson = umdLocatorJson(chapterIndex, pageIndex),
+                publicationProgression = progression,
+            )
+        }
+    }
+
+    override fun onBoundary(direction: PageDirection) = Unit
+
+    override fun onInteraction() = onInteraction.invoke()
+}
+
+private fun umdLocatorJson(chapterIndex: Int, pageIndex: Int): String = JSONObject()
+    .put("engine", "legado-umd")
+    .put("chapter", chapterIndex)
+    .put("page", pageIndex)
+    .toString()
+
 @Composable
-private fun ReaderLoadingScreen() {
+private fun UmdReaderLoadingScreen() {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -505,7 +542,7 @@ private fun ReaderLoadingScreen() {
 }
 
 @Composable
-private fun ReaderMessageScreen(onBack: () -> Unit) {
+private fun UmdReaderMessageScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp).safeDrawingPadding(),
         verticalArrangement = Arrangement.Center,
@@ -523,7 +560,7 @@ private fun ReaderMessageScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun ReaderTopChrome(
+private fun UmdReaderTopChrome(
     title: String,
     progress: Int,
     chromeColor: Color,
@@ -558,7 +595,7 @@ private fun ReaderTopChrome(
 }
 
 @Composable
-private fun ReaderBottomChrome(
+private fun UmdReaderBottomChrome(
     chromeColor: Color,
     textColor: Color,
     onContents: () -> Unit,
@@ -583,17 +620,17 @@ private fun ReaderBottomChrome(
 }
 
 @Composable
-private fun ReaderSettingsSheet(
+private fun UmdReaderSettingsSheet(
     pageAnimation: Int,
     fontSizeSp: Float,
     lineSpacing: Float,
     marginDp: Int,
-    themeMode: ReaderThemeMode,
+    themeMode: UmdThemeMode,
     onPageAnimation: (Int) -> Unit,
     onFontSize: (Float) -> Unit,
     onLineSpacing: (Float) -> Unit,
     onMargin: (Int) -> Unit,
-    onTheme: (ReaderThemeMode) -> Unit,
+    onTheme: (UmdThemeMode) -> Unit,
     onDismiss: () -> Unit,
 ) {
     MatureReaderSettingsSheet(
@@ -603,9 +640,9 @@ private fun ReaderSettingsSheet(
         marginDp = marginDp,
         themeMode = themeMode,
         themeChoices = listOf(
-            stringResource(R.string.vaultshelf_epub_theme_light) to ReaderThemeMode.LIGHT,
-            stringResource(R.string.vaultshelf_epub_theme_sepia) to ReaderThemeMode.SEPIA,
-            stringResource(R.string.vaultshelf_epub_theme_dark) to ReaderThemeMode.DARK,
+            stringResource(R.string.vaultshelf_epub_theme_light) to UmdThemeMode.LIGHT,
+            stringResource(R.string.vaultshelf_epub_theme_sepia) to UmdThemeMode.SEPIA,
+            stringResource(R.string.vaultshelf_epub_theme_dark) to UmdThemeMode.DARK,
         ),
         onPageAnimation = onPageAnimation,
         onFontSize = onFontSize,
@@ -617,21 +654,21 @@ private fun ReaderSettingsSheet(
 }
 
 @Composable
-private fun ChapterContentsDialog(
-    chapters: List<TxtChapter>,
+private fun UmdContentsDialog(
+    document: LegadoUmdDocument,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val startLabel = stringResource(R.string.vaultshelf_reader_start)
     MatureReaderContentsSheet(
-        chapterTitles = chapters.map { it.title ?: startLabel },
+        chapterTitles = document.chapters.map { it.title },
         selectedIndex = selectedIndex,
         onSelect = onSelect,
         onDismiss = onDismiss,
     )
 }
 
+private const val UMD_READER_PREFERENCES = "vaultshelf_reader"
 private const val DEFAULT_FONT_SIZE = 19f
 private const val MIN_FONT_SIZE = 14f
 private const val MAX_FONT_SIZE = 32f
