@@ -1,5 +1,4 @@
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-index 9f9f90b..1111111 100644
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 @@ -24,6 +24,7 @@ import kotlinx.coroutines.MainScope
@@ -10,9 +9,9 @@ index 9f9f90b..1111111 100644
  import kotlinx.coroutines.yield
  import sushi.hardcore.droidfs.BaseActivity
  import sushi.hardcore.droidfs.Constants
-@@ -319,6 +320,14 @@ open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener
-                 FileTypes.isAudio(fullPath) -> {
-                     startFileViewer(AudioPlayer::class.java, fullPath)
+@@ -310,6 +311,14 @@ open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener
+                 FileTypes.isVideo(fullPath) -> {
+                     startFileViewer(VideoPlayer::class.java, fullPath)
                  }
 +                VaultShelfFileRouter.supports(fullPath) -> {
 +                    val element = explorerElements[position]
@@ -23,6 +22,6 @@ index 9f9f90b..1111111 100644
 +                        showOpenAsDialog(element)
 +                    }
 +                }
-                 else -> showOpenAsDialog(explorerElements[position])
-             }
-         }
+                 FileTypes.isText(fullPath) -> {
+                     startFileViewer(TextEditor::class.java, fullPath)
+                 }
