@@ -74,13 +74,13 @@ android {
     // code at all, so one APK serves every architecture.
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
         isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "21"
     }
 
     // VaultShelf's new application shell is Compose. The mature Gander browser and
@@ -152,6 +152,13 @@ android {
 //
 // Held as suffixes on the variant's own applicationId, since a debug build carries
 // one and would otherwise fail against a hardcoded package name.
+val permissionAllowlist = setOf(
+    // Legado's original local TTS reader runs as a media foreground service.
+    // These are normal permissions: Android does not show a runtime permission prompt.
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+)
+
 val permissionAllowlistSuffixes = setOf(
     // androidx.core declares this so libraries can registerReceiver(..., RECEIVER_NOT_EXPORTED).
     // Signature level and self-granted, so it is never shown to the user as a permission.
@@ -166,6 +173,7 @@ androidComponents.onVariants { variant ->
     val checkPermissions = tasks.register("check${suffix}Permissions") {
         description = "Fails if the merged manifest requests any permission we did not sign off on."
         val manifestFile = mergedManifest
+        val allowedPermissions = permissionAllowlist
         val allowedSuffixes = permissionAllowlistSuffixes
         val applicationId = appId
         val stamp = layout.buildDirectory.file("reports/permissions/$suffix.txt")
@@ -176,12 +184,12 @@ androidComponents.onVariants { variant ->
                 .findAll(manifestFile.get().asFile.readText())
                 .map { it.groupValues[1] }
                 .toList()
-            val allowed = allowedSuffixes.map { applicationId.get() + it }.toSet()
+            val allowed = allowedPermissions + allowedSuffixes.map { applicationId.get() + it }
             val unexpected = requested.filterNot { it in allowed }
             if (unexpected.isNotEmpty()) {
                 throw GradleException(
                     buildString {
-                        appendLine("Gander ships with no permissions, but $suffix requests:")
+                        appendLine("Gander requested permissions outside the reviewed allowlist in $suffix:")
                         unexpected.forEach { appendLine("    $it") }
                         appendLine()
                         appendLine("A dependency added these. Either strip each one with")
@@ -210,8 +218,8 @@ androidComponents.onVariants { variant ->
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
-    // GPL-3.0 TXT/EPUB novel-reading core adapted from Legado / 阅读 3.0.
-    implementation(project(":legado-reader"))
+    // Original GPL-3.0 Legado / 阅读 3.0 local-reading subsystem, pinned as source.
+    implementation(project(":legado-upstream"))
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
