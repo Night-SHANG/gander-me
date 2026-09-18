@@ -55,4 +55,12 @@ class DependencyAlignmentTest {
         assertThat(rules).doesNotContain("GSYBaseVideoPlayer")
     }
 
+    @Test
+    fun droidFsNativeModulePinsAllFourReviewedAndroidAbis() {
+        listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64").forEach { abi ->
+            assertThat(droidFs).contains("\"$abi\"")
+        }
+        assertThat(droidFs).contains("ndkVersion = \"28.2.13676358\"")
+    }
+
 }

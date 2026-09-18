@@ -12,6 +12,12 @@ android {
         minSdk = 26
         consumerProguardFiles("consumer-rules.pro")
 
+        // Match DroidFS' original universal build explicitly instead of relying on
+        // AGP's default native ABI set.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+        }
+
         buildConfigField("boolean", "CRYFS_DISABLED", "true")
         buildConfigField("boolean", "GOCRYPTFS_DISABLED", "false")
         resValue("string", "versionName", "2.3.2")
