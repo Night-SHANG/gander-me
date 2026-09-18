@@ -43,14 +43,18 @@ import sushi.hardcore.droidfs.VolumeData
 
 class VaultBackupActivity : AppCompatActivity() {
 
-    private var pendingBackupVolume: VolumeData? = null
+    private var pendingBackupUuid: String? = null
     private var refreshToken by mutableIntStateOf(0)
 
     private val createBackup = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip"),
     ) { uri ->
-        val volume = pendingBackupVolume
-        pendingBackupVolume = null
+        val uuid = pendingBackupUuid
+        pendingBackupUuid = null
+        val volume = uuid?.let { wanted ->
+            VaultBackupManager.hiddenVolumes(applicationContext)
+                .firstOrNull { it.uuid == wanted }
+        }
         if (uri != null && volume != null) {
             runBackup(volume, uri)
         }
@@ -64,6 +68,7 @@ class VaultBackupActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingBackupUuid = savedInstanceState?.getString(STATE_PENDING_BACKUP_UUID)
 
         val root = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
@@ -101,12 +106,17 @@ class VaultBackupActivity : AppCompatActivity() {
         setContentView(root)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        pendingBackupUuid?.let { outState.putString(STATE_PENDING_BACKUP_UUID, it) }
+        super.onSaveInstanceState(outState)
+    }
+
     private fun requestBackup(volume: VolumeData) {
         if (VaultBackupManager.isOpen(applicationContext, volume)) {
             toast(R.string.vaultshelf_backup_lock_first)
             return
         }
-        pendingBackupVolume = volume
+        pendingBackupUuid = volume.uuid
         val fileName = volume.shortName
             .replace(Regex("""[^A-Za-z0-9._\-\u4e00-\u9fff]+"""), "_")
             .trim('_')
@@ -159,6 +169,10 @@ class VaultBackupActivity : AppCompatActivity() {
 
     private fun toast(messageRes: Int) {
         Toast.makeText(this, messageRes, Toast.LENGTH_SHORT).show()
+    }
+
+    private companion object {
+        const val STATE_PENDING_BACKUP_UUID = "pending_backup_uuid"
     }
 }
 
