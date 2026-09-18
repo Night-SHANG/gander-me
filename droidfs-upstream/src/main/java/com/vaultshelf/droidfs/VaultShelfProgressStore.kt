@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AtomicFile
 import java.io.File
 import java.security.MessageDigest
+import sushi.hardcore.droidfs.VolumeManagerApp
 
 /**
  * VaultShelf metadata layered beside DroidFS. No plaintext names or paths are persisted.
@@ -24,12 +25,32 @@ object VaultShelfProgressStore {
 
     fun mediaPosition(
         context: Context,
+        volumeId: Int,
+        path: String,
+    ): Long {
+        val uuid = volumeUuid(context, volumeId) ?: return 0L
+        return mediaPosition(context, uuid, path)
+    }
+
+    fun mediaPosition(
+        context: Context,
         volumeUuid: String,
         path: String,
     ): Long = load(context)
         .firstOrNull { it.key == fileKey(volumeUuid, path) }
         ?.positionMs
         ?: 0L
+
+    fun saveMediaPosition(
+        context: Context,
+        volumeId: Int,
+        path: String,
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        val uuid = volumeUuid(context, volumeId) ?: return
+        saveMediaPosition(context, uuid, path, positionMs, durationMs)
+    }
 
     fun saveMediaPosition(
         context: Context,
@@ -57,6 +78,14 @@ object VaultShelfProgressStore {
 
         write(context, entries.sortedByDescending { it.time }.take(MAX))
     }
+
+    private fun volumeUuid(context: Context, volumeId: Int): String? =
+        (context.applicationContext as? VolumeManagerApp)
+            ?.volumeManager
+            ?.listVolumes()
+            ?.firstOrNull { it.first == volumeId }
+            ?.second
+            ?.uuid
 
     private data class Entry(
         val key: String,
