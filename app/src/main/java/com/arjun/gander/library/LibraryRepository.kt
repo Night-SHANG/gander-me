@@ -53,5 +53,11 @@ interface LibraryRepository {
         progressFraction: Float,
     ): LibraryBook? = getBook(id)
 
+    suspend fun updateLegadoProgress(
+        id: String,
+        legadoBookUrl: String,
+        progressFraction: Float,
+    ): LibraryBook? = getBook(id)
+
     suspend fun deleteBook(id: String): Boolean
 }
