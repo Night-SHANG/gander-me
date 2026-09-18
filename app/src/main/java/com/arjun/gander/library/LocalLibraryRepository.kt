@@ -201,57 +201,6 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         if (saveBook(updated)) updated else current
     }
 
-    override suspend fun updateEpubProgress(
-        id: String,
-        locatorJson: String,
-        publicationProgression: Float?,
-    ): LibraryBook? = withContext(Dispatchers.IO) {
-        val current = getBook(id) ?: return@withContext null
-        if (current.format != BookFormat.EPUB) return@withContext current
-        val updated = current.copy(
-            readingLocatorJson = locatorJson,
-            publicationProgression = publicationProgression?.coerceIn(0f, 1f),
-            lastOpenedAtEpochMillis = System.currentTimeMillis(),
-        )
-        if (saveBook(updated)) updated else current
-    }
-
-    override suspend fun updateUmdProgress(
-        id: String,
-        locatorJson: String,
-        publicationProgression: Float?,
-    ): LibraryBook? = withContext(Dispatchers.IO) {
-        val current = getBook(id) ?: return@withContext null
-        if (current.format != BookFormat.UMD) return@withContext current
-        val updated = current.copy(
-            readingLocatorJson = locatorJson,
-            publicationProgression = publicationProgression?.coerceIn(0f, 1f),
-            lastOpenedAtEpochMillis = System.currentTimeMillis(),
-        )
-        if (saveBook(updated)) updated else current
-    }
-
-    override suspend fun updateMobiProgress(
-        id: String,
-        locatorJson: String,
-        publicationProgression: Float?,
-    ): LibraryBook? = withContext(Dispatchers.IO) {
-        val current = getBook(id) ?: return@withContext null
-        if (
-            current.format != BookFormat.MOBI &&
-            current.format != BookFormat.AZW3 &&
-            current.format != BookFormat.AZW
-        ) {
-            return@withContext current
-        }
-        val updated = current.copy(
-            readingLocatorJson = locatorJson,
-            publicationProgression = publicationProgression?.coerceIn(0f, 1f),
-            lastOpenedAtEpochMillis = System.currentTimeMillis(),
-        )
-        if (saveBook(updated)) updated else current
-    }
-
     override suspend fun updateViewerProgress(
         id: String,
         progressFraction: Float,
@@ -341,7 +290,6 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         .put("addedAtEpochMillis", book.addedAtEpochMillis)
         .put("lastOpenedAtEpochMillis", book.lastOpenedAtEpochMillis)
         .put("readingOffset", book.readingOffset)
-        .put("readingLocatorJson", book.readingLocatorJson ?: JSONObject.NULL)
         .put("publicationProgression", book.publicationProgression ?: JSONObject.NULL)
         .put("coverFileName", book.coverFileName ?: JSONObject.NULL)
         .put("legadoBookUrl", book.legadoBookUrl ?: JSONObject.NULL)
@@ -349,8 +297,6 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
 
     private fun decodeBook(json: String): LibraryBook {
         val value = JSONObject(json)
-        val locatorJson = value.optString("readingLocatorJson")
-            .takeIf { it.isNotBlank() && it != "null" }
         val publicationProgression = if (
             value.has("publicationProgression") && !value.isNull("publicationProgression")
         ) {
@@ -372,7 +318,6 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             addedAtEpochMillis = value.getLong("addedAtEpochMillis"),
             lastOpenedAtEpochMillis = value.optLong("lastOpenedAtEpochMillis", 0L),
             readingOffset = value.optInt("readingOffset", 0),
-            readingLocatorJson = locatorJson,
             publicationProgression = publicationProgression,
             coverFileName = coverFileName,
             legadoBookUrl = legadoBookUrl,
