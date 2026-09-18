@@ -159,4 +159,24 @@
     <string name="vaultshelf_library_batch_delete_title">Delete selected books?</string>
     <plurals name="vaultshelf_library_batch_delete_message">\n        <item quantity="one">VaultShelf will delete its private copy of %1$d selected book. Your original imported file is not changed.</item>\n        <item quantity="other">VaultShelf will delete its private copies of %1$d selected books. Your original imported files are not changed.</item>\n    </plurals>
     <string name="vaultshelf_library_grid_meta">%1$s · %2$d%%</string>
+    <string name="vaultshelf_settings_backup">Vault backup and restore</string>
+    <string name="vaultshelf_settings_backup_detail">Create a portable encrypted .vsbackup package or restore one on another device.</string>
+    <string name="vaultshelf_backup_back">Back</string>
+    <string name="vaultshelf_backup_title">Vault backup and restore</string>
+    <string name="vaultshelf_backup_detail">Backups contain the already-encrypted gocryptfs volume plus opaque reading-position metadata. VaultShelf never decrypts document contents for backup. Restored vaults still require the original password.</string>
+    <string name="vaultshelf_backup_hidden_volumes">Hidden vaults</string>
+    <string name="vaultshelf_backup_empty">No hidden vaults are saved yet.</string>
+    <string name="vaultshelf_backup_status_locked">Locked · ready to back up</string>
+    <string name="vaultshelf_backup_status_unlocked">Unlocked · lock before backing up</string>
+    <string name="vaultshelf_backup_action">Back up</string>
+    <string name="vaultshelf_restore_action">Restore .vsbackup</string>
+    <string name="vaultshelf_backup_lock_first">Lock this vault before creating a backup.</string>
+    <string name="vaultshelf_backup_done">Encrypted vault backup saved.</string>
+    <string name="vaultshelf_backup_failed">The vault backup operation failed.</string>
+    <string name="vaultshelf_backup_source_missing">The encrypted vault data could not be found.</string>
+    <string name="vaultshelf_restore_done">Encrypted vault restored. Unlock it with the original password.</string>
+    <string name="vaultshelf_restore_exists">That vault already exists on this device.</string>
+    <string name="vaultshelf_restore_invalid">This is not a valid VaultShelf encrypted-vault backup.</string>
+    <string name="vaultshelf_restore_unsupported">This backup uses a vault format not supported by this build.</string>
+
 </resources>
