@@ -310,15 +310,10 @@ class MainActivity : AppCompatActivity() {
             permissions == null ->
                 view.findViewById<View>(R.id.aboutPermissionsCard).visibility = View.GONE
             permissions.isEmpty() -> field.setText(R.string.about_permissions_none)
-            // Never expected: assembleRelease fails before a build can get here.
-            // Shown rather than swallowed, because a broken promise is the thing
-            // a reader of this dialog most needs to know.
-            else -> {
-                field.text = permissions.joinToString("\n")
-                field.setTextColor(
-                    MaterialColors.getColor(field, com.google.android.material.R.attr.colorError)
-                )
-            }
+            // VaultShelf deliberately carries a small reviewed permission set for the
+            // encrypted vault and local read-aloud features. Show Android's actual list
+            // instead of duplicating a hand-maintained product claim here.
+            else -> field.text = permissions.joinToString("\n")
         }
 
         view.findViewById<View>(R.id.aboutAuthor)

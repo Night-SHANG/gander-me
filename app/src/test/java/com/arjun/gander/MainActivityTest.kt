@@ -212,7 +212,7 @@ class MainActivityTest {
         holder.itemView.performClick()
 
         val started = shadowOf(controller.get()).nextStartedActivity
-        assertThat(started.component!!.className).isEqualTo(ViewerActivity::class.java.name)
+        assertThat(started.component!!.className).isEqualTo(FileDispatchActivity::class.java.name)
         assertThat(started.data.toString()).contains("six-pages.pdf")
         assertThat(started.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION).isNotEqualTo(0)
     }
@@ -522,22 +522,23 @@ class MainActivityTest {
     // ---------------------------------------------------------------
 
     /**
-     * The About screen asks Android what the app requests and prints the
-     * answer, rather than printing a claim. This is the assertion that the
-     * answer is still "none".
+     * The About screen asks Android what this installed package requests instead of
+     * presenting a hand-maintained list. VaultShelf has reviewed local/vault permissions,
+     * but INTERNET must remain absent.
      */
     @Test
-    fun aboutReportsNoPermissionsBecauseThereAreNone() {
+    fun aboutReportsActualReviewedPermissionsWithoutInternet() {
         val controller = home()
         controller.get().findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.toolbar)
             .menu.performIdentifierAction(R.id.action_about, 0)
         shadowOf(context.mainLooper).idle()
 
-        val dialog = shadowOf(org.robolectric.shadows.ShadowDialog.getLatestDialog()).let {
-            org.robolectric.shadows.ShadowDialog.getLatestDialog()
-        }
+        val dialog = org.robolectric.shadows.ShadowDialog.getLatestDialog()
         assertThat(dialog).isNotNull()
         val text = dialog.findViewById<TextView>(R.id.aboutPermissions).text.toString()
-        assertThat(text).isEqualTo(context.getString(R.string.about_permissions_none))
+        assertThat(text).isNotEqualTo(context.getString(R.string.about_permissions_none))
+        assertThat(text).contains("android.permission.FOREGROUND_SERVICE")
+        assertThat(text).doesNotContain("android.permission.INTERNET")
+        assertThat(text).doesNotContain("android.permission.ACCESS_NETWORK_STATE")
     }
 }

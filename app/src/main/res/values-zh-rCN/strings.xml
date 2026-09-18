@@ -46,7 +46,7 @@
     <string name="about_version">版本 %1$s</string>
     <string name="about_permissions_label">此应用申请的权限</string>
     <string name="about_permissions_none">无</string>
-    <string name="about_permissions_detail">这是刚刚从 Android 系统读取的实际权限，而不是预先写死的说明。VaultShelf 没有网络权限，因此不会自行上传你的文件。</string>
+    <string name="about_permissions_detail">这里显示的是当前安装版本从 Android 系统读取到的实际权限。保险库和本地朗读功能需要少量经过审核的权限；VaultShelf 没有 INTERNET 网络权限，因此无法自行上传你的文件。</string>
     <string name="about_made_by">由 Arjun Maniyani 制作</string>
     <string name="about_source">源代码</string>
     <string name="about_licences">开源许可证</string>
