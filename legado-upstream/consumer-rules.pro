@@ -38,3 +38,20 @@
 # Preserve useful exception identity across the reader's error/reporting paths.
 -keepnames class * extends java.lang.Throwable
 -keepclassmembernames,allowobfuscation class * extends java.lang.Throwable { *; }
+
+# modules/rhino is source-merged into this library, so its original consumer rules
+# must travel with the merged code instead of being lost with the module boundary.
+-keep class
+!org.htmlunit.corejs.javascript.ast.**,
+!org.htmlunit.corejs.javascript.xml.**,
+!org.htmlunit.corejs.javascript.commonjs.**,
+!org.htmlunit.corejs.javascript.optimizer.**,
+!org.htmlunit.corejs.javascript.serialize.**,
+!org.htmlunit.corejs.javascript.tools.**,
+org.htmlunit.corejs.javascript.** { *; }
+
+-dontwarn org.htmlunit.corejs.javascript.engine.RhinoScriptEngineFactory
+-dontwarn java.beans.**
+-dontwarn javax.script.**
+-dontwarn jdk.dynalink.**
+
