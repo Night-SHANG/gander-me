@@ -74,6 +74,7 @@ class ViewerActivity : AppCompatActivity() {
         const val EXTRA_PATH = "path"
         const val EXTRA_LIBRARY_BOOK_ID = "vaultshelf.library_book_id"
         const val EXTRA_LIBRARY_PROGRESS = "vaultshelf.library_progress"
+        const val EXTRA_SECURE_VAULT = "vaultshelf.secure_vault"
         private const val STATE_COPY_SOURCE = "copy_source"
         private const val ASSET_HOST = "appassets.androidplatform.net"
 
@@ -95,6 +96,7 @@ class ViewerActivity : AppCompatActivity() {
 
     private var webView: ScrollProbeWebView? = null
     private var player: ExoPlayer? = null
+    private var secureVaultSession = false
 
     /** The file the destination picker is currently open for. */
     private var copySource: Uri? = null
@@ -207,6 +209,11 @@ class ViewerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        secureVaultSession = intent.getBooleanExtra(EXTRA_SECURE_VAULT, false)
+        if (secureVaultSession) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+
         setContentView(R.layout.activity_viewer)
         applySystemBarInsets(findViewById(R.id.root))
         onBackPressedDispatcher.addCallback(this, searchBackCallback)
@@ -272,30 +279,40 @@ class ViewerActivity : AppCompatActivity() {
         goToPageItem = toolbar.menu.findItem(R.id.action_go_to_page).apply {
             setOnMenuItemClickListener { askForPage(); true }
         }
-        toolbar.menu.findItem(R.id.action_share).setOnMenuItemClickListener {
-            shareFile(uri, ext, mime)
-            true
-        }
-        toolbar.menu.findItem(R.id.action_save_copy).setOnMenuItemClickListener {
-            copySource = uri
-            createDocument.type = mime
-                ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
-                ?: "*/*"
-            // No picker on the device is the only way this throws, and it leaves
-            // the reader on the document rather than on a crash
-            runCatching { saveCopy.launch(name) }.onFailure {
-                copySource = null
-                Toast.makeText(this, R.string.save_copy_failed, Toast.LENGTH_SHORT).show()
+        toolbar.menu.findItem(R.id.action_share).apply {
+            isVisible = !secureVaultSession
+            if (isVisible) {
+                setOnMenuItemClickListener {
+                    shareFile(uri, ext, mime)
+                    true
+                }
             }
-            true
+        }
+        toolbar.menu.findItem(R.id.action_save_copy).apply {
+            isVisible = !secureVaultSession
+            if (isVisible) {
+                setOnMenuItemClickListener {
+                    copySource = uri
+                    createDocument.type = mime
+                        ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+                        ?: "*/*"
+                    runCatching { saveCopy.launch(name) }.onFailure {
+                        copySource = null
+                        Toast.makeText(this@ViewerActivity, R.string.save_copy_failed, Toast.LENGTH_SHORT).show()
+                    }
+                    true
+                }
+            }
         }
 
-        val folder = containingFolder(uri)
+        val folder = if (secureVaultSession) null else containingFolder(uri)
         toolbar.menu.findItem(R.id.action_open_folder).apply {
             isVisible = folder != null
-            setOnMenuItemClickListener {
-                openFolder(folder ?: return@setOnMenuItemClickListener true)
-                true
+            if (isVisible) {
+                setOnMenuItemClickListener {
+                    openFolder(folder ?: return@setOnMenuItemClickListener true)
+                    true
+                }
             }
         }
     }
