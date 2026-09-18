@@ -27,6 +27,7 @@ class VaultContentActivity : ComponentActivity() {
     private var sourceUri: Uri? = null
     private var sessionToken: String? = null
     private var fileKey: String? = null
+    private var legacyFileKey: String? = null
     private var transientBookUrl: String? = null
 
     private val childLauncher = registerForActivityResult(
@@ -42,6 +43,7 @@ class VaultContentActivity : ComponentActivity() {
         val token = intent.getStringExtra(VaultShelfFileRouter.EXTRA_SESSION_TOKEN)
         val volumeId = intent.getIntExtra(VaultShelfFileRouter.EXTRA_VOLUME_ID, -1)
         val stableFileKey = intent.getStringExtra(VaultShelfFileRouter.EXTRA_FILE_KEY)
+        val oldFileKey = intent.getStringExtra(VaultShelfFileRouter.EXTRA_LEGACY_FILE_KEY)
         if (uri == null || token.isNullOrBlank() || stableFileKey.isNullOrBlank() || volumeId < 0) {
             finish()
             return
@@ -50,6 +52,7 @@ class VaultContentActivity : ComponentActivity() {
         sourceUri = uri
         sessionToken = token
         fileKey = stableFileKey
+        legacyFileKey = oldFileKey
         transientBookUrl = savedInstanceState?.getString(STATE_TRANSIENT_BOOK_URL)
 
         VaultSessionGuard.register(this, token, volumeId)
@@ -95,13 +98,17 @@ class VaultContentActivity : ComponentActivity() {
 
             transientBookUrl = session.bookUrl
             fileKey?.let { key ->
-                BookReadingPositions.get(applicationContext, key)?.let { saved ->
+                val saved = BookReadingPositions.get(applicationContext, key)
+                    ?: legacyFileKey?.let { old ->
+                        BookReadingPositions.get(applicationContext, old)
+                    }
+                saved?.let { savedPosition ->
                     withContext(Dispatchers.IO) {
                         LegadoReaderBridge.restoreTransientReadingPosition(
                             applicationContext,
                             session.bookUrl,
-                            saved.chapterIndex,
-                            saved.chapterPosition,
+                            savedPosition.chapterIndex,
+                            savedPosition.chapterPosition,
                         )
                     }
                 }
