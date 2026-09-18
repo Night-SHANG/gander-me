@@ -21,7 +21,6 @@ data class LibraryBook(
     val addedAtEpochMillis: Long,
     val lastOpenedAtEpochMillis: Long,
     val readingOffset: Int,
-    val readingLocatorJson: String? = null,
     val publicationProgression: Float? = null,
     val coverFileName: String? = null,
     val legadoBookUrl: String? = null,
