@@ -35,6 +35,12 @@
             android:theme="@style/AppTheme.Light" />
 
         <activity
+            android:name="io.legado.app.ui.book.info.edit.BookInfoEditActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/AppTheme.Light" />
+
+        <activity
             android:name="io.legado.app.ui.file.HandleFileActivity"
             android:exported="false"
             android:theme="@style/Activity.Translucence" />
@@ -47,6 +53,14 @@
             android:name="io.legado.app.ui.replace.edit.ReplaceEditActivity"
             android:exported="false"
             android:theme="@style/AppTheme.Light" />
+
+        <activity
+            android:name="io.legado.app.ui.code.CodeEditActivity"
+            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/AppTheme.Light"
+            android:windowSoftInputMode="adjustResize|stateHidden" />
 
         <activity
             android:name="io.legado.app.ui.highlight.HighlightRuleActivity"

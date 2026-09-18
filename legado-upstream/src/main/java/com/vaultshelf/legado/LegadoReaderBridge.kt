@@ -3,6 +3,7 @@ package com.vaultshelf.legado
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -32,6 +33,7 @@ import io.legado.app.help.book.ReadRecordCoverCache
 import io.legado.app.help.book.readProgress
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
+import io.legado.app.help.config.ThemeConfig.applyDayNight
 import io.legado.app.help.config.ThemeConfig.applyDayNightInit
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.rhino.NativeBaseSource
@@ -87,16 +89,32 @@ object LegadoReaderBridge {
 
         val appContext = context.applicationContext
         val configuration = Configuration(appContext.resources.configuration)
+        var observedNightMode = configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
 
         // Same local reader/theme lifecycle initialization used by Legado App.onCreate().
         ResourceThemeGeneration.observeSystemNight(
-            configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-                Configuration.UI_MODE_NIGHT_YES,
+            observedNightMode == Configuration.UI_MODE_NIGHT_YES,
             AppConfig.themeMode !in listOf("1", "2", "3"),
         )
         WallpaperTheme.syncWithPreferences(appContext)
         applyDayNightInit(appContext)
         (appContext as? Application)?.registerActivityLifecycleCallbacks(LifecycleHelp)
+        appContext.registerComponentCallbacks(
+            object : ComponentCallbacks {
+                override fun onConfigurationChanged(newConfig: Configuration) {
+                    val nightMode = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
+                    if (nightMode == observedNightMode) return
+                    observedNightMode = nightMode
+                    ResourceThemeGeneration.observeSystemNight(
+                        nightMode == Configuration.UI_MODE_NIGHT_YES,
+                        AppConfig.themeMode !in listOf("1", "2", "3"),
+                    )
+                    applyDayNight(appContext)
+                }
+
+                override fun onLowMemory() = Unit
+            },
+        )
         appContext.defaultSharedPreferences
             .registerOnSharedPreferenceChangeListener(AppConfig)
 
