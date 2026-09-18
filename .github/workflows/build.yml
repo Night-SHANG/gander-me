@@ -48,6 +48,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       # The wrapper jar is a binary that runs before any of this repo's own
       # code does, and pull requests arrive from 31 forks. This checks it is
@@ -60,6 +62,21 @@ jobs:
           java-version: '21'
 
       - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+
+      - name: Install DroidFS native toolchain
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Build pinned DroidFS native dependencies
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+          (cd third_party/droidfs/app/ffmpeg && ./build.sh)
+          (cd third_party/droidfs/app/libgocryptfs && ./build.sh)
 
       # Ahead of the builds: a compile error or a broken assertion should be
       # reported as such, not as a failure somewhere inside assembleRelease.
@@ -91,6 +108,7 @@ jobs:
         with:
           name: gander-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
 
       # Only on failure, and only the reports: the HTML test report says which
       # assertion went and with what, which a log tail does not.
