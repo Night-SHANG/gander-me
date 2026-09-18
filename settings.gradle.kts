@@ -26,5 +26,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Gander"
 include(":app")
-include(":legado-reader")
 include(":legado-upstream")
