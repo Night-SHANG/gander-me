@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import com.vaultshelf.droidfs.VaultShelfExternalMediaRouter
 import com.vaultshelf.legado.LegadoReaderBridge
@@ -26,12 +25,7 @@ class FileDispatchActivity : ComponentActivity() {
 
     private var transientBookUrl: String? = null
     private var positionKey: String? = null
-
-    private val readerLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) {
-        cleanupAndFinish()
-    }
+    private var transientReaderActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,6 +75,14 @@ class FileDispatchActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (transientReaderActive && !cleanupStarted.get()) {
+            transientReaderActive = false
+            cleanupAndFinish()
+        }
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         transientBookUrl?.let { outState.putString(STATE_TRANSIENT_BOOK_URL, it) }
         positionKey?.let { outState.putString(STATE_POSITION_KEY, it) }
@@ -96,15 +98,21 @@ class FileDispatchActivity : ComponentActivity() {
             }
             positionKey = key
 
-            readerLauncher.launch(
-                VaultShelfExternalMediaRouter.intent(
-                    this@FileDispatchActivity,
-                    uri,
-                    meta.name,
-                    meta.mime,
-                    key,
-                ),
-            )
+            runCatching {
+                startActivity(
+                    VaultShelfExternalMediaRouter.intent(
+                        this@FileDispatchActivity,
+                        uri,
+                        meta.name,
+                        meta.mime,
+                        key,
+                    ),
+                )
+            }.onFailure {
+                openFallbackViewer(uri)
+                return@launch
+            }
+            finish()
         }
     }
 
@@ -127,12 +135,18 @@ class FileDispatchActivity : ComponentActivity() {
                     return@launch
                 }
 
-                readerLauncher.launch(
-                    LegadoReaderBridge.readerIntent(
-                        this@FileDispatchActivity,
-                        snapshot.bookUrl,
-                    ),
-                )
+                runCatching {
+                    startActivity(
+                        LegadoReaderBridge.readerIntent(
+                            this@FileDispatchActivity,
+                            snapshot.bookUrl,
+                        ),
+                    )
+                }.onFailure {
+                    openFallbackViewer(uri)
+                    return@launch
+                }
+                finish()
                 return@launch
             }
 
@@ -170,12 +184,18 @@ class FileDispatchActivity : ComponentActivity() {
                 }
             }
 
-            readerLauncher.launch(
-                LegadoReaderBridge.readerIntent(
-                    this@FileDispatchActivity,
-                    session.bookUrl,
-                ),
-            )
+            transientReaderActive = true
+            runCatching {
+                startActivity(
+                    LegadoReaderBridge.readerIntent(
+                        this@FileDispatchActivity,
+                        session.bookUrl,
+                    ),
+                )
+            }.onFailure {
+                transientReaderActive = false
+                cleanupAndFinish()
+            }
         }
     }
 

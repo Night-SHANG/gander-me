@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.view.WindowManager
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import com.arjun.gander.BookReadingPositions
 import com.arjun.gander.ViewerActivity
@@ -35,12 +34,7 @@ class VaultContentActivity : ComponentActivity() {
     private var fileKey: String? = null
     private var legacyFileKey: String? = null
     private var transientBookUrl: String? = null
-
-    private val childLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) {
-        cleanupAndFinish()
-    }
+    private var childActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,6 +82,14 @@ class VaultContentActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (childActive && !cleanupStarted.get()) {
+            childActive = false
+            cleanupAndFinish()
+        }
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         transientBookUrl?.let { outState.putString(STATE_TRANSIENT_BOOK_URL, it) }
         super.onSaveInstanceState(outState)
@@ -127,18 +129,27 @@ class VaultContentActivity : ComponentActivity() {
 
             val reader = LegadoReaderBridge.readerIntent(this@VaultContentActivity, session.bookUrl)
                 .putExtra(VaultShelfFileRouter.EXTRA_SESSION_TOKEN, token)
-            childLauncher.launch(reader)
+            launchChild(reader)
         }
     }
 
     private fun openWithGander(uri: Uri, token: String) {
-        childLauncher.launch(
+        launchChild(
             Intent(this, ViewerActivity::class.java)
                 .setData(uri)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 .putExtra(ViewerActivity.EXTRA_SECURE_VAULT, true)
                 .putExtra(VaultShelfFileRouter.EXTRA_SESSION_TOKEN, token),
         )
+    }
+
+    private fun launchChild(intent: Intent) {
+        childActive = true
+        runCatching { startActivity(intent) }
+            .onFailure {
+                childActive = false
+                cleanupAndFinish()
+            }
     }
 
     private fun displayName(uri: Uri): String {

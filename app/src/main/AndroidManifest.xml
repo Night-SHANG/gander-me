@@ -40,6 +40,7 @@
 
         <activity
             android:name=".FileDispatchActivity"
+            android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
             android:exported="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
@@ -90,6 +91,7 @@
 
         <activity
             android:name=".vault.VaultContentActivity"
+            android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
             android:exported="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 

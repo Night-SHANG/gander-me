@@ -24,7 +24,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
 
     private data class Session(
         val volumeId: Int,
-        val taskId: Int,
+        val taskIds: MutableSet<Int> = ConcurrentHashMap.newKeySet(),
         val activities: ConcurrentHashMap<Int, WeakReference<Activity>> = ConcurrentHashMap(),
     )
 
@@ -53,7 +53,6 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
         initialize(application)
         sessions[token] = Session(
             volumeId = volumeId,
-            taskId = activity.taskId,
         ).also { remember(it, activity) }
         enforce(token)
     }
@@ -94,6 +93,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
 
     private fun remember(session: Session, activity: Activity) {
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        session.taskIds.add(activity.taskId)
         session.activities[System.identityHashCode(activity)] = WeakReference(activity)
     }
 
@@ -115,7 +115,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
 
         if (!activity.javaClass.name.startsWith(LEGADO_PACKAGE_PREFIX)) return null
 
-        val candidates = sessions.entries.filter { it.value.taskId == activity.taskId }
+        val candidates = sessions.entries.filter { activity.taskId in it.value.taskIds }
         if (candidates.size != 1) return null
         return candidates.single().let { it.key to it.value }
     }

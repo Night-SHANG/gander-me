@@ -314,13 +314,32 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun singleTaskLegadoReadersDoNotUseActivityResultForCleanup() {
+        val dispatcher = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/FileDispatchActivity.kt",
+        ).readText()
+        val vaultBridge = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultContentActivity.kt",
+        ).readText()
+
+        assertThat(dispatcher).doesNotContain("StartActivityForResult")
+        assertThat(dispatcher).contains("transientReaderActive")
+        assertThat(dispatcher).contains("override fun onResume()")
+        assertThat(vaultBridge).doesNotContain("StartActivityForResult")
+        assertThat(vaultBridge).contains("childActive")
+        assertThat(vaultBridge).contains("override fun onResume()")
+    }
+
+    @Test
     fun vaultLockGuardCoversNestedLegadoActivitiesInTheSameTask() {
         val guard = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultSessionGuard.kt",
         ).readText()
 
-        assertThat(guard).contains("val taskId: Int")
+        assertThat(guard).contains("val taskIds: MutableSet<Int>")
         assertThat(guard).contains("LEGADO_PACKAGE_PREFIX")
         assertThat(guard).contains("activity.javaClass.name.startsWith")
         assertThat(guard).contains("current.activities.entries.toList().forEach")
@@ -374,7 +393,7 @@ class VaultShelfUxRegressionTest {
         assertThat(mediaRouter).contains("VideoPlayer::class.java")
         assertThat(mediaRouter).contains("EXTRA_PROGRESS_KEY")
         assertThat(dispatcher).contains("Positions.keyFor")
-        assertThat(dispatcher).contains("readerLauncher.launch")
+        assertThat(dispatcher).contains("transientReaderActive = true")
         assertThat(main).contains("FileDispatchActivity::class.java")
     }
 
