@@ -274,6 +274,38 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun portableVaultBackupKeepsCiphertextAndPerVolumeOpaqueMetadata() {
+        val manager = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultBackupManager.kt",
+        ).readText()
+        val activity = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultBackupActivity.kt",
+        ).readText()
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+        val progress = File(
+            repo,
+            "droidfs-upstream/src/main/java/com/vaultshelf/droidfs/VaultShelfProgressStore.kt",
+        ).readText()
+
+        assertThat(manager).contains("EncryptedVolume.getVolumeType")
+        assertThat(manager).contains("volume.uuid")
+        assertThat(manager).contains("encryptedHash = null")
+        assertThat(manager).contains("iv = null")
+        assertThat(manager).contains("BookReadingPositions.exportOpaque(appContext, prefix)")
+        assertThat(manager).contains("VaultShelfProgressStore.exportOpaque(appContext, volume.uuid)")
+        assertThat(manager).doesNotContain("openFileReadMode")
+        assertThat(activity).contains("CreateDocument(\"application/zip\")")
+        assertThat(activity).contains("OpenDocument()")
+        assertThat(shell).contains("onOpenVaultBackup")
+        assertThat(progress).contains("fun volumePrefix")
+    }
+
+    @Test
     fun adaptedReaderActivitiesAndPanelsAreGone() {
         listOf(
             "app/src/main/java/com/arjun/gander/TxtReaderActivity.kt",
