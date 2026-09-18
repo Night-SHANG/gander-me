@@ -14,9 +14,9 @@ object VaultShelfProgressStore {
     private const val MEDIA_FILE = "vault_media_positions"
     private const val MAX = 500
 
-    fun fileKey(volumeId: Int, path: String): String {
+    fun fileKey(volumeUuid: String, path: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        digest.update(volumeId.toString().toByteArray())
+        digest.update(volumeUuid.toByteArray())
         digest.update(0)
         digest.update(path.toByteArray())
         return digest.digest().take(16).joinToString("") { "%02x".format(it) }
@@ -24,21 +24,21 @@ object VaultShelfProgressStore {
 
     fun mediaPosition(
         context: Context,
-        volumeId: Int,
+        volumeUuid: String,
         path: String,
     ): Long = load(context)
-        .firstOrNull { it.key == fileKey(volumeId, path) }
+        .firstOrNull { it.key == fileKey(volumeUuid, path) }
         ?.positionMs
         ?: 0L
 
     fun saveMediaPosition(
         context: Context,
-        volumeId: Int,
+        volumeUuid: String,
         path: String,
         positionMs: Long,
         durationMs: Long,
     ) {
-        val key = fileKey(volumeId, path)
+        val key = fileKey(volumeUuid, path)
         val all = load(context)
         val others = all.filter { it.key != key }
 
