@@ -56,16 +56,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.arjun.gander.EpubReaderActivity
-import com.arjun.gander.MobiReaderActivity
 import com.arjun.gander.R
-import com.arjun.gander.TxtReaderActivity
-import com.arjun.gander.UmdReaderActivity
 import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
+import com.arjun.gander.library.createReaderLaunchPlan
+import com.arjun.gander.library.syncLegadoReaderProgress
 import com.arjun.gander.ui.library.LibraryScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -155,6 +153,8 @@ private fun HomeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var recentBooks by remember { mutableStateOf<List<LibraryBook>>(emptyList()) }
+    var pendingLegadoBookId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingLegadoBookUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun refreshRecent() {
         scope.launch {
@@ -169,6 +169,18 @@ private fun HomeScreen(
     val readerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
     ) { result ->
+        val legadoId = pendingLegadoBookId
+        val legadoUrl = pendingLegadoBookUrl
+        if (legadoId != null && legadoUrl != null) {
+            pendingLegadoBookId = null
+            pendingLegadoBookUrl = null
+            scope.launch {
+                syncLegadoReaderProgress(context, libraryRepository, legadoId, legadoUrl)
+                refreshRecent()
+            }
+            return@rememberLauncherForActivityResult
+        }
+
         val data = result.data
         val bookId = data?.getStringExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID)
         val hasProgress = data?.hasExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS) == true
@@ -185,31 +197,15 @@ private fun HomeScreen(
 
     fun openBook(book: LibraryBook) {
         scope.launch {
-            val intent = when (book.format) {
-                BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
-                    .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
-
-                BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
-                    .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
-
-                BookFormat.MARKDOWN, BookFormat.PDF -> {
-                    libraryRepository.updateProgress(book.id, book.readingOffset)
-                    Intent(context, ViewerActivity::class.java)
-                        .putExtra(
-                            ViewerActivity.EXTRA_PATH,
-                            libraryRepository.bookFile(book.id).absolutePath,
-                        )
-                        .putExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID, book.id)
+            runCatching {
+                createReaderLaunchPlan(context, libraryRepository, book)
+            }.onSuccess { plan ->
+                if (plan.legadoBookUrl != null) {
+                    pendingLegadoBookId = book.id
+                    pendingLegadoBookUrl = plan.legadoBookUrl
                 }
-
-                BookFormat.UMD -> Intent(context, UmdReaderActivity::class.java)
-                    .putExtra(UmdReaderActivity.EXTRA_BOOK_ID, book.id)
-
-                BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
-                    Intent(context, MobiReaderActivity::class.java)
-                        .putExtra(MobiReaderActivity.EXTRA_BOOK_ID, book.id)
+                readerLauncher.launch(plan.intent)
             }
-            readerLauncher.launch(intent)
         }
     }
 
