@@ -24,10 +24,18 @@ data class LibraryBook(
     val readingLocatorJson: String? = null,
     val publicationProgression: Float? = null,
     val coverFileName: String? = null,
+    val legadoBookUrl: String? = null,
 ) {
     val progressFraction: Float
         get() = when (format) {
-            BookFormat.TXT, BookFormat.MARKDOWN -> if (totalCharacters <= 0) {
+            BookFormat.TXT -> publicationProgression?.coerceIn(0f, 1f)
+                ?: if (totalCharacters <= 0) {
+                    0f
+                } else {
+                    readingOffset.coerceIn(0, totalCharacters).toFloat() / totalCharacters.toFloat()
+                }
+
+            BookFormat.MARKDOWN -> if (totalCharacters <= 0) {
                 0f
             } else {
                 readingOffset.coerceIn(0, totalCharacters).toFloat() / totalCharacters.toFloat()
