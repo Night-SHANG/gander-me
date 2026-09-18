@@ -91,3 +91,37 @@ dependencies {
     implementation("androidx.concurrent:concurrent-futures:1.3.0")
     implementation("com.google.auto.value:auto-value-annotations:1.11.1")
 }
+
+
+val applyVaultShelfDroidFsPatch = tasks.register("applyVaultShelfDroidFsPatch") {
+    val upstreamDir = rootProject.file("third_party/droidfs")
+    val patchFile = rootProject.file("patches/droidfs-vaultshelf-file-routing.patch")
+    inputs.file(patchFile)
+
+    doLast {
+        val check = project.exec {
+            workingDir(upstreamDir)
+            commandLine("git", "apply", "--check", patchFile.absolutePath)
+            isIgnoreExitValue = true
+        }
+        if (check.exitValue == 0) {
+            project.exec {
+                workingDir(upstreamDir)
+                commandLine("git", "apply", patchFile.absolutePath)
+            }
+        } else {
+            val alreadyApplied = project.exec {
+                workingDir(upstreamDir)
+                commandLine("git", "apply", "--reverse", "--check", patchFile.absolutePath)
+                isIgnoreExitValue = true
+            }
+            check(alreadyApplied.exitValue == 0) {
+                "Pinned DroidFS source no longer matches the reviewed VaultShelf routing patch"
+            }
+        }
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(applyVaultShelfDroidFsPatch)
+}
