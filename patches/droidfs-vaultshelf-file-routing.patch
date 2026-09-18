@@ -25,3 +25,34 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                  FileTypes.isText(fullPath) -> {
                      startFileViewer(TextEditor::class.java, fullPath)
                  }
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
+@@ -10,7 +10,6 @@ import android.provider.OpenableColumns
+ import android.util.Log
+ import android.webkit.MimeTypeMap
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.GlobalScope
+ import kotlinx.coroutines.launch
+-import sushi.hardcore.droidfs.BuildConfig
+ import sushi.hardcore.droidfs.EncryptedFileProvider
+ import sushi.hardcore.droidfs.VolumeManager
+ import sushi.hardcore.droidfs.VolumeManagerApp
+@@ -24,8 +23,7 @@ class TemporaryFileProvider : ContentProvider() {
+ 
+     companion object {
+         private const val TAG = "TemporaryFileProvider"
+-        private const val AUTHORITY = BuildConfig.APPLICATION_ID + ".temporary_provider"
+-        private val BASE_URI: Uri = Uri.parse("content://$AUTHORITY")
++        private lateinit var BASE_URI: Uri
+ 
+         lateinit var instance: TemporaryFileProvider
+             private set
+@@ -38,6 +36,7 @@ class TemporaryFileProvider : ContentProvider() {
+ 
+     override fun onCreate(): Boolean {
+         return context?.let {
++            BASE_URI = Uri.parse("content://${it.packageName}.temporary_provider")
+             volumeManager = (it.applicationContext as VolumeManagerApp).volumeManager
+             usfSafWriteDelegate.init(it)
+             encryptedFileProvider = EncryptedFileProvider(it)
