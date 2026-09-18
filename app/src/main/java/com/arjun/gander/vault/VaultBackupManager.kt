@@ -78,12 +78,13 @@ object VaultBackupManager {
                 zip.setLevel(Deflater.NO_COMPRESSION)
                 writeBytes(zip, MANIFEST_ENTRY, manifest(volume).toString().toByteArray(StandardCharsets.UTF_8))
 
-                val bookPositions = BookReadingPositions.exportOpaque(appContext)
+                val prefix = VaultShelfProgressStore.volumePrefix(volume.uuid)
+                val bookPositions = BookReadingPositions.exportOpaque(appContext, prefix)
                 if (bookPositions.isNotEmpty()) {
                     writeBytes(zip, BOOK_POSITIONS_ENTRY, bookPositions)
                 }
 
-                val mediaPositions = VaultShelfProgressStore.exportOpaque(appContext)
+                val mediaPositions = VaultShelfProgressStore.exportOpaque(appContext, volume.uuid)
                 if (mediaPositions.isNotEmpty()) {
                     writeBytes(zip, MEDIA_POSITIONS_ENTRY, mediaPositions)
                 }
