@@ -29,7 +29,7 @@ object VaultShelfFileRouter {
         "md", "markdown",
 
         // Legado local ebook formats not natively handled by DroidFS.
-        "txt", "epub", "umd", "mobi", "azw3", "azw",
+        "epub", "umd", "mobi", "azw3", "azw",
     )
 
     fun supports(path: String): Boolean =
