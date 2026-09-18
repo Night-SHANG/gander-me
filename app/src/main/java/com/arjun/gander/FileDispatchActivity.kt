@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,7 +54,11 @@ class FileDispatchActivity : ComponentActivity() {
         val extension = meta.name.substringAfterLast('.', "").lowercase()
 
         when {
-            extension in EBOOK_EXTENSIONS -> openWithLegado(uri, meta.size)
+            extension in EBOOK_EXTENSIONS -> openWithLegado(
+                uri,
+                meta.size,
+                ensurePersistentReadAccess(uri),
+            )
 
             VaultShelfExternalMediaRouter.supports(meta.name, meta.mime) -> {
                 startActivity(
@@ -84,8 +89,34 @@ class FileDispatchActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
     }
 
-    private fun openWithLegado(uri: Uri, size: Long) {
+    private fun openWithLegado(
+        uri: Uri,
+        size: Long,
+        persistentAccess: Boolean,
+    ) {
         lifecycleScope.launch {
+            if (persistentAccess) {
+                val snapshot = runCatching {
+                    withContext(Dispatchers.IO) {
+                        LegadoReaderBridge.ensurePersistentUriBook(
+                            applicationContext,
+                            uri,
+                        )
+                    }
+                }.getOrElse {
+                    openFallbackViewer(uri)
+                    return@launch
+                }
+
+                readerLauncher.launch(
+                    LegadoReaderBridge.readerIntent(
+                        this@FileDispatchActivity,
+                        snapshot.bookUrl,
+                    ),
+                )
+                return@launch
+            }
+
             val key = withContext(Dispatchers.IO) {
                 Positions.keyFor(contentResolver, uri, size)
             }
@@ -101,12 +132,7 @@ class FileDispatchActivity : ComponentActivity() {
             }.getOrElse {
                 // If a provider cannot support Legado's local-book reader, preserve Gander's
                 // old behaviour instead of turning a previously openable file into a dead end.
-                startActivity(
-                    Intent(this@FileDispatchActivity, ViewerActivity::class.java)
-                        .setData(uri)
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
-                )
-                finish()
+                openFallbackViewer(uri)
                 return@launch
             }
 
@@ -201,6 +227,41 @@ class FileDispatchActivity : ComponentActivity() {
             }.start()
         }
         super.onDestroy()
+    }
+
+    private fun ensurePersistentReadAccess(uri: Uri): Boolean {
+        if (uri.scheme != "content") return uri.scheme == "file"
+
+        runCatching {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
+
+        return contentResolver.persistedUriPermissions.any { permission ->
+            if (!permission.isReadPermission) {
+                false
+            } else if (permission.uri == uri) {
+                true
+            } else {
+                runCatching {
+                    permission.uri.authority == uri.authority &&
+                        DocumentsContract.isTreeUri(uri) &&
+                        DocumentsContract.getTreeDocumentId(permission.uri) ==
+                        DocumentsContract.getTreeDocumentId(uri)
+                }.getOrDefault(false)
+            }
+        }
+    }
+
+    private fun openFallbackViewer(uri: Uri) {
+        startActivity(
+            Intent(this, ViewerActivity::class.java)
+                .setData(uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+        )
+        finish()
     }
 
     @Suppress("DEPRECATION")
