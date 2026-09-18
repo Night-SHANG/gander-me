@@ -85,6 +85,10 @@
         </activity>
 
         <activity
+            android:name=".vault.VaultBackupActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".vault.VaultContentActivity"
             android:exported="false"
             android:theme="@android:style/Theme.NoDisplay" />
