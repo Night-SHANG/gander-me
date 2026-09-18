@@ -51,7 +51,7 @@ interface LibraryRepository {
     suspend fun updateViewerProgress(
         id: String,
         progressFraction: Float,
-    ): LibraryBook?
+    ): LibraryBook? = getBook(id)
 
     suspend fun deleteBook(id: String): Boolean
 }
