@@ -48,6 +48,10 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         }
     }
 
+    override suspend fun importPdf(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
+        importFile(uri, BookFormat.PDF, "pdf") { 0 }
+    }
+
     override suspend fun importEpub(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
         val imported = importFile(uri, BookFormat.EPUB, "epub") { 0 }
         val storedFile = bookFileInternal(imported)
