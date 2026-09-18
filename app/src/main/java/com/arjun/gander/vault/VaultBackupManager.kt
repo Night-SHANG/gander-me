@@ -140,9 +140,16 @@ object VaultBackupManager {
                 zip.closeEntry()
 
                 val manifest = parseManifest(manifestBytes)
-                val uuid = manifest.getString("uuid")
-                val name = manifest.getString("name")
-                val type = manifest.getInt("type").toByte()
+                val identity = runCatching {
+                    Triple(
+                        manifest.getString("uuid"),
+                        manifest.getString("name"),
+                        manifest.getInt("type").toByte(),
+                    )
+                }.getOrElse {
+                    throw BackupException(Failure.INVALID_BACKUP, it)
+                }
+                val (uuid, name, type) = identity
 
                 validateIdentity(uuid, name)
                 if (type != EncryptedVolume.GOCRYPTFS_VOLUME_TYPE) {
