@@ -523,6 +523,27 @@ class VaultShelfUxRegressionTest {
     }
 
 
+
+    @Test
+    fun simplifiedChineseResourcesHaveNoDuplicateStringNamesAcrossFiles() {
+        val resourceDir = File(repo, "app/src/main/res/values-zh-rCN")
+        val stringPattern = Regex("""<string\\s+name="([^"]+)"""")
+        val owners = mutableMapOf<String, MutableList<String>>()
+
+        resourceDir.listFiles()
+            .orEmpty()
+            .filter { it.extension == "xml" }
+            .forEach { file ->
+                stringPattern.findAll(file.readText()).forEach { match ->
+                    owners.getOrPut(match.groupValues[1]) { mutableListOf() }
+                        .add(file.name)
+                }
+            }
+
+        val duplicates = owners.filterValues { it.size > 1 }
+        assertThat(duplicates).isEmpty()
+    }
+
     @Test
     fun unlockedVaultUsesVaultShelfShellInsteadOfDroidFsExplorer() {
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()

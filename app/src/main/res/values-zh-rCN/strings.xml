@@ -188,19 +188,8 @@
     <string name="vault_external_import_failed">选中的书籍都没有成功导入保险库。</string>
     <string name="vault_external_import_partial">有 %1$d 个项目导入失败。</string>
     <string name="vaultshelf_library_import_to_vault">导入保险库</string>
-
-    <string name="propose_wipe_imported_files">导入后询问是否删除原文件</string>
-    <string name="propose_wipe_imported_files_summary">文件成功导入保险库后，询问是否从原位置删除</string>
-    <string name="debug">调试</string>
     <string name="logcat">运行日志</string>
     <string name="logcat_summary">查看保险库底层运行日志</string>
     <string name="tangled_summary">DroidFS 在 Tangled 上的源码仓库、文档与问题追踪。</string>
-    <string name="usf_background">关闭保险库自动锁定</string>
-    <string name="usf_background_summary">应用进入后台时不自动锁定已经打开的保险库</string>
-    <string name="lock_on_screen_lock">锁屏时锁定保险库</string>
-    <string name="usf_keep_open">保持保险库持续打开</string>
-    <string name="usf_keep_open_summary">让应用持续在后台运行，以保持保险库处于解锁状态</string>
-    <string name="export_method">临时导出方式</string>
-    <string name="export_method_summary">用于分享、外部打开以及临时访问解密文件时的缓存方式。</string>
 
 </resources>
