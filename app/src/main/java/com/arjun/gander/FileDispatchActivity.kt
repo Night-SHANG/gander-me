@@ -54,7 +54,7 @@ class FileDispatchActivity : ComponentActivity() {
         val extension = meta.name.substringAfterLast('.', "").lowercase()
 
         when {
-            extension in EBOOK_EXTENSIONS -> openWithLegado(
+            EbookDispatch.supports(extension, meta.mime) -> openWithLegado(
                 uri,
                 meta.size,
                 ensurePersistentReadAccess(uri),
@@ -338,8 +338,19 @@ class FileDispatchActivity : ComponentActivity() {
     }
 
     private companion object {
-        val EBOOK_EXTENSIONS = setOf("txt", "epub", "umd", "mobi", "azw3", "azw")
         const val STATE_TRANSIENT_BOOK_URL = "transient_book_url"
         const val STATE_POSITION_KEY = "position_key"
     }
+}
+
+internal object EbookDispatch {
+    private val extensions = setOf("txt", "epub", "umd", "mobi", "azw3", "azw")
+    private val mimeTypes = setOf(
+        "application/epub+zip",
+        "application/x-mobipocket-ebook",
+        "application/vnd.amazon.ebook",
+    )
+
+    fun supports(extension: String, mime: String?): Boolean =
+        extension in extensions || mime in mimeTypes
 }

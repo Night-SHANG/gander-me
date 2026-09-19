@@ -21,6 +21,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -28,7 +29,6 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.Accessibilit
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -561,14 +561,12 @@ class MainActivity : AppCompatActivity() {
                     // makes Cancel look dangerous too. Standing the dismissive button down
                     // to a neutral is what leaves the red meaning one thing.
                     listOf(
-                        AlertDialog.BUTTON_POSITIVE to
-                            android.R.attr.colorError,
-                        AlertDialog.BUTTON_NEGATIVE to
-                            com.google.android.material.R.attr.colorOnSurfaceVariant
-                    ).forEach { (which, attr) ->
-                        dialog.getButton(which).let {
-                            it.setTextColor(MaterialColors.getColor(it, attr))
-                        }
+                        AlertDialog.BUTTON_POSITIVE to R.color.gander_error,
+                        AlertDialog.BUTTON_NEGATIVE to R.color.gander_on_surface_variant
+                    ).forEach { (which, colorRes) ->
+                        dialog.getButton(which).setTextColor(
+                            ContextCompat.getColor(this, colorRes)
+                        )
                     }
                 }
             )

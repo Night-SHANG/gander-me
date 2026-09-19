@@ -128,8 +128,10 @@ class FormatRegistryTest {
                 .isNotEqualTo("$pattern via $mime: ${FileKind.UNSUPPORTED}")
         }
         exact.forEach { mime ->
-            assertThat("$mime routes to: ${FileKind.detect("", mime)}")
-                .isNotEqualTo("$mime routes to: ${FileKind.UNSUPPORTED}")
+            val routed = FileKind.detect("", mime) != FileKind.UNSUPPORTED ||
+                EbookDispatch.supports("", mime)
+            assertThat("$mime routes by MIME alone: $routed")
+                .isEqualTo("$mime routes by MIME alone: true")
         }
     }
 
