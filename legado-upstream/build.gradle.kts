@@ -56,7 +56,10 @@ android {
     }
 
     lint {
+        // Legado is a pinned third-party source snapshot. Its existing lint findings stay
+        // visible in reports without weakening the strict lint gate on VaultShelf's app code.
         checkDependencies = false
+        abortOnError = false
         disable += setOf(
             "MissingTranslation",
             "GradleDependency",

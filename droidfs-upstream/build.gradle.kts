@@ -64,7 +64,11 @@ android {
     }
 
     lint {
+        // This module compiles a pinned upstream DroidFS source snapshot. Keep lint reports
+        // available for review, but do not make VaultShelf CI own DroidFS' pre-existing
+        // lint backlog. The final app module remains warningsAsErrors + abortOnError.
         checkDependencies = false
+        abortOnError = false
         disable += setOf("GradleDependency", "NewerVersionAvailable")
     }
 }
