@@ -84,7 +84,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/Temporar
              usfSafWriteDelegate.init(it)
              encryptedFileProvider = EncryptedFileProvider(it)
 
-@@ -76,12 +76,24 @@
+@@ -76,12 +76,23 @@
      override fun query(
          uri: Uri,
          projection: Array<String>?,
