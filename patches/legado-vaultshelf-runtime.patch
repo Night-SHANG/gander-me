@@ -4432,7 +4432,7 @@ diff --git a/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt b/
 diff --git a/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt b/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt
 --- a/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt
 +++ b/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt
-@@ -201,10 +201,10 @@
+@@ -201,9 +201,9 @@
          }
          fabSearch.backgroundTintList = bottomBackgroundList
          fabSearch.setColorFilter(textColor)
