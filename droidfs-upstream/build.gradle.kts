@@ -112,24 +112,32 @@ val applyVaultShelfDroidFsPatch = tasks.register("applyVaultShelfDroidFsPatch") 
     inputs.file(patchFile)
 
     doLast {
-        val check = project.exec {
+        // This task can run more than once in a single Gradle invocation (tests, lint,
+        // debug, release). Probe the already-applied state first and silence expected
+        // git-apply check failures so CI logs only contain real patch errors.
+        val reverseOutput = java.io.ByteArrayOutputStream()
+        val alreadyApplied = project.exec {
             workingDir(upstreamDir)
-            commandLine("git", "apply", "--check", patchFile.absolutePath)
+            commandLine("git", "apply", "--reverse", "--check", patchFile.absolutePath)
             isIgnoreExitValue = true
+            standardOutput = reverseOutput
+            errorOutput = reverseOutput
         }
-        if (check.exitValue == 0) {
+        if (alreadyApplied.exitValue != 0) {
+            val checkOutput = java.io.ByteArrayOutputStream()
+            val check = project.exec {
+                workingDir(upstreamDir)
+                commandLine("git", "apply", "--check", patchFile.absolutePath)
+                isIgnoreExitValue = true
+                standardOutput = checkOutput
+                errorOutput = checkOutput
+            }
+            check(check.exitValue == 0) {
+                "Pinned DroidFS source no longer matches the reviewed VaultShelf routing patch\n" + checkOutput.toString()
+            }
             project.exec {
                 workingDir(upstreamDir)
                 commandLine("git", "apply", patchFile.absolutePath)
-            }
-        } else {
-            val alreadyApplied = project.exec {
-                workingDir(upstreamDir)
-                commandLine("git", "apply", "--reverse", "--check", patchFile.absolutePath)
-                isIgnoreExitValue = true
-            }
-            check(alreadyApplied.exitValue == 0) {
-                "Pinned DroidFS source no longer matches the reviewed VaultShelf routing patch"
             }
         }
     }
