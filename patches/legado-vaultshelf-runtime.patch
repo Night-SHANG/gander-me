@@ -4480,3 +4480,25 @@ diff --git a/app/src/main/res/layout/view_read_menu.xml b/app/src/main/res/layou
                  app:backgroundTint="@color/background_menu"
                  app:elevation="2dp"
                  app:fabSize="mini"
+
+diff --git a/app/src/main/java/io/legado/app/ui/book/toc/rule/TxtTocRuleDialog.kt b/app/src/main/java/io/legado/app/ui/book/toc/rule/TxtTocRuleDialog.kt
+--- a/app/src/main/java/io/legado/app/ui/book/toc/rule/TxtTocRuleDialog.kt
++++ b/app/src/main/java/io/legado/app/ui/book/toc/rule/TxtTocRuleDialog.kt
+@@ -163,13 +163,7 @@
+     private fun initSelectedName(tocRules: List<TxtTocRule>) {
+-        if (selectedName == null && durRegex != null) {
+-            tocRules.forEach {
+-                if (durRegex == it.rule + TextFile.spaceChars + it.replacement) {
+-                    selectedName = it.name
+-                    return@forEach
+-                }
+-            }
+-            if (selectedName == null) {
+-                selectedName = ""
+-            }
++        if (selectedName == null) {
++            selectedName = tocRules.firstOrNull { durRegex == it.rule + TextFile.spaceChars + it.replacement }?.name
++                ?: tocRules.firstOrNull { it.enable }?.name
++                ?: tocRules.firstOrNull()?.name
+         }
+     }

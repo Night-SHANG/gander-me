@@ -364,13 +364,14 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/MediaPlayer.k
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt b/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
-@@ -103,6 +103,10 @@ class SelectPathFragment : Fragment() {
+@@ -103,6 +103,11 @@ class SelectPathFragment : Fragment() {
              theme = Compat.getParcelable(arguments, KEY_THEME_VALUE)!!
              pickMode = arguments.getBoolean(KEY_PICK_MODE)
          }
 +        if (savedInstanceState == null && !pickMode) {
 +            // VaultShelf is a private vault first; external volumes remain available for migration.
 +            binding.switchHiddenVolume.isChecked = true
++            binding.root.post { updateUi() }
 +        }
          volumeDatabase = VolumeDatabase(requireContext())
          filesDir = requireContext().filesDir.path
