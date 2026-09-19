@@ -16,7 +16,7 @@ object VaultShelfProgressStore {
     private const val MAX = 500
 
     fun volumePrefix(volumeUuid: String): String =
-        "v1-" + digest(volumeUuid.toByteArray()).take(8).toHex()
+        "v1-" + digest(volumeUuid.toByteArray()).copyOfRange(0, 8).toHex()
 
     fun fileKey(volumeUuid: String, path: String): String =
         volumePrefix(volumeUuid) + ":" + legacyFileKey(volumeUuid, path)
@@ -26,7 +26,7 @@ object VaultShelfProgressStore {
         digest.update(volumeUuid.toByteArray())
         digest.update(0)
         digest.update(path.toByteArray())
-        return digest.digest().take(16).toHex()
+        return digest.digest().copyOfRange(0, 16).toHex()
     }
 
     fun plainMediaPosition(context: Context, opaqueContentKey: String): Long =

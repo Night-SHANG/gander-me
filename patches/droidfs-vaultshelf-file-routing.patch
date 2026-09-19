@@ -1,7 +1,7 @@
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-@@ -26,6 +26,7 @@ import kotlinx.coroutines.MainScope
+@@ -26,6 +26,7 @@
  import kotlinx.coroutines.cancel
  import kotlinx.coroutines.cancelAndJoin
  import kotlinx.coroutines.launch
@@ -9,7 +9,24 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
  import kotlinx.coroutines.yield
  import sushi.hardcore.droidfs.BaseActivity
  import sushi.hardcore.droidfs.Constants
-@@ -304,6 +305,15 @@ open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener
+@@ -43,7 +44,6 @@
+ import sushi.hardcore.droidfs.file_operations.TaskResult
+ import sushi.hardcore.droidfs.file_viewers.AudioPlayer
+ import sushi.hardcore.droidfs.file_viewers.ImageViewer
+-import sushi.hardcore.droidfs.file_viewers.PdfViewer
+ import sushi.hardcore.droidfs.file_viewers.TextEditor
+ import sushi.hardcore.droidfs.file_viewers.VideoPlayer
+ import sushi.hardcore.droidfs.filesystems.EncryptedVolume
+@@ -247,7 +247,7 @@
+                     "image" -> startFileViewer(ImageViewer::class.java, path)
+                     "video" -> startFileViewer(VideoPlayer::class.java, path)
+                     "audio" -> startFileViewer(AudioPlayer::class.java, path)
++                    "pdf" -> VaultShelfFileRouter.open(this, path, explorerElement.stat.size, volumeId)
+-                    "pdf" -> startFileViewer(PdfViewer::class.java, path)
+                     "text" -> startFileViewer(TextEditor::class.java, path)
+                     "external" -> if (usf_open) {
+                         openWithExternalApp(path, explorerElement.stat.size)
+@@ -304,6 +304,15 @@
                  explorerElements[position].isParentFolder -> {
                      changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
                  }
@@ -24,6 +41,16 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +                }
                  FileTypes.isImage(fullPath) -> {
                      startFileViewer(ImageViewer::class.java, fullPath)
+                 }
+@@ -313,9 +322,6 @@
+                 FileTypes.isText(fullPath) -> {
+                     startFileViewer(TextEditor::class.java, fullPath)
+                 }
+-                FileTypes.isPDF(fullPath) -> {
+-                    startFileViewer(PdfViewer::class.java, fullPath)
+-                }
+                 FileTypes.isAudio(fullPath) -> {
+                     startFileViewer(AudioPlayer::class.java, fullPath)
                  }
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
@@ -467,33 +494,61 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
-@@ -12,16 +12,16 @@
+@@ -1,51 +1,24 @@
+ package sushi.hardcore.droidfs.file_viewers
+ 
+-import android.annotation.SuppressLint
+ import android.content.pm.ActivityInfo
+ import android.content.res.Configuration
+ import android.view.View
+-import android.widget.FrameLayout
+-import androidx.core.view.ViewCompat
+-import androidx.core.view.WindowInsetsCompat
+-import androidx.core.view.updateLayoutParams
+-import androidx.core.view.updatePadding
  import androidx.media3.exoplayer.ExoPlayer
  import androidx.media3.ui.PlayerView
  import sushi.hardcore.droidfs.R
--import sushi.hardcore.droidfs.databinding.ActivityVideoPlayerBinding
--
--class VideoPlayer: MediaPlayer() {
--    private val autoFit by lazy {
--        sharedPrefs.getBoolean("autoFit", false)
--    }
--    private lateinit var binding: ActivityVideoPlayerBinding
--
--    override fun viewFile() {
--        binding = ActivityVideoPlayerBinding.inflate(layoutInflater)
 +import sushi.hardcore.droidfs.databinding.DroidfsActivityVideoPlayerBinding
-+
-+class VideoPlayer: MediaPlayer() {
-+    private val autoFit by lazy {
-+        sharedPrefs.getBoolean("autoFit", false)
-+    }
+-import sushi.hardcore.droidfs.databinding.ActivityVideoPlayerBinding
+ 
+ class VideoPlayer: MediaPlayer() {
+     private val autoFit by lazy {
+         sharedPrefs.getBoolean("autoFit", false)
+     }
 +    private lateinit var binding: DroidfsActivityVideoPlayerBinding
-+
-+    override fun viewFile() {
+-    private lateinit var binding: ActivityVideoPlayerBinding
+ 
+     override fun viewFile() {
 +        binding = DroidfsActivityVideoPlayerBinding.inflate(layoutInflater)
+-        binding = ActivityVideoPlayerBinding.inflate(layoutInflater)
          setContentView(binding.root)
          binding.topBar.fitsSystemWindows = true
          binding.videoPlayer.doubleTapOverlay = binding.doubleTapOverlay
+-        val bottomBar = findViewById<FrameLayout>(R.id.exo_bottom_bar)
+-        val progressBar = findViewById<View>(R.id.exo_progress)
+-        ViewCompat.setOnApplyWindowInsetsListener(binding.videoPlayer) { _, windowInsets ->
+-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+-            bottomBar.apply {
+-                updatePadding(left = insets.left, right = insets.right, bottom = insets.bottom)
+-                updateLayoutParams<FrameLayout.LayoutParams> {
+-                    @SuppressLint("PrivateResource")
+-                    height = resources.getDimensionPixelSize(R.dimen.exo_styled_bottom_bar_height) + insets.bottom
+-                }
+-            }
+-            progressBar.apply {
+-                updatePadding(left = insets.left, right = insets.right)
+-                updateLayoutParams<FrameLayout.LayoutParams> {
+-                    @SuppressLint("PrivateResource")
+-                    bottomMargin = resources.getDimensionPixelSize(R.dimen.exo_styled_progress_margin_bottom) + insets.bottom
+-                }
+-            }
+-            windowInsets
+-        }
+-
+         binding.videoPlayer.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+             binding.topBar.visibility = visibility
+             if (visibility == View.VISIBLE) {
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt b/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
