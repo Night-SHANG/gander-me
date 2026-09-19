@@ -262,7 +262,7 @@ androidComponents.onVariants { variant ->
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
     // Original GPL-3.0 Legado / 阅读 3.0 local-reading subsystem, pinned as source.
     implementation(project(":legado-upstream"))
