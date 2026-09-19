@@ -632,6 +632,10 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity
  import sushi.hardcore.droidfs.LoadingTask
  import sushi.hardcore.droidfs.MainActivity
  import sushi.hardcore.droidfs.R
+@@ -27,2 +26,2 @@
+-class ExplorerActivity : BaseExplorerActivity() {
++open class ExplorerActivity : BaseExplorerActivity() {
+     companion object {
 @@ -187,8 +186,7 @@
                      listOf("importFiles", R.string.import_files, R.drawable.icon_encrypt),
                      listOf("importFolder", R.string.import_folder, R.drawable.icon_import_folder),
@@ -794,13 +798,6 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.k
          }
          explorerIntent.putExtra("volumeId", volumeId)
          explorerIntent.putExtra("volumeName", volumeShortName)
-diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
---- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
-+++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
-@@ -27 +27 @@
--class ExplorerActivity : BaseExplorerActivity() {
-+open class ExplorerActivity : BaseExplorerActivity() {
-
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
