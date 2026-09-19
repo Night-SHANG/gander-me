@@ -527,7 +527,7 @@ class VaultShelfUxRegressionTest {
     @Test
     fun simplifiedChineseResourcesHaveNoDuplicateStringNamesAcrossFiles() {
         val resourceDir = File(repo, "app/src/main/res/values-zh-rCN")
-        val stringPattern = Regex("""<string\\s+name="([^"]+)"""")
+        val stringPattern = Regex("""<string\s+name="([^"]+)"""")
         val owners = mutableMapOf<String, MutableList<String>>()
 
         resourceDir.listFiles()
