@@ -354,7 +354,7 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun txtLibraryImportDefersLegadoRegistrationUntilFirstOpen() {
+    fun txtLibraryImportRegistersLegadoInBackgroundAfterStartupWarmup() {
         val repository = File(
             repo,
             "app/src/main/java/com/arjun/gander/library/LocalLibraryRepository.kt",
@@ -363,12 +363,26 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/library/LibraryReaderRouter.kt",
         ).readText()
+        val startup = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/GanderStartupProvider.kt",
+        ).readText()
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
         val txtImport = repository
             .substringAfter("override suspend fun importTxt")
             .substringBefore("override suspend fun importMarkdown")
 
-        assertThat(txtImport).contains("importFile(uri, BookFormat.TXT")
-        assertThat(txtImport).doesNotContain("attachLegado")
+        assertThat(startup).contains("LegadoReaderBridge.initialize(appContext)")
+        assertThat(startup).contains("LegadoReaderBridge.warmUpLocalReader(appContext)")
+        assertThat(bridge).contains("fun warmUpLocalReader(context: Context)")
+        assertThat(bridge).contains("ensureLocalTxtTocRules()")
+        assertThat(txtImport).contains("val book = importFile(uri, BookFormat.TXT")
+        assertThat(txtImport).contains("scheduleLegadoAttachment(book)")
+        assertThat(txtImport).doesNotContain("attachLegado(")
+        assertThat(repository).contains("CoroutineScope(SupervisorJob() + Dispatchers.IO)")
         assertThat(router).contains("BookFormat.TXT")
         assertThat(router).contains("LegadoReaderBridge.ensureLocalBook")
     }

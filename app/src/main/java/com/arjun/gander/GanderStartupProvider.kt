@@ -22,7 +22,10 @@ class GanderStartupProvider : ContentProvider() {
         LegadoReaderBridge.initialize(appContext)
 
         val executor = Executor { runnable ->
-            Thread(runnable, "webview-warmup").apply { isDaemon = true }.start()
+            Thread(runnable, "gander-warmup").apply { isDaemon = true }.start()
+        }
+        executor.execute {
+            runCatching { LegadoReaderBridge.warmUpLocalReader(appContext) }
         }
         val config = WebViewStartUpConfig.Builder(executor)
             .setShouldRunUiThreadStartUpTasks(true)

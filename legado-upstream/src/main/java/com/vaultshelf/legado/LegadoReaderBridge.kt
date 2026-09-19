@@ -187,6 +187,17 @@ object LegadoReaderBridge {
         }
     }
 
+    /**
+     * Prime the local-reader data path after app startup without blocking launcher UI.
+     *
+     * Accessing TXT rules opens Legado's Room database and seeds its built-in TOC rules,
+     * which are the expensive one-time pieces that should not be paid by the first book.
+     */
+    fun warmUpLocalReader(context: Context) {
+        initialize(context)
+        ensureLocalTxtTocRules()
+    }
+
     private fun initializeRhino() {
         RhinoScriptEngine.initialize()
         RhinoWrapFactory.register(BookSource::class.java, NativeBaseSource.factory)
@@ -576,6 +587,7 @@ object LegadoReaderBridge {
         return File(directory, "$digest.json")
     }
 
+    @Synchronized
     fun ensureLocalBook(
         context: Context,
         file: File,

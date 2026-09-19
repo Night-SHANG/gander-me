@@ -10,7 +10,10 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -35,9 +38,11 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     }
 
     override suspend fun importTxt(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
-        importFile(uri, BookFormat.TXT, "txt") { storedFile ->
+        val book = importFile(uri, BookFormat.TXT, "txt") { storedFile ->
             TxtDecoder.decode(storedFile.readBytes()).length
         }
+        scheduleLegadoAttachment(book)
+        book
     }
 
     override suspend fun importMarkdown(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
@@ -74,23 +79,39 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         attachLegado(importFile(uri, BookFormat.EPUB, "epub") { 0 })
     }
 
+    private fun scheduleLegadoAttachment(book: LibraryBook) {
+        legadoAttachmentScope.launch {
+            attachLegado(book)
+        }
+    }
+
     private fun attachLegado(book: LibraryBook): LibraryBook {
+        val current = storedBook(book.id) ?: return book
         val snapshot = runCatching {
             LegadoReaderBridge.ensureLocalBook(
                 appContext,
-                bookFileInternal(book),
-                book.title,
+                bookFileInternal(current),
+                current.title,
             )
-        }.getOrNull() ?: return book
+        }.getOrNull() ?: return current
 
-        val coverFileName = copyLegadoCover(book.id, snapshot.coverPath)
-        val updated = book.copy(
-            title = snapshot.title.takeIf { it.isNotBlank() } ?: book.title,
-            publicationProgression = snapshot.progress,
-            coverFileName = coverFileName ?: book.coverFileName,
+        // The background TXT registration can overlap a rename/progress write. Merge the
+        // Legado metadata into the newest stored row instead of writing the import-time
+        // snapshot back over newer user state.
+        val latest = storedBook(book.id)
+        if (latest == null) {
+            runCatching { LegadoReaderBridge.forgetLocalBook(appContext, snapshot.bookUrl) }
+            return book
+        }
+
+        val coverFileName = copyLegadoCover(latest.id, snapshot.coverPath)
+        val updated = latest.copy(
+            title = snapshot.title.takeIf { it.isNotBlank() } ?: latest.title,
+            publicationProgression = latest.publicationProgression ?: snapshot.progress,
+            coverFileName = coverFileName ?: latest.coverFileName,
             legadoBookUrl = snapshot.bookUrl,
         )
-        return if (saveBook(updated)) updated else book
+        return if (saveBook(updated)) updated else latest
     }
 
     private fun copyLegadoCover(bookId: String, coverPath: String?): String? {
@@ -282,6 +303,10 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             ?: appContext.getString(R.string.vaultshelf_untitled_book)
     }
 
+    private fun storedBook(id: String): LibraryBook? =
+        preferences.getString(bookKey(id), null)
+            ?.let { runCatching { decodeBook(it) }.getOrNull() }
+
     private fun storedBooks(): List<LibraryBook> = preferences.all
         .asSequence()
         .filter { (key, value) -> key.startsWith(BOOK_KEY_PREFIX) && value is String }
@@ -383,6 +408,8 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     private fun bookKey(id: String): String = "$BOOK_KEY_PREFIX$id"
 
     private companion object {
+        val legadoAttachmentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
         const val PREFERENCES_NAME = "vaultshelf_library"
         const val BOOK_KEY_PREFIX = "book:"
         const val LIBRARY_DIRECTORY = "library"
