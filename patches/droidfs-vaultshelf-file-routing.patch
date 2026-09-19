@@ -83,7 +83,6 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/Temporar
              volumeManager = (it.applicationContext as VolumeManagerApp).volumeManager
              usfSafWriteDelegate.init(it)
              encryptedFileProvider = EncryptedFileProvider(it)
-
 @@ -76,12 +76,23 @@
      override fun query(
          uri: Uri,
