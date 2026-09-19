@@ -2,7 +2,7 @@ package com.arjun.gander
 
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
@@ -129,7 +129,7 @@ class VaultShelfActivity : AppCompatActivity() {
     }
 
     private fun openUrl(url: String) {
-        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
             .onFailure { Toast.makeText(this, R.string.no_browser, Toast.LENGTH_SHORT).show() }
     }
 
