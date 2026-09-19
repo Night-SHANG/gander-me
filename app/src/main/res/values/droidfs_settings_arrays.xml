@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string-array name="color_names">
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string-array name="color_names" tools:ignore="UnusedResources">
         <item>Dynamic</item>
         <item>Green</item>
         <item>Red</item>
@@ -10,7 +10,7 @@
         <item>Purple</item>
         <item>Pink</item>
     </string-array>
-    <string-array name="export_methods">
+    <string-array name="export_methods" tools:ignore="UnusedResources">
         <item>Auto (depending on available memory)</item>
         <item>Temporary export on disk (reliable but may leave traces)</item>
         <item>Memory file (safer but does not always work)</item>
