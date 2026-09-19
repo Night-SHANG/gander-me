@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Only the components required by the local reading experience are merged.
+         The upstream Legado application manifest is deliberately not imported. -->
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- Android 11+ package visibility: required for TextToSpeech to discover installed engines.
+         This does not grant network access or any runtime permission. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
+    <application>
+        <activity
+            android:name="io.legado.app.ui.book.read.ReadBookActivity"
+            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/AppTheme.Light" />
+
+        <activity
+            android:name="io.legado.app.ui.book.toc.TocActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="behind"
+            android:theme="@style/AppTheme.Light" />
+
+        <activity
+            android:name="io.legado.app.ui.book.searchContent.SearchContentActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="behind"
+            android:theme="@style/AppTheme.Light" />
+
+        <activity
+            android:name="io.legado.app.ui.book.info.BookInfoActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/AppTheme.Light" />
+
+        <activity
+            android:name="io.legado.app.ui.book.info.edit.BookInfoEditActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/AppTheme.Light" />
+
+        <activity
+            android:name="io.legado.app.ui.file.HandleFileActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Transparent" />
+
+        <activity
+            android:name="io.legado.app.ui.association.OpenUrlConfirmActivity"
+            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="false"
+            android:theme="@style/AppTheme.Transparent" />
+
+        <activity
+            android:name="io.legado.app.ui.replace.ReplaceRuleActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Light" />
+        <activity
+            android:name="io.legado.app.ui.replace.edit.ReplaceEditActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Light" />
+
+        <activity
+            android:name="io.legado.app.ui.code.CodeEditActivity"
+            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/AppTheme.Light"
+            android:windowSoftInputMode="adjustResize|stateHidden" />
+
+        <activity
+            android:name="io.legado.app.ui.highlight.HighlightRuleActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Light" />
+
+        <activity
+            android:name="io.legado.app.ui.book.toc.rule.TxtTocRuleActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Light" />
+
+        <activity
+            android:name="io.legado.app.lib.permission.PermissionActivity"
+            android:exported="false"
+            android:theme="@style/Activity.Permission" />
+
+        <service
+            android:name="io.legado.app.service.TTSReadAloudService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <receiver
+            android:name="io.legado.app.receiver.MediaButtonReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileProvider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+</manifest>

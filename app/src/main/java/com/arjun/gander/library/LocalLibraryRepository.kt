@@ -1,16 +1,19 @@
 package com.arjun.gander.library
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.arjun.gander.R
-import com.arjun.gander.epub.EpubLibraryMetadataReader
+import com.vaultshelf.legado.LegadoReaderBridge
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.security.MessageDigest
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -20,10 +23,8 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     private val preferences = appContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     override suspend fun listBooks(): List<LibraryBook> = withContext(Dispatchers.IO) {
-        preferences.all
+        storedBooks()
             .asSequence()
-            .filter { (key, value) -> key.startsWith(BOOK_KEY_PREFIX) && value is String }
-            .mapNotNull { (_, value) -> runCatching { decodeBook(value as String) }.getOrNull() }
             .sortedWith(
                 compareByDescending<LibraryBook> {
                     if (it.lastOpenedAtEpochMillis > 0L) it.lastOpenedAtEpochMillis else it.addedAtEpochMillis
@@ -37,34 +38,96 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     }
 
     override suspend fun importTxt(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
-        importFile(uri, BookFormat.TXT, "txt") { storedFile ->
+        val book = importFile(uri, BookFormat.TXT, "txt") { storedFile ->
+            TxtDecoder.decode(storedFile.readBytes()).length
+        }
+        scheduleLegadoAttachment(book)
+        book
+    }
+
+    override suspend fun importMarkdown(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
+        importFile(uri, BookFormat.MARKDOWN, "md") { storedFile ->
             TxtDecoder.decode(storedFile.readBytes()).length
         }
     }
 
-    override suspend fun importEpub(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
-        val imported = importFile(uri, BookFormat.EPUB, "epub") { 0 }
-        val storedFile = bookFileInternal(imported)
-        val metadata = EpubLibraryMetadataReader.read(storedFile).getOrNull()
-            ?: return@withContext imported
-
-        val coverFileName = metadata.cover?.let { cover ->
-            val name = "${imported.id}.cover.png"
-            val file = File(libraryDirectory(), name)
-            val saved = runCatching {
-                file.outputStream().buffered().use { output ->
-                    cover.compress(Bitmap.CompressFormat.PNG, 100, output)
-                }
-            }.getOrDefault(false)
-            if (saved && file.isFile) name else null
-        }
-        val updated = imported.copy(
-            title = metadata.title ?: imported.title,
-            coverFileName = coverFileName,
-        )
-        if (saveBook(updated)) updated else imported
+    override suspend fun importPdf(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
+        importFile(uri, BookFormat.PDF, "pdf") { 0 }
     }
 
+    override suspend fun importUmd(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
+        attachLegado(importFile(uri, BookFormat.UMD, "umd") { 0 })
+    }
+
+    override suspend fun importMobi(
+        uri: Uri,
+        format: BookFormat,
+    ): LibraryBook = withContext(Dispatchers.IO) {
+        require(format == BookFormat.MOBI || format == BookFormat.AZW3 || format == BookFormat.AZW) {
+            "Unsupported MOBI-family format"
+        }
+        val extension = when (format) {
+            BookFormat.MOBI -> "mobi"
+            BookFormat.AZW3 -> "azw3"
+            BookFormat.AZW -> "azw"
+            else -> error("Unsupported MOBI-family format")
+        }
+        attachLegado(importFile(uri, format, extension) { 0 })
+    }
+
+    override suspend fun importEpub(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
+        attachLegado(importFile(uri, BookFormat.EPUB, "epub") { 0 })
+    }
+
+    private fun scheduleLegadoAttachment(book: LibraryBook) {
+        legadoAttachmentScope.launch {
+            attachLegado(book)
+        }
+    }
+
+    private fun attachLegado(book: LibraryBook): LibraryBook {
+        val current = storedBook(book.id) ?: return book
+        val snapshot = runCatching {
+            LegadoReaderBridge.ensureLocalBook(
+                appContext,
+                bookFileInternal(current),
+                current.title,
+            )
+        }.getOrNull() ?: return current
+
+        // The background TXT registration can overlap a rename/progress write. Merge the
+        // Legado metadata into the newest stored row instead of writing the import-time
+        // snapshot back over newer user state.
+        val latest = storedBook(book.id)
+        if (latest == null) {
+            runCatching { LegadoReaderBridge.forgetLocalBook(appContext, snapshot.bookUrl) }
+            return book
+        }
+
+        val coverFileName = copyLegadoCover(latest.id, snapshot.coverPath)
+        val updated = latest.copy(
+            title = snapshot.title.takeIf { it.isNotBlank() } ?: latest.title,
+            publicationProgression = latest.publicationProgression ?: snapshot.progress,
+            coverFileName = coverFileName ?: latest.coverFileName,
+            legadoBookUrl = snapshot.bookUrl,
+        )
+        return if (saveBook(updated)) updated else latest
+    }
+
+    private fun copyLegadoCover(bookId: String, coverPath: String?): String? {
+        val source = coverPath
+            ?.let(::File)
+            ?.takeIf { it.isFile && it.length() > 0L }
+            ?: return null
+        val name = "$bookId.cover"
+        val target = File(libraryDirectory(), name)
+        return runCatching {
+            source.copyTo(target, overwrite = true)
+            name
+        }.getOrNull()
+    }
+
+    @android.annotation.SuppressLint("Recycle")
     private fun importFile(
         uri: Uri,
         format: BookFormat,
@@ -84,6 +147,12 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
                 temporaryFile.outputStream().buffered().use { destination ->
                     source.copyTo(destination)
                 }
+            }
+
+            val contentSha256 = sha256(temporaryFile)
+            findDuplicate(format, temporaryFile.length(), contentSha256)?.let { existing ->
+                temporaryFile.delete()
+                return existing
             }
 
             if (!temporaryFile.renameTo(storedFile)) {
@@ -107,6 +176,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
                 addedAtEpochMillis = now,
                 lastOpenedAtEpochMillis = 0L,
                 readingOffset = 0,
+                contentSha256 = contentSha256,
             )
             if (!saveBook(book)) throw IOException("Unable to save library metadata")
             return book
@@ -157,16 +227,38 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         if (saveBook(updated)) updated else current
     }
 
-    override suspend fun updateEpubProgress(
+    override suspend fun updateViewerProgress(
         id: String,
-        locatorJson: String,
-        publicationProgression: Float?,
+        progressFraction: Float,
     ): LibraryBook? = withContext(Dispatchers.IO) {
         val current = getBook(id) ?: return@withContext null
-        if (current.format != BookFormat.EPUB) return@withContext current
+        val safe = progressFraction.coerceIn(0f, 1f)
+        val updated = when (current.format) {
+            BookFormat.MARKDOWN -> current.copy(
+                readingOffset = (current.totalCharacters * safe).toInt()
+                    .coerceIn(0, current.totalCharacters.coerceAtLeast(0)),
+                lastOpenedAtEpochMillis = System.currentTimeMillis(),
+            )
+
+            BookFormat.PDF -> current.copy(
+                publicationProgression = safe,
+                lastOpenedAtEpochMillis = System.currentTimeMillis(),
+            )
+
+            else -> current
+        }
+        if (updated == current) current else if (saveBook(updated)) updated else current
+    }
+
+    override suspend fun updateLegadoProgress(
+        id: String,
+        legadoBookUrl: String,
+        progressFraction: Float,
+    ): LibraryBook? = withContext(Dispatchers.IO) {
+        val current = getBook(id) ?: return@withContext null
         val updated = current.copy(
-            readingLocatorJson = locatorJson,
-            publicationProgression = publicationProgression?.coerceIn(0f, 1f),
+            legadoBookUrl = legadoBookUrl,
+            publicationProgression = progressFraction.coerceIn(0f, 1f),
             lastOpenedAtEpochMillis = System.currentTimeMillis(),
         )
         if (saveBook(updated)) updated else current
@@ -174,6 +266,9 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
 
     override suspend fun deleteBook(id: String): Boolean = withContext(Dispatchers.IO) {
         val current = getBook(id) ?: return@withContext false
+        current.legadoBookUrl?.let { bookUrl ->
+            runCatching { LegadoReaderBridge.forgetLocalBook(appContext, bookUrl) }
+        }
         File(libraryDirectory(), current.storedFileName).delete()
         current.coverFileName?.let { File(libraryDirectory(), it).delete() }
         preferences.edit().remove(bookKey(id)).commit()
@@ -183,6 +278,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         if (!exists() && !mkdirs()) throw IOException("Unable to create library directory")
     }
 
+    @android.annotation.SuppressLint("Recycle")
     private fun displayName(uri: Uri): String {
         runCatching {
             appContext.contentResolver.query(
@@ -207,6 +303,56 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             ?: appContext.getString(R.string.vaultshelf_untitled_book)
     }
 
+    private fun storedBook(id: String): LibraryBook? =
+        preferences.getString(bookKey(id), null)
+            ?.let { runCatching { decodeBook(it) }.getOrNull() }
+
+    private fun storedBooks(): List<LibraryBook> = preferences.all
+        .asSequence()
+        .filter { (key, value) -> key.startsWith(BOOK_KEY_PREFIX) && value is String }
+        .mapNotNull { (_, value) -> runCatching { decodeBook(value as String) }.getOrNull() }
+        .toList()
+
+    private fun findDuplicate(
+        format: BookFormat,
+        sizeBytes: Long,
+        contentSha256: String,
+    ): LibraryBook? {
+        storedBooks()
+            .asSequence()
+            .filter { it.format == format && it.sizeBytes == sizeBytes }
+            .forEach { candidate ->
+                val file = File(libraryDirectory(), candidate.storedFileName)
+                if (!file.isFile) return@forEach
+                val candidateHash = candidate.contentSha256
+                    ?: runCatching { sha256(file) }.getOrNull()
+                    ?: return@forEach
+                if (candidateHash == contentSha256) {
+                    return if (candidate.contentSha256 == null) {
+                        candidate.copy(contentSha256 = candidateHash).also { saveBook(it) }
+                    } else {
+                        candidate
+                    }
+                }
+            }
+        return null
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                if (read > 0) digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") {
+            (it.toInt() and 0xff).toString(16).padStart(2, '0')
+        }
+    }
+
     private fun saveBook(book: LibraryBook): Boolean = preferences.edit()
         .putString(bookKey(book.id), encodeBook(book))
         .commit()
@@ -221,15 +367,14 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         .put("addedAtEpochMillis", book.addedAtEpochMillis)
         .put("lastOpenedAtEpochMillis", book.lastOpenedAtEpochMillis)
         .put("readingOffset", book.readingOffset)
-        .put("readingLocatorJson", book.readingLocatorJson ?: JSONObject.NULL)
         .put("publicationProgression", book.publicationProgression ?: JSONObject.NULL)
         .put("coverFileName", book.coverFileName ?: JSONObject.NULL)
+        .put("legadoBookUrl", book.legadoBookUrl ?: JSONObject.NULL)
+        .put("contentSha256", book.contentSha256 ?: JSONObject.NULL)
         .toString()
 
     private fun decodeBook(json: String): LibraryBook {
         val value = JSONObject(json)
-        val locatorJson = value.optString("readingLocatorJson")
-            .takeIf { it.isNotBlank() && it != "null" }
         val publicationProgression = if (
             value.has("publicationProgression") && !value.isNull("publicationProgression")
         ) {
@@ -238,6 +383,10 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             null
         }
         val coverFileName = value.optString("coverFileName")
+            .takeIf { it.isNotBlank() && it != "null" }
+        val legadoBookUrl = value.optString("legadoBookUrl")
+            .takeIf { it.isNotBlank() && it != "null" }
+        val contentSha256 = value.optString("contentSha256")
             .takeIf { it.isNotBlank() && it != "null" }
         return LibraryBook(
             id = value.getString("id"),
@@ -249,15 +398,18 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             addedAtEpochMillis = value.getLong("addedAtEpochMillis"),
             lastOpenedAtEpochMillis = value.optLong("lastOpenedAtEpochMillis", 0L),
             readingOffset = value.optInt("readingOffset", 0),
-            readingLocatorJson = locatorJson,
             publicationProgression = publicationProgression,
             coverFileName = coverFileName,
+            legadoBookUrl = legadoBookUrl,
+            contentSha256 = contentSha256,
         )
     }
 
     private fun bookKey(id: String): String = "$BOOK_KEY_PREFIX$id"
 
     private companion object {
+        val legadoAttachmentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
         const val PREFERENCES_NAME = "vaultshelf_library"
         const val BOOK_KEY_PREFIX = "book:"
         const val LIBRARY_DIRECTORY = "library"

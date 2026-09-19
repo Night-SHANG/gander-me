@@ -210,8 +210,8 @@ class ReleaseHygieneTest {
     }
 
     /**
-     * Zero permissions is the whole promise, and app/build.gradle.kts fails
-     * the build if the merged manifest requests one. That gate is the thing
+     * The reviewed permission boundary is enforced by app/build.gradle.kts.
+     * That gate is the thing
      * that must not quietly disappear, so its absence fails here too.
      */
     @Test

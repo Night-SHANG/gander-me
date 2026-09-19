@@ -56,13 +56,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.arjun.gander.EpubReaderActivity
 import com.arjun.gander.R
-import com.arjun.gander.TxtReaderActivity
+import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
+import com.arjun.gander.library.createReaderLaunchPlan
+import com.arjun.gander.library.syncLegadoReaderProgress
 import com.arjun.gander.ui.library.LibraryScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -83,11 +84,19 @@ private enum class VaultShelfDestination(
 fun VaultShelfShell(
     libraryRepository: LibraryRepository,
     onOpenFiles: () -> Unit,
+    onOpenVault: () -> Unit,
+    onOpenVaultSettings: () -> Unit,
+    onOpenVaultBackup: () -> Unit,
+    onImportBooksToVault: (List<LibraryBook>) -> Unit,
+    onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedName by rememberSaveable { mutableStateOf(VaultShelfDestination.HOME.name) }
     val selected = VaultShelfDestination.entries
         .firstOrNull { it.name == selectedName }
+        ?.takeUnless {
+            it == VaultShelfDestination.FILES || it == VaultShelfDestination.VAULT
+        }
         ?: VaultShelfDestination.HOME
 
     Scaffold(
@@ -96,7 +105,13 @@ fun VaultShelfShell(
         bottomBar = {
             FluentBottomBar(
                 selected = selected,
-                onSelected = { selectedName = it.name },
+                onSelected = { destination ->
+                    when (destination) {
+                        VaultShelfDestination.FILES -> onOpenFiles()
+                        VaultShelfDestination.VAULT -> onOpenVault()
+                        else -> selectedName = destination.name
+                    }
+                },
             )
         },
     ) { innerPadding ->
@@ -106,28 +121,35 @@ fun VaultShelfShell(
                 modifier = Modifier.padding(innerPadding),
                 onOpenFiles = onOpenFiles,
                 onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
-                onOpenVault = { selectedName = VaultShelfDestination.VAULT.name },
+                onOpenVault = onOpenVault,
             )
 
             VaultShelfDestination.LIBRARY -> LibraryScreen(
                 repository = libraryRepository,
+                onImportToVault = onImportBooksToVault,
                 modifier = Modifier.padding(innerPadding),
             )
 
-            VaultShelfDestination.FILES -> FilesScreen(
+            VaultShelfDestination.FILES -> HomeScreen(
+                libraryRepository = libraryRepository,
+                modifier = Modifier.padding(innerPadding),
                 onOpenFiles = onOpenFiles,
-                modifier = Modifier.padding(innerPadding),
+                onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
+                onOpenVault = onOpenVault,
             )
 
-            VaultShelfDestination.VAULT -> FoundationScreen(
-                titleRes = R.string.vaultshelf_vault_title,
-                detailRes = R.string.vaultshelf_vault_placeholder,
+            VaultShelfDestination.VAULT -> HomeScreen(
+                libraryRepository = libraryRepository,
                 modifier = Modifier.padding(innerPadding),
+                onOpenFiles = onOpenFiles,
+                onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
+                onOpenVault = onOpenVault,
             )
 
-            VaultShelfDestination.SETTINGS -> FoundationScreen(
-                titleRes = R.string.vaultshelf_settings_title,
-                detailRes = R.string.vaultshelf_settings_placeholder,
+            VaultShelfDestination.SETTINGS -> SettingsScreen(
+                onOpenVaultSettings = onOpenVaultSettings,
+                onOpenVaultBackup = onOpenVaultBackup,
+                onOpenAbout = onOpenAbout,
                 modifier = Modifier.padding(innerPadding),
             )
         }
@@ -145,6 +167,8 @@ private fun HomeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var recentBooks by remember { mutableStateOf<List<LibraryBook>>(emptyList()) }
+    var pendingLegadoBookId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingLegadoBookUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun refreshRecent() {
         scope.launch {
@@ -158,19 +182,45 @@ private fun HomeScreen(
 
     val readerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
-    ) {
-        refreshRecent()
+    ) { result ->
+        val legadoId = pendingLegadoBookId
+        val legadoUrl = pendingLegadoBookUrl
+        if (legadoId != null && legadoUrl != null) {
+            pendingLegadoBookId = null
+            pendingLegadoBookUrl = null
+            scope.launch {
+                syncLegadoReaderProgress(context, libraryRepository, legadoId, legadoUrl)
+                refreshRecent()
+            }
+            return@rememberLauncherForActivityResult
+        }
+
+        val data = result.data
+        val bookId = data?.getStringExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID)
+        val hasProgress = data?.hasExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS) == true
+        if (result.resultCode == android.app.Activity.RESULT_OK && bookId != null && hasProgress) {
+            val progress = data?.getFloatExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS, 0f) ?: 0f
+            scope.launch {
+                libraryRepository.updateViewerProgress(bookId, progress)
+                refreshRecent()
+            }
+        } else {
+            refreshRecent()
+        }
     }
 
     fun openBook(book: LibraryBook) {
-        val intent = when (book.format) {
-            BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
-                .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
-
-            BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
-                .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+        scope.launch {
+            runCatching {
+                createReaderLaunchPlan(context, libraryRepository, book)
+            }.onSuccess { plan ->
+                if (plan.legadoBookUrl != null) {
+                    pendingLegadoBookId = book.id
+                    pendingLegadoBookUrl = plan.legadoBookUrl
+                }
+                readerLauncher.launch(plan.intent)
+            }
         }
-        readerLauncher.launch(intent)
     }
 
     LaunchedEffect(libraryRepository) {
@@ -416,71 +466,99 @@ private fun QuickActionTile(
 }
 
 @Composable
-private fun FilesScreen(
-    onOpenFiles: () -> Unit,
+private fun SettingsScreen(
+    onOpenVaultSettings: () -> Unit,
+    onOpenVaultBackup: () -> Unit,
+    onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(
-            text = stringResource(R.string.vaultshelf_files_title),
+            text = stringResource(R.string.vaultshelf_settings_title),
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.SemiBold,
         )
-        Text(
-            text = stringResource(R.string.vaultshelf_files_detail),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+        SettingsEntry(
+            titleRes = R.string.vaultshelf_settings_vault,
+            detailRes = R.string.vaultshelf_settings_vault_detail,
+            iconRes = R.drawable.ic_vaultshelf_vault,
+            onClick = onOpenVaultSettings,
         )
-        Button(
-            onClick = onOpenFiles,
-            shape = RoundedCornerShape(10.dp),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp),
-        ) {
-            Text(stringResource(R.string.vaultshelf_open_file_browser))
-        }
+
+        SettingsEntry(
+            titleRes = R.string.vaultshelf_settings_backup,
+            detailRes = R.string.vaultshelf_settings_backup_detail,
+            iconRes = R.drawable.ic_vaultshelf_vault,
+            onClick = onOpenVaultBackup,
+        )
+
+        SettingsEntry(
+            titleRes = R.string.vaultshelf_settings_about,
+            detailRes = R.string.vaultshelf_settings_about_detail,
+            iconRes = R.drawable.ic_vaultshelf_settings,
+            onClick = onOpenAbout,
+        )
     }
 }
 
 @Composable
-private fun FoundationScreen(
+private fun SettingsEntry(
     @StringRes titleRes: Int,
     @StringRes detailRes: Int,
-    modifier: Modifier = Modifier,
+    @DrawableRes iconRes: Int,
+    onClick: (() -> Unit)?,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                },
+            ),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
     ) {
-        Text(
-            text = stringResource(titleRes),
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+            ) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(10.dp).size(22.dp),
+                )
+            }
             Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 Text(
-                    text = stringResource(R.string.vaultshelf_foundation_status),
+                    text = stringResource(titleRes),
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = stringResource(detailRes),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

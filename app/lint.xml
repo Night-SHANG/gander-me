@@ -1,30 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <lint>
-    <!--
-        LocalLibraryRepository intentionally uses SharedPreferences.Editor.commit()
-        because import/delete operations need the synchronous boolean result before
-        reporting success. The KTX edit helper returns Unit and would remove that
-        contract.
-    -->
+    <!-- SharedPreferences.Editor.commit() is intentional here because callers need its boolean result. -->
     <issue id="UseKtx">
         <ignore path="src/main/java/com/arjun/gander/library/LocalLibraryRepository.kt" />
-        <!--
-            The mature TXT/EPUB readers keep a tiny set of local typography preferences
-            with SharedPreferences. Keep that persistence detail local to the reader
-            activities rather than introducing another settings abstraction solely for
-            style lint; both use apply() and never depend on a synchronous result.
-        -->
-        <ignore path="src/main/java/com/arjun/gander/TxtReaderActivity.kt" />
-        <ignore path="src/main/java/com/arjun/gander/EpubReaderActivity.kt" />
     </issue>
 
-    <!--
-        Gander's custom audio transport intentionally includes Media3's rewind/forward
-        controller layouts so PlayerControlView can supply the seek amount and matching
-        controls. Keep the existing exception scoped to this one legacy layout instead
-        of weakening PrivateResource checks project-wide.
-    -->
+    <!-- Media3 controller internals are deliberately used by this one mature audio layout. -->
     <issue id="PrivateResource">
         <ignore path="src/main/res/layout/view_audio_controls.xml" />
+    </issue>
+
+    <!-- This milestone is deliberately pinned to compile/target SDK 36 with AGP 8.11 / Compose 1.11. -->
+    <issue id="OldTargetApi">
+        <ignore path="build.gradle.kts" />
+    </issue>
+
+    <!-- Finding is inside the pinned third-party BouncyCastle jar, not VaultShelf code. -->
+    <issue id="TrustAllX509TrustManager">
+        <ignore regexp=".*bcpkix-jdk18on.*" />
+    </issue>
+
+    <!-- Root FrameLayout is required for the full-width centred toolbar overlay. -->
+    <issue id="MergeRootFrame">
+        <ignore path="src/main/res/layout/gander_activity_main.xml" />
+    </issue>
+
+    <!-- These app-priority labels override generic names referenced from Legado/DroidFS dependencies. -->
+    <issue id="UnusedResources">
+        <ignore path="src/main/res/values/upstream_shared_strings.xml" />
+        <ignore path="src/main/res/values-zh-rCN/upstream_shared_strings.xml" />
     </issue>
 </lint>

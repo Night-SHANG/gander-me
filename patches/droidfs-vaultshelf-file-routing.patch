@@ -1,0 +1,780 @@
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
+@@ -26,6 +26,7 @@
+ import kotlinx.coroutines.cancel
+ import kotlinx.coroutines.cancelAndJoin
+ import kotlinx.coroutines.launch
++import com.vaultshelf.droidfs.VaultShelfFileRouter
+ import kotlinx.coroutines.yield
+ import sushi.hardcore.droidfs.BaseActivity
+ import sushi.hardcore.droidfs.Constants
+@@ -43,7 +44,6 @@
+ import sushi.hardcore.droidfs.file_operations.TaskResult
+ import sushi.hardcore.droidfs.file_viewers.AudioPlayer
+ import sushi.hardcore.droidfs.file_viewers.ImageViewer
+-import sushi.hardcore.droidfs.file_viewers.PdfViewer
+ import sushi.hardcore.droidfs.file_viewers.TextEditor
+ import sushi.hardcore.droidfs.file_viewers.VideoPlayer
+ import sushi.hardcore.droidfs.filesystems.EncryptedVolume
+@@ -247,7 +247,7 @@
+                     "image" -> startFileViewer(ImageViewer::class.java, path)
+                     "video" -> startFileViewer(VideoPlayer::class.java, path)
+                     "audio" -> startFileViewer(AudioPlayer::class.java, path)
++                    "pdf" -> VaultShelfFileRouter.open(this, path, explorerElement.stat.size, volumeId)
+-                    "pdf" -> startFileViewer(PdfViewer::class.java, path)
+                     "text" -> startFileViewer(TextEditor::class.java, path)
+                     "external" -> if (usf_open) {
+                         openWithExternalApp(path, explorerElement.stat.size)
+@@ -304,6 +304,15 @@
+                 explorerElements[position].isParentFolder -> {
+                     changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
+                 }
++                VaultShelfFileRouter.supports(fullPath) -> {
++                    val element = explorerElements[position]
++                    if (!VaultShelfFileRouter.open(
++                            this, fullPath, element.stat.size, volumeId
++                        )
++                    ) {
++                        showOpenAsDialog(element)
++                    }
++                }
+                 FileTypes.isImage(fullPath) -> {
+                     startFileViewer(ImageViewer::class.java, fullPath)
+                 }
+@@ -313,9 +322,6 @@
+                 FileTypes.isText(fullPath) -> {
+                     startFileViewer(TextEditor::class.java, fullPath)
+                 }
+-                FileTypes.isPDF(fullPath) -> {
+-                    startFileViewer(PdfViewer::class.java, fullPath)
+-                }
+                 FileTypes.isAudio(fullPath) -> {
+                     startFileViewer(AudioPlayer::class.java, fullPath)
+                 }
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
+@@ -11,9 +11,8 @@ import android.provider.OpenableColumns
+ import android.util.Log
+ import android.webkit.MimeTypeMap
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.GlobalScope
+ import kotlinx.coroutines.launch
+-import sushi.hardcore.droidfs.BuildConfig
+ import sushi.hardcore.droidfs.EncryptedFileProvider
+ import sushi.hardcore.droidfs.VolumeManager
+ import sushi.hardcore.droidfs.VolumeManagerApp
+@@ -31,8 +30,7 @@ class TemporaryFileProvider : ContentProvider() {
+ 
+     companion object {
+         private const val TAG = "TemporaryFileProvider"
+-        private const val AUTHORITY = BuildConfig.APPLICATION_ID + ".temporary_provider"
+-        private val BASE_URI: Uri = Uri.parse("content://$AUTHORITY")
++        private lateinit var BASE_URI: Uri
+ 
+         lateinit var instance: TemporaryFileProvider
+             private set
+@@ -46,6 +44,7 @@ class TemporaryFileProvider : ContentProvider() {
+ 
+     override fun onCreate(): Boolean {
+         return context?.let {
++            BASE_URI = Uri.parse("content://${it.packageName}.temporary_provider")
+             volumeManager = (it.applicationContext as VolumeManagerApp).volumeManager
+             usfSafWriteDelegate.init(it)
+             encryptedFileProvider = EncryptedFileProvider(it)
+@@ -76,12 +76,23 @@
+     override fun query(
+         uri: Uri,
+         projection: Array<String>?,
+         selection: String?,
+         selectionArgs: Array<String>?,
+         sortOrder: String?
+     ): Cursor? {
+         val file = files[uri] ?: return null
+-        return MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), 1).apply {
+-            addRow(arrayOf(File(file.file.path).name, file.size))
++        val columns = projection ?: arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
++        return MatrixCursor(columns, 1).apply {
++            addRow(columns.map<String, Any?> { column ->
++                when (column) {
++                    OpenableColumns.DISPLAY_NAME -> File(file.file.path).name
++                    OpenableColumns.SIZE -> file.size
++                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID -> uri.lastPathSegment
++                    android.provider.DocumentsContract.Document.COLUMN_LAST_MODIFIED -> 0L
++                    android.provider.DocumentsContract.Document.COLUMN_FLAGS -> 0
++                    android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE -> getType(uri)
++                    else -> null
++                }
++            }.toTypedArray())
+         }
+     }
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
+@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.withLock
+ import kotlinx.coroutines.withContext
++import com.vaultshelf.droidfs.VaultShelfExternalMediaRouter
+ import sushi.hardcore.droidfs.BaseActivity
+ import sushi.hardcore.droidfs.FileTypes
+ import sushi.hardcore.droidfs.R
+@@ -35,5 +36,10 @@ abstract class FileViewerActivity: BaseActivity() {
+     protected lateinit var encryptedVolume: EncryptedVolume
+     protected val volumeId: Int by lazy { intent.getIntExtra("volumeId", -1) }
++    protected val plainMediaUri by lazy {
++        intent.data.takeIf {
++            intent.getBooleanExtra(VaultShelfExternalMediaRouter.EXTRA_PLAIN_MEDIA, false)
++        }
++    }
+     private lateinit var originalParentPath: String
+     private lateinit var windowInsetsController: WindowInsetsControllerCompat
+     private val playlistMutex = Mutex()
+@@ -49,12 +55,22 @@ abstract class FileViewerActivity: BaseActivity() {
+             windowInsetsController.isAppearanceLightNavigationBars = false
+         }
+         if (fileViewerViewModel.filePath == null) {
+-            fileViewerViewModel.filePath = intent.getStringExtra("path")!!
++            fileViewerViewModel.filePath = if (plainMediaUri != null) {
++                intent.getStringExtra(VaultShelfExternalMediaRouter.EXTRA_DISPLAY_NAME)
++                    ?: plainMediaUri?.lastPathSegment
++                    ?: "media"
++            } else {
++                intent.getStringExtra("path")!!
++            }
++        }
++        if (plainMediaUri == null) {
++            originalParentPath = PathUtils.getParentPath(fileViewerViewModel.filePath!!)
++            encryptedVolume = (application as VolumeManagerApp).volumeManager.getVolume(
++                volumeId
++            )!!
++            finishOnClose(encryptedVolume)
++        } else {
++            originalParentPath = ""
+         }
+-        originalParentPath = PathUtils.getParentPath(fileViewerViewModel.filePath!!)
+-        encryptedVolume = (application as VolumeManagerApp).volumeManager.getVolume(
+-            volumeId
+-        )!!
+-        finishOnClose(encryptedVolume)
+         viewFile()
+     }
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/MediaPlayer.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/MediaPlayer.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/MediaPlayer.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/MediaPlayer.kt
+@@ -8,88 +8,141 @@
+ import androidx.media3.common.Player
+ import androidx.media3.common.VideoSize
+ import androidx.media3.common.util.UnstableApi
+-import androidx.media3.exoplayer.ExoPlayer
+-import androidx.media3.exoplayer.source.MediaSource
+-import androidx.media3.exoplayer.source.ProgressiveMediaSource
+-import androidx.media3.extractor.DefaultExtractorsFactory
+-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+-import kotlinx.coroutines.launch
+-import sushi.hardcore.droidfs.Constants
+-import sushi.hardcore.droidfs.R
+-import java.io.File
+-
+-@OptIn(UnstableApi::class)
+-abstract class MediaPlayer: FileViewerActivity() {
+-    override val blackBackground: Boolean = true
+-    private lateinit var player: ExoPlayer
+-
+-    override fun viewFile() {
+-        initializePlayer()
+-        refreshFileName()
+-    }
+-
+-    abstract fun bindPlayer(player: ExoPlayer)
+-    abstract fun onNewFileName(fileName: String)
+-    protected open fun onVideoSizeChanged(width: Int, height: Int) {}
+-
+-    private fun createMediaSource(filePath: String): MediaSource {
+-        val dataSourceFactory = EncryptedVolumeDataSource.Factory(encryptedVolume, filePath)
+-        return ProgressiveMediaSource.Factory(dataSourceFactory, DefaultExtractorsFactory())
+-            .createMediaSource(MediaItem.fromUri(Constants.FAKE_URI))
+-    }
+-
+-    private fun initializePlayer(){
+-        player = ExoPlayer.Builder(this).setSeekForwardIncrementMs(5000).build()
+-        bindPlayer(player)
+-        player.addMediaSource(createMediaSource(fileViewerViewModel.filePath!!))
+-        lifecycleScope.launch {
+-            createPlaylist()
+-            fileViewerViewModel.playlist.forEachIndexed { index, e ->
+-                if (index != fileViewerViewModel.currentPlaylistIndex) {
+-                    player.addMediaSource(index, createMediaSource(e.fullPath))
+-                }
+-            }
+-        }
+-        player.repeatMode = sharedPrefs.getInt("playerRepeatMode", Player.REPEAT_MODE_ALL)
+-        player.playWhenReady = true
+-        player.addListener(object : Player.Listener{
+-            override fun onVideoSizeChanged(videoSize: VideoSize) {
+-                if (videoSize.width > 0 && videoSize.height > 0) {
+-                    onVideoSizeChanged(videoSize.width, videoSize.height)
+-                }
+-            }
+-            override fun onPlayerError(error: PlaybackException) {
+-                MaterialAlertDialogBuilder(this@MediaPlayer)
+-                        .setTitle(R.string.error)
+-                        .setMessage(getString(R.string.playing_failed, error.errorCodeName))
+-                        .setCancelable(false)
+-                        .setPositiveButton(R.string.ok) { _, _ -> goBackToExplorer()}
+-                        .show()
+-            }
+-            override fun onIsPlayingChanged(isPlaying: Boolean) {
+-                if (isPlaying){
+-                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+-                } else {
+-                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+-                }
+-            }
+-
+-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+-                if (player.repeatMode != Player.REPEAT_MODE_ONE && fileViewerViewModel.currentPlaylistIndex != -1) {
+-                    lifecycleScope.launch {
+-                        playlistNext(player.currentMediaItemIndex == (fileViewerViewModel.currentPlaylistIndex + 1) % player.mediaItemCount)
+-                        refreshFileName()
+-                    }
+-                }
+-            }
+-            override fun onRepeatModeChanged(repeatMode: Int) {
+-                with (sharedPrefs.edit()) {
+-                    putInt("playerRepeatMode", repeatMode)
+-                    apply()
+-                }
+-            }
+-        })
+-        player.prepare()
++import androidx.media3.datasource.DefaultDataSource
++import androidx.media3.exoplayer.ExoPlayer
++import androidx.media3.exoplayer.source.MediaSource
++import androidx.media3.exoplayer.source.ProgressiveMediaSource
++import androidx.media3.extractor.DefaultExtractorsFactory
++import com.google.android.material.dialog.MaterialAlertDialogBuilder
++import com.vaultshelf.droidfs.VaultShelfExternalMediaRouter
++import com.vaultshelf.droidfs.VaultShelfProgressStore
++import kotlinx.coroutines.launch
++import sushi.hardcore.droidfs.Constants
++import sushi.hardcore.droidfs.R
++import java.io.File
++
++@OptIn(UnstableApi::class)
++abstract class MediaPlayer: FileViewerActivity() {
++    override val blackBackground: Boolean = true
++    private lateinit var player: ExoPlayer
++
++    override fun viewFile() {
++        initializePlayer()
++        refreshFileName()
++    }
++
++    abstract fun bindPlayer(player: ExoPlayer)
++    abstract fun onNewFileName(fileName: String)
++    protected open fun onVideoSizeChanged(width: Int, height: Int) {}
++
++    private fun createMediaSource(filePath: String): MediaSource {
++        plainMediaUri?.let { uri ->
++            return ProgressiveMediaSource.Factory(
++                DefaultDataSource.Factory(this),
++                DefaultExtractorsFactory(),
++            ).createMediaSource(MediaItem.fromUri(uri))
++        }
++
++        val dataSourceFactory = EncryptedVolumeDataSource.Factory(encryptedVolume, filePath)
++        return ProgressiveMediaSource.Factory(dataSourceFactory, DefaultExtractorsFactory())
++            .createMediaSource(MediaItem.fromUri(Constants.FAKE_URI))
++    }
++
++    private fun initializePlayer(){
++        player = ExoPlayer.Builder(this).setSeekForwardIncrementMs(5000).build()
++        bindPlayer(player)
++        player.addMediaSource(createMediaSource(fileViewerViewModel.filePath!!))
++        if (plainMediaUri != null) {
++            intent.getStringExtra(VaultShelfExternalMediaRouter.EXTRA_PROGRESS_KEY)
++                ?.let { key ->
++                    val saved = VaultShelfProgressStore.plainMediaPosition(this, key)
++                    if (saved > 0L) player.seekTo(saved)
++                }
++        } else {
++            lifecycleScope.launch {
++                createPlaylist()
++                fileViewerViewModel.playlist.forEachIndexed { index, e ->
++                    if (index != fileViewerViewModel.currentPlaylistIndex) {
++                        player.addMediaSource(index, createMediaSource(e.fullPath))
++                    }
++                }
++                val currentIndex = fileViewerViewModel.currentPlaylistIndex
++                val currentPath = fileViewerViewModel.filePath
++                if (currentIndex >= 0 && currentPath != null) {
++                    val saved = VaultShelfProgressStore.mediaPosition(
++                        this@MediaPlayer,
++                        volumeId,
++                        currentPath,
++                    )
++                    if (saved > 0L) player.seekTo(currentIndex, saved)
++                }
++            }
++        }
++        player.repeatMode = sharedPrefs.getInt("playerRepeatMode", Player.REPEAT_MODE_ALL)
++        player.playWhenReady = true
++        player.addListener(object : Player.Listener{
++            override fun onVideoSizeChanged(videoSize: VideoSize) {
++                if (videoSize.width > 0 && videoSize.height > 0) {
++                    onVideoSizeChanged(videoSize.width, videoSize.height)
++                }
++            }
++            override fun onPlayerError(error: PlaybackException) {
++                MaterialAlertDialogBuilder(this@MediaPlayer)
++                        .setTitle(R.string.error)
++                        .setMessage(getString(R.string.playing_failed, error.errorCodeName))
++                        .setCancelable(false)
++                        .setPositiveButton(R.string.ok) { _, _ -> goBackToExplorer()}
++                        .show()
++            }
++            override fun onIsPlayingChanged(isPlaying: Boolean) {
++                if (isPlaying){
++                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++                } else {
++                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++                }
++            }
++
++            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
++                if (player.repeatMode != Player.REPEAT_MODE_ONE && fileViewerViewModel.currentPlaylistIndex != -1) {
++                    lifecycleScope.launch {
++                        playlistNext(player.currentMediaItemIndex == (fileViewerViewModel.currentPlaylistIndex + 1) % player.mediaItemCount)
++                        refreshFileName()
++                    }
++                }
++            }
++            override fun onRepeatModeChanged(repeatMode: Int) {
++                with (sharedPrefs.edit()) {
++                    putInt("playerRepeatMode", repeatMode)
++                    apply()
++                }
++            }
++        })
++        player.prepare()
++    }
++
++    override fun onStop() {
++        if (::player.isInitialized) {
++            val plainKey = intent.getStringExtra(VaultShelfExternalMediaRouter.EXTRA_PROGRESS_KEY)
++            if (plainMediaUri != null && plainKey != null) {
++                VaultShelfProgressStore.savePlainMediaPosition(
++                    this,
++                    plainKey,
++                    player.currentPosition,
++                    player.duration,
++                )
++            } else if (plainMediaUri == null) {
++                fileViewerViewModel.filePath?.let { path ->
++                    VaultShelfProgressStore.saveMediaPosition(
++                        this,
++                        volumeId,
++                        path,
++                        player.currentPosition,
++                        player.duration,
++                    )
++                }
++            }
++        }
++        super.onStop()
+     }
+ 
+     override fun onDestroy() {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt b/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
+@@ -103,6 +103,11 @@ class SelectPathFragment : Fragment() {
+             theme = Compat.getParcelable(arguments, KEY_THEME_VALUE)!!
+             pickMode = arguments.getBoolean(KEY_PICK_MODE)
+         }
++        if (savedInstanceState == null && !pickMode) {
++            // VaultShelf is a private vault first; external volumes remain available for migration.
++            binding.switchHiddenVolume.isChecked = true
++            binding.root.post { updateUi() }
++        }
+         volumeDatabase = VolumeDatabase(requireContext())
+         filesDir = requireContext().filesDir.path
+         binding.containerHiddenVolume.setOnClickListener {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
+@@ -21,4 +21,3 @@ import kotlinx.coroutines.runBlocking
+-import sushi.hardcore.droidfs.BuildConfig
+ import sushi.hardcore.droidfs.EncryptedFileProvider
+ import sushi.hardcore.droidfs.FileTypes
+ import sushi.hardcore.droidfs.R
+@@ -35,6 +34,5 @@ class VolumeProvider: DocumentsProvider() {
+     companion object {
+         private const val TAG = "DocumentsProvider"
+-        private const val AUTHORITY = BuildConfig.APPLICATION_ID + ".volume_provider"
+         private val DEFAULT_ROOT_PROJECTION = arrayOf(
+             DocumentsContract.Root.COLUMN_ROOT_ID,
+             DocumentsContract.Root.COLUMN_FLAGS,
+@@ -52,6 +50,9 @@ class VolumeProvider: DocumentsProvider() {
+         )
+ 
+         fun notifyRootsChanged(context: Context) {
+-            context.contentResolver.notifyChange(DocumentsContract.buildRootsUri(AUTHORITY), null)
++            context.contentResolver.notifyChange(
++                DocumentsContract.buildRootsUri(context.packageName + ".volume_provider"),
++                null,
++            )
+         }
+     }
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
+@@ -18,46 +18,46 @@
+ import sushi.hardcore.droidfs.adapters.VolumeAdapter
+ import sushi.hardcore.droidfs.add_volume.AddVolumeActivity
+ import sushi.hardcore.droidfs.content_providers.VolumeProvider
+-import sushi.hardcore.droidfs.databinding.ActivityMainBinding
+-import sushi.hardcore.droidfs.databinding.DialogDeleteVolumeBinding
+-import sushi.hardcore.droidfs.explorers.ExplorerRouter
+-import sushi.hardcore.droidfs.file_operations.FileOperationService
+-import sushi.hardcore.droidfs.file_operations.TaskResult
+-import sushi.hardcore.droidfs.util.IntentUtils
+-import sushi.hardcore.droidfs.util.PathUtils
+-import sushi.hardcore.droidfs.widgets.EditTextDialog
+-import java.io.File
+-
+-class MainActivity : BaseActivity(), VolumeAdapter.Listener {
+-    companion object {
+-        private const val OPEN_DEFAULT_VOLUME = "openDefault"
+-    }
+-
+-    private lateinit var binding: ActivityMainBinding
+-    private lateinit var volumeDatabase: VolumeDatabase
+-    private lateinit var volumeManager: VolumeManager
+-    private lateinit var volumeAdapter: VolumeAdapter
+-    private lateinit var volumeOpener: VolumeOpener
+-    private var addVolume = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+-        if ((explorerRouter.pickMode || explorerRouter.dropMode) && result.resultCode != AddVolumeActivity.RESULT_USER_BACK) {
+-            setResult(result.resultCode, result.data) // forward result
+-            finish()
+-        }
+-    }
+-    private var selectedVolumePosition: Int? = null
+-    private var changePassword = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+-        selectedVolumePosition?.let { unselect(it) }
+-    }
+-    private val pickDirectory = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+-        if (uri != null)
+-            onDirectoryPicked(uri)
+-    }
+-    private lateinit var fileOperationService: FileOperationService
+-    private lateinit var explorerRouter: ExplorerRouter
+-
+-    override fun onCreate(savedInstanceState: Bundle?) {
+-        super.onCreate(savedInstanceState)
+-        binding = ActivityMainBinding.inflate(layoutInflater)
++import sushi.hardcore.droidfs.databinding.DroidfsActivityMainBinding
++import sushi.hardcore.droidfs.databinding.DialogDeleteVolumeBinding
++import sushi.hardcore.droidfs.explorers.ExplorerRouter
++import sushi.hardcore.droidfs.file_operations.FileOperationService
++import sushi.hardcore.droidfs.file_operations.TaskResult
++import sushi.hardcore.droidfs.util.IntentUtils
++import sushi.hardcore.droidfs.util.PathUtils
++import sushi.hardcore.droidfs.widgets.EditTextDialog
++import java.io.File
++
++class MainActivity : BaseActivity(), VolumeAdapter.Listener {
++    companion object {
++        private const val OPEN_DEFAULT_VOLUME = "openDefault"
++    }
++
++    private lateinit var binding: DroidfsActivityMainBinding
++    private lateinit var volumeDatabase: VolumeDatabase
++    private lateinit var volumeManager: VolumeManager
++    private lateinit var volumeAdapter: VolumeAdapter
++    private lateinit var volumeOpener: VolumeOpener
++    private var addVolume = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
++        if ((explorerRouter.pickMode || explorerRouter.dropMode) && result.resultCode != AddVolumeActivity.RESULT_USER_BACK) {
++            setResult(result.resultCode, result.data) // forward result
++            finish()
++        }
++    }
++    private var selectedVolumePosition: Int? = null
++    private var changePassword = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
++        selectedVolumePosition?.let { unselect(it) }
++    }
++    private val pickDirectory = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
++        if (uri != null)
++            onDirectoryPicked(uri)
++    }
++    private lateinit var fileOperationService: FileOperationService
++    private lateinit var explorerRouter: ExplorerRouter
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        binding = DroidfsActivityMainBinding.inflate(layoutInflater)
+         setContentView(binding.root)
+         setSupportActionBar(findViewById(R.id.toolbar))
+         if (sharedPrefs.getBoolean("applicationFirstOpening", true)) {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
+@@ -1,51 +1,24 @@
+ package sushi.hardcore.droidfs.file_viewers
+ 
+-import android.annotation.SuppressLint
+ import android.content.pm.ActivityInfo
+ import android.content.res.Configuration
+ import android.view.View
+-import android.widget.FrameLayout
+-import androidx.core.view.ViewCompat
+-import androidx.core.view.WindowInsetsCompat
+-import androidx.core.view.updateLayoutParams
+-import androidx.core.view.updatePadding
+ import androidx.media3.exoplayer.ExoPlayer
+ import androidx.media3.ui.PlayerView
+ import sushi.hardcore.droidfs.R
++import sushi.hardcore.droidfs.databinding.DroidfsActivityVideoPlayerBinding
+-import sushi.hardcore.droidfs.databinding.ActivityVideoPlayerBinding
+ 
+ class VideoPlayer: MediaPlayer() {
+     private val autoFit by lazy {
+         sharedPrefs.getBoolean("autoFit", false)
+     }
++    private lateinit var binding: DroidfsActivityVideoPlayerBinding
+-    private lateinit var binding: ActivityVideoPlayerBinding
+ 
+     override fun viewFile() {
++        binding = DroidfsActivityVideoPlayerBinding.inflate(layoutInflater)
+-        binding = ActivityVideoPlayerBinding.inflate(layoutInflater)
+         setContentView(binding.root)
+         binding.topBar.fitsSystemWindows = true
+         binding.videoPlayer.doubleTapOverlay = binding.doubleTapOverlay
+-        val bottomBar = findViewById<FrameLayout>(R.id.exo_bottom_bar)
+-        val progressBar = findViewById<View>(R.id.exo_progress)
+-        ViewCompat.setOnApplyWindowInsetsListener(binding.videoPlayer) { _, windowInsets ->
+-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+-            bottomBar.apply {
+-                updatePadding(left = insets.left, right = insets.right, bottom = insets.bottom)
+-                updateLayoutParams<FrameLayout.LayoutParams> {
+-                    @SuppressLint("PrivateResource")
+-                    height = resources.getDimensionPixelSize(R.dimen.exo_styled_bottom_bar_height) + insets.bottom
+-                }
+-            }
+-            progressBar.apply {
+-                updatePadding(left = insets.left, right = insets.right)
+-                updateLayoutParams<FrameLayout.LayoutParams> {
+-                    @SuppressLint("PrivateResource")
+-                    bottomMargin = resources.getDimensionPixelSize(R.dimen.exo_styled_progress_margin_bottom) + insets.bottom
+-                }
+-            }
+-            windowInsets
+-        }
+-
+         binding.videoPlayer.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+             binding.topBar.visibility = visibility
+             if (visibility == View.VISIBLE) {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt b/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
+@@ -10,7 +10,7 @@
+ class EditTextDialog(
+     activity: Activity,
+     private val titleId: Int,
+-    viewId: Int = R.layout.dialog_edit_text,
++    viewId: Int = R.layout.droidfs_dialog_edit_text,
+ ) : MaterialAlertDialogBuilder(activity) {
+     val root = activity.layoutInflater.inflate(viewId, null)
+     val dialogEditText = root.findViewById<EditText>(R.id.dialog_edit_text)
+diff --git a/app/src/main/res/layout/activity_main.xml b/app/src/main/res/layout/droidfs_activity_main.xml
+similarity index 100%
+rename from app/src/main/res/layout/activity_main.xml
+rename to app/src/main/res/layout/droidfs_activity_main.xml
+diff --git a/app/src/main/res/layout/activity_video_player.xml b/app/src/main/res/layout/droidfs_activity_video_player.xml
+similarity index 100%
+rename from app/src/main/res/layout/activity_video_player.xml
+rename to app/src/main/res/layout/droidfs_activity_video_player.xml
+diff --git a/app/src/main/res/layout/dialog_edit_text.xml b/app/src/main/res/layout/droidfs_dialog_edit_text.xml
+similarity index 100%
+rename from app/src/main/res/layout/dialog_edit_text.xml
+rename to app/src/main/res/layout/droidfs_dialog_edit_text.xml
+diff --git a/app/src/main/res/xml/backup_rules.xml b/app/src/main/res/xml/droidfs_backup_rules.xml
+similarity index 100%
+rename from app/src/main/res/xml/backup_rules.xml
+rename to app/src/main/res/xml/droidfs_backup_rules.xml
+diff --git a/app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java b/app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java
+rename to app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java b/app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java
+rename to app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/originals/base/Recorder.java b/app/src/main/java/androidx/camera/video/originals/base/Recorder.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/originals/base/Recorder.java
+rename to app/src/main/java/androidx/camera/video/originals/base/Recorder.java.vaultshelf-disabled
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt.vaultshelf-disabled
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+@@ -14,6 +14,5 @@
+ import com.google.android.material.floatingactionbutton.FloatingActionButton
+ import kotlinx.coroutines.launch
+-import sushi.hardcore.droidfs.CameraActivity
+ import sushi.hardcore.droidfs.LoadingTask
+ import sushi.hardcore.droidfs.MainActivity
+ import sushi.hardcore.droidfs.R
+@@ -187,8 +186,7 @@
+                     listOf("importFiles", R.string.import_files, R.drawable.icon_encrypt),
+                     listOf("importFolder", R.string.import_folder, R.drawable.icon_import_folder),
+                     listOf("createFile", R.string.new_file, R.drawable.icon_file_unknown),
+-                    listOf("createFolder", R.string.mkdir, R.drawable.icon_create_new_folder),
+-                    listOf("camera", R.string.camera, R.drawable.icon_photo)
++                    listOf("createFolder", R.string.mkdir, R.drawable.icon_create_new_folder)
+                 )
+                 MaterialAlertDialogBuilder(this)
+                     .setSingleChoiceItems(adapter, -1){ thisDialog, which ->
+@@ -216,12 +214,6 @@
+                             "createFolder" -> {
+                                 openDialogCreateFolder()
+                             }
+-                            "camera" -> {
+-                                val intent = Intent(this, CameraActivity::class.java)
+-                                intent.putExtra("path", currentDirectoryPath)
+-                                intent.putExtra("volumeId", volumeId)
+-                                startActivity(intent)
+-                            }
+                         }
+                         thisDialog.dismiss()
+                     }
+diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
+--- a/app/src/main/res/xml/root_preferences.xml
++++ b/app/src/main/res/xml/root_preferences.xml
+@@ -103,37 +103,4 @@
+ 
+     </PreferenceCategory>
+ 
+-    <PreferenceCategory android:title="@string/debug">
+-
+-        <Preference
+-            android:key="logcat"
+-            android:title="@string/logcat"
+-            android:summary="@string/logcat_summary"
+-            android:icon="@drawable/icon_debug"/>
+-
+-    </PreferenceCategory>
+-
+-    <PreferenceCategory android:title="@string/about">
+-
+-        <Preference
+-            android:title="@string/github"
+-            android:summary="@string/github_summary"
+-            android:icon="@drawable/icon_github">
+-            <intent android:action="android.intent.action.VIEW" android:data="https://github.com/hardcore-sushi/DroidFS"/>
+-        </Preference>
+-
+-        <Preference
+-            android:title="@string/tangled"
+-            android:summary="@string/tangled_summary"
+-            android:icon="@drawable/icon_tangled">
+-            <intent android:action="android.intent.action.VIEW" android:data="https://tangled.org/cipherd.arkensys.dedyn.io/DroidFS"/>
+-        </Preference>
+-
+-        <Preference
+-            android:icon="@drawable/icon_info"
+-            android:title="@string/version"
+-            android:summary="@string/versionName"/> <!--added by gradle at build time-->
+-
+-    </PreferenceCategory>
+-
+ </PreferenceScreen>
+diff --git a/app/src/main/res/xml/unsafe_features_preferences.xml b/app/src/main/res/xml/unsafe_features_preferences.xml
+--- a/app/src/main/res/xml/unsafe_features_preferences.xml
++++ b/app/src/main/res/xml/unsafe_features_preferences.xml
+@@ -3,18 +3,5 @@
+     xmlns:android="http://schemas.android.com/apk/res/android">
+ 
+-    <PreferenceCategory android:title="@string/about">
+-
+-        <Preference
+-            android:icon="@drawable/icon_notes"
+-            android:summary="@string/usf_read_doc"
+-            android:title="@string/usf_doc">
+-            <intent
+-                android:action="android.intent.action.VIEW"
+-                android:data="https://tangled.org/cipherd.arkensys.dedyn.io/DroidFS#unsafe-features" />
+-        </Preference>
+-
+-    </PreferenceCategory>
+-
+     <PreferenceCategory android:title="@string/ux">
+ 
+         <SwitchPreferenceCompat
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt b/app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt b/app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/MediaMuxer.kt b/app/src/main/java/androidx/camera/video/MediaMuxer.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/MediaMuxer.kt
+rename to app/src/main/java/androidx/camera/video/MediaMuxer.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt b/app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt
+rename to app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/SucklessPendingRecording.java b/app/src/main/java/androidx/camera/video/SucklessPendingRecording.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/SucklessPendingRecording.java
+rename to app/src/main/java/androidx/camera/video/SucklessPendingRecording.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/SucklessRecorder.java b/app/src/main/java/androidx/camera/video/SucklessRecorder.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/SucklessRecorder.java
+rename to app/src/main/java/androidx/camera/video/SucklessRecorder.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/SucklessRecording.java b/app/src/main/java/androidx/camera/video/SucklessRecording.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/SucklessRecording.java
+rename to app/src/main/java/androidx/camera/video/SucklessRecording.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java b/app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java
+rename to app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java.vaultshelf-disabled
+diff --git a/app/src/main/res/layout/activity_camera.xml b/app/src/main/vaultshelf-disabled/activity_camera.xml
+similarity index 100%
+rename from app/src/main/res/layout/activity_camera.xml
+rename to app/src/main/vaultshelf-disabled/activity_camera.xml
+# VaultShelf disables DroidFS camera capture: hidden-volume storage/import/export remain intact.
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
+@@ -16,7 +16,13 @@ class ExplorerRouter(private val context: Context, private val intent: Intent) {
+             explorerIntent.flags = Intent.FLAG_ACTIVITY_FORWARD_RESULT
+         }
+         if (explorerIntent == null) {
+-            explorerIntent = Intent(context, ExplorerActivity::class.java) //default opening
++            explorerIntent = Intent().setClassName(
++                context.packageName,
++                "com.arjun.gander.vault.VaultModeActivity",
++            )
++            intent.extras?.let { explorerIntent.putExtras(it) }
++            explorerIntent.putExtra("vaultshelf.mode.volume_id", volumeId)
++            explorerIntent.putExtra("vaultshelf.mode.volume_name", volumeShortName)
+         }
+         explorerIntent.putExtra("volumeId", volumeId)
+         explorerIntent.putExtra("volumeName", volumeShortName)

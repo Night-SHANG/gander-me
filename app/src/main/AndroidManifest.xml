@@ -2,63 +2,64 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- No permissions at all: files arrive via SAF or Open-with grants, rendering is fully offline.
-         Media3 contributes ACCESS_NETWORK_STATE for streaming bitrate choice, stripped below because
-         Gander only ever plays local files. The checkPermissions task fails the build on any others. -->
+    <!-- VaultShelf remains offline-first. Network permissions contributed by reader/media
+         dependencies are stripped. DroidFS storage permissions are retained only so its
+         original explicit external-volume backup/migration workflow continues to work. -->
+    <uses-permission
+        android:name="android.permission.INTERNET"
+        tools:node="remove" />
     <uses-permission
         android:name="android.permission.ACCESS_NETWORK_STATE"
         tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.VIBRATE"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.FLASHLIGHT"
+        tools:node="remove"
+        tools:ignore="PermissionImpliesUnsupportedChromeOsHardware" />
+    <uses-permission
+        android:name="android.permission.CAMERA"
+        tools:node="remove"
+        tools:ignore="PermissionImpliesUnsupportedChromeOsHardware" />
+    <uses-permission
+        android:name="android.permission.USE_FINGERPRINT"
+        tools:node="remove" />
 
     <application
-        android:name=".GanderApp"
+        android:name="sushi.hardcore.droidfs.VolumeManagerApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:requestLegacyExternalStorage="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.Gander">
 
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".GanderStartupProvider"
+            android:authorities="${applicationId}.startup"
+            android:exported="false"
+            android:initOrder="100" />
+
+        <provider
+            android:name=".GanderFileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
+                android:resource="@xml/gander_file_paths" />
         </provider>
 
         <activity
-            android:name=".VaultShelfActivity"
+            android:name=".FileDispatchActivity"
+            android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
             android:exported="true"
-            android:label="@string/vaultshelf_app_name">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- Private readers: books are opened only from VaultShelf's imported local library. -->
-        <activity
-            android:name=".TxtReaderActivity"
-            android:exported="false"
-            android:label="@string/vaultshelf_reader_title" />
-
-        <activity
-            android:name=".EpubReaderActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:exported="false"
-            android:label="@string/vaultshelf_reader_title" />
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:label="@string/vaultshelf_action_browse_files" />
-
-        <activity
-            android:name=".ViewerActivity"
-            android:exported="true"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -71,6 +72,9 @@
                 <data android:mimeType="text/*" />
                 <data android:mimeType="application/json" />
                 <data android:mimeType="application/xml" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
@@ -87,6 +91,9 @@
                 <data android:mimeType="text/*" />
                 <data android:mimeType="application/json" />
                 <data android:mimeType="application/xml" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
@@ -94,5 +101,40 @@
                 <data android:mimeType="application/vnd.oasis.opendocument.spreadsheet" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".vault.VaultBackupActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".vault.VaultModeActivity"
+            android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
+            android:exported="false" />
+
+        <activity
+            android:name=".vault.VaultContentActivity"
+            android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <activity
+            android:name=".VaultShelfActivity"
+            android:exported="true"
+            android:label="@string/vaultshelf_app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:label="@string/vaultshelf_action_browse_files" />
+
+        <activity
+            android:name=".ViewerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
     </application>
 </manifest>

@@ -72,6 +72,9 @@ class ViewerActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_PATH = "path"
+        const val EXTRA_LIBRARY_BOOK_ID = "vaultshelf.library_book_id"
+        const val EXTRA_LIBRARY_PROGRESS = "vaultshelf.library_progress"
+        const val EXTRA_SECURE_VAULT = "vaultshelf.secure_vault"
         private const val STATE_COPY_SOURCE = "copy_source"
         private const val ASSET_HOST = "appassets.androidplatform.net"
 
@@ -93,6 +96,7 @@ class ViewerActivity : AppCompatActivity() {
 
     private var webView: ScrollProbeWebView? = null
     private var player: ExoPlayer? = null
+    private var secureVaultSession = false
 
     /** The file the destination picker is currently open for. */
     private var copySource: Uri? = null
@@ -205,12 +209,18 @@ class ViewerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        secureVaultSession = intent.getBooleanExtra(EXTRA_SECURE_VAULT, false)
+        if (secureVaultSession) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+
         setContentView(R.layout.activity_viewer)
         applySystemBarInsets(findViewById(R.id.root))
         onBackPressedDispatcher.addCallback(this, searchBackCallback)
         pageIndicator.setOnClickListener { askForPage() }
 
         copySource = savedInstanceState?.getString(STATE_COPY_SOURCE)?.let(Uri::parse)
+        libraryBookId = intent.getStringExtra(EXTRA_LIBRARY_BOOK_ID)
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         toolbar.setNavigationOnClickListener { finish() }
@@ -246,6 +256,7 @@ class ViewerActivity : AppCompatActivity() {
         // Held past the when because setUpSearch needs it to know whether the
         // format it is offering to search actually has anything findable in it
         val kind = detect(ext, mime)
+        viewerKind = kind
         when (kind) {
             FileKind.IMAGE -> showImage(container, uri, name, ext)
             FileKind.PLAYER -> showPlayer(container, uri, name, ext)
@@ -268,30 +279,40 @@ class ViewerActivity : AppCompatActivity() {
         goToPageItem = toolbar.menu.findItem(R.id.action_go_to_page).apply {
             setOnMenuItemClickListener { askForPage(); true }
         }
-        toolbar.menu.findItem(R.id.action_share).setOnMenuItemClickListener {
-            shareFile(uri, ext, mime)
-            true
-        }
-        toolbar.menu.findItem(R.id.action_save_copy).setOnMenuItemClickListener {
-            copySource = uri
-            createDocument.type = mime
-                ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
-                ?: "*/*"
-            // No picker on the device is the only way this throws, and it leaves
-            // the reader on the document rather than on a crash
-            runCatching { saveCopy.launch(name) }.onFailure {
-                copySource = null
-                Toast.makeText(this, R.string.save_copy_failed, Toast.LENGTH_SHORT).show()
+        toolbar.menu.findItem(R.id.action_share).apply {
+            isVisible = !secureVaultSession
+            if (isVisible) {
+                setOnMenuItemClickListener {
+                    shareFile(uri, ext, mime)
+                    true
+                }
             }
-            true
+        }
+        toolbar.menu.findItem(R.id.action_save_copy).apply {
+            isVisible = !secureVaultSession
+            if (isVisible) {
+                setOnMenuItemClickListener {
+                    copySource = uri
+                    createDocument.type = mime
+                        ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+                        ?: "*/*"
+                    runCatching { saveCopy.launch(name) }.onFailure {
+                        copySource = null
+                        Toast.makeText(this@ViewerActivity, R.string.save_copy_failed, Toast.LENGTH_SHORT).show()
+                    }
+                    true
+                }
+            }
         }
 
-        val folder = containingFolder(uri)
+        val folder = if (secureVaultSession) null else containingFolder(uri)
         toolbar.menu.findItem(R.id.action_open_folder).apply {
             isVisible = folder != null
-            setOnMenuItemClickListener {
-                openFolder(folder ?: return@setOnMenuItemClickListener true)
-                true
+            if (isVisible) {
+                setOnMenuItemClickListener {
+                    openFolder(folder ?: return@setOnMenuItemClickListener true)
+                    true
+                }
             }
         }
     }
@@ -362,6 +383,7 @@ class ViewerActivity : AppCompatActivity() {
      * because it needs a resolver; the rest is provider id string work and
      * lives in StorageUris.kt.
      */
+    @SuppressLint("Recycle")
     private fun containingFolder(uri: Uri): Uri? = parentDocUri(
         uri,
         Environment.getExternalStorageDirectory().absolutePath
@@ -448,6 +470,13 @@ class ViewerActivity : AppCompatActivity() {
 
     /** What this PDF's page is saved under; see [Positions]. Null for every other format. */
     private var positionKey: String? = null
+
+    /** Markdown uses normalized scrolling rather than page numbers. */
+    private var scrollPositionKey: String? = null
+
+    /** Set only when VaultShelf opened the viewer from its private library. */
+    private var libraryBookId: String? = null
+    private var viewerKind: FileKind? = null
 
     /**
      * True while the find box is up. The page readout stands down for it: two counters
@@ -1128,6 +1157,7 @@ class ViewerActivity : AppCompatActivity() {
         }.getOrNull()
     }
 
+    @SuppressLint("Recycle")
     private fun resolveDisplayName(uri: Uri): String {
         if (uri.scheme == "content") {
             runCatching {
@@ -1357,6 +1387,8 @@ class ViewerActivity : AppCompatActivity() {
                 detail: android.webkit.RenderProcessGoneDetail
             ): Boolean {
                 if (webView === view) {
+                    saveScrollPosition()
+                    publishLibraryProgress()
                     webView = null
                     (view.parent as? ViewGroup)?.removeView(view)
                     view.destroy()
@@ -1409,12 +1441,17 @@ class ViewerActivity : AppCompatActivity() {
         // drawing a page nobody asked to see. Issue #25.
         positionKey =
             if (kind == FileKind.PDF) Positions.keyFor(contentResolver, uri, total) else null
+        scrollPositionKey =
+            if (kind == FileKind.MD) Positions.keyFor(contentResolver, uri, total) else null
+
         val resumeAt = positionKey?.let { Positions.page(this, it) } ?: 0
+        val resumeScroll = scrollPositionKey?.let { ScrollPositions.fraction(this, it) } ?: 0f
         web.loadUrl(
             "https://$ASSET_HOST/assets/viewer/${kind.page}" +
                 "?name=${Uri.encode(name)}&ext=${Uri.encode(ext)}&ranged=$ranged" +
                 "&night=$night" +
                 (if (resumeAt > 1) "&resume=$resumeAt" else "") +
+                (if (resumeScroll > 0f) "&resumeScroll=$resumeScroll" else "") +
                 pdfjsFloorParamsFor(kind, web.settings.userAgentString)
         )
     }
@@ -1556,6 +1593,8 @@ class ViewerActivity : AppCompatActivity() {
     override fun onStop() {
         player?.pause()
         savePosition()
+        saveScrollPosition()
+        publishLibraryProgress()
         super.onStop()
     }
 
@@ -1574,6 +1613,45 @@ class ViewerActivity : AppCompatActivity() {
         val key = positionKey ?: return
         if (pageAt < 1 || pageTotal < 2) return
         Positions.save(this, key, pageAt, pageTotal)
+    }
+
+    private fun saveScrollPosition() {
+        val key = scrollPositionKey ?: return
+        val fraction = currentScrollFraction() ?: return
+        ScrollPositions.save(this, key, fraction)
+    }
+
+    private fun currentScrollFraction(): Float? {
+        val web = webView ?: return null
+        val range = web.verticalRange()
+        val extent = web.verticalExtent()
+        val scrollable = range - extent
+        if (scrollable <= 0) return 0f
+        return (web.verticalOffset().toFloat() / scrollable.toFloat()).coerceIn(0f, 1f)
+    }
+
+    private fun publishLibraryProgress() {
+        val id = libraryBookId ?: return
+        val fraction = when (viewerKind) {
+            FileKind.PDF -> {
+                when {
+                    pageAt < 1 || pageTotal < 1 -> null
+                    pageTotal == 1 -> 1f
+                    else -> ((pageAt - 1).toFloat() / (pageTotal - 1).toFloat())
+                        .coerceIn(0f, 1f)
+                }
+            }
+
+            FileKind.MD -> currentScrollFraction()
+            else -> null
+        } ?: return
+
+        setResult(
+            RESULT_OK,
+            Intent()
+                .putExtra(EXTRA_LIBRARY_BOOK_ID, id)
+                .putExtra(EXTRA_LIBRARY_PROGRESS, fraction),
+        )
     }
 
     override fun onDestroy() {

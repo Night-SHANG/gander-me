@@ -1,0 +1,4504 @@
+diff --git a/app/src/main/java/io/legado/app/constant/AppConst.kt b/app/src/main/java/io/legado/app/constant/AppConst.kt
+--- a/app/src/main/java/io/legado/app/constant/AppConst.kt
++++ b/app/src/main/java/io/legado/app/constant/AppConst.kt
+@@ -130,7 +130,8 @@
+     /**
+      * The authority of a FileProvider defined in a <provider> element in your app's manifest.
+      */
+-    const val authority = BuildConfig.APPLICATION_ID + ".fileProvider"
++    val authority: String
++        get() = "${appCtx.packageName}.fileProvider"
+ 
+ }
+ 
+
+# VaultShelf hosts Legado inside DroidFS VolumeManagerApp, not io.legado.app.App.
+diff --git a/app/src/main/java/io/legado/app/base/BaseViewModel.kt b/app/src/main/java/io/legado/app/base/BaseViewModel.kt
+--- a/app/src/main/java/io/legado/app/base/BaseViewModel.kt
++++ b/app/src/main/java/io/legado/app/base/BaseViewModel.kt
+@@ -4,19 +4,18 @@
+ import android.content.Context
+ import androidx.lifecycle.AndroidViewModel
+ import androidx.lifecycle.viewModelScope
+-import io.legado.app.App
+-import io.legado.app.help.coroutine.Coroutine
+-import kotlinx.coroutines.CoroutineScope
+-import kotlinx.coroutines.CoroutineStart
+-import kotlinx.coroutines.Deferred
+-import kotlinx.coroutines.Dispatchers
+-import kotlinx.coroutines.sync.Semaphore
+-import kotlin.coroutines.CoroutineContext
+-
+-@Suppress("unused")
+-open class BaseViewModel(application: Application) : AndroidViewModel(application) {
+-
+-    val context: Context by lazy { this.getApplication<App>() }
++import io.legado.app.help.coroutine.Coroutine
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.CoroutineStart
++import kotlinx.coroutines.Deferred
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.sync.Semaphore
++import kotlin.coroutines.CoroutineContext
++
++@Suppress("unused")
++open class BaseViewModel(application: Application) : AndroidViewModel(application) {
++
++    val context: Context by lazy { this.getApplication<Application>() }
+ 
+     fun <T> execute(
+         scope: CoroutineScope = viewModelScope,
+
+# VaultShelf only exposes local TTS service; it must not request a global battery-optimization exemption.
+diff --git a/app/src/main/java/io/legado/app/base/BaseService.kt b/app/src/main/java/io/legado/app/base/BaseService.kt
+--- a/app/src/main/java/io/legado/app/base/BaseService.kt
++++ b/app/src/main/java/io/legado/app/base/BaseService.kt
+@@ -117,16 +117,6 @@
+                 }
+             }
+             .request()
+-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+-            PermissionsCompat.Builder()
+-                .addPermissions(Permissions.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+-                .apply {
+-                    if (showRationale) {
+-                        rationale(R.string.ignore_battery_permission_rationale)
+-                    }
+-                }
+-                .request()
+-        }
+     }
+ 
+     private fun tryStartForegroundNotification(): Boolean {
+
+# VaultShelf temporary-provider books may be read but must not expose/export their transient URI or mutate shared identity metadata.
+diff --git a/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt b/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt
+--- a/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt
++++ b/app/src/main/java/io/legado/app/ui/book/info/BookInfoActivity.kt
+@@ -282,730 +282,754 @@
+         initViewEvent()
+     }
+ 
+-    override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
+-        menuInflater.inflate(R.menu.book_info, menu)
+-        editMenuItem = menu.findItem(R.id.menu_edit)
+-        menuCustomBtn = menu.findItem(R.id.menu_custom_btn).also {
+-            it.isVisible = viewModel.hasCustomBtn
+-        }
+-        return super.onCompatCreateOptionsMenu(menu)
+-    }
+-
+-    override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
+-        menu.findItem(R.id.menu_can_update)?.isChecked =
+-            viewModel.bookData.value?.canUpdate ?: true
+-        menu.findItem(R.id.menu_split_long_chapter)?.isChecked =
+-            viewModel.bookData.value?.getSplitLongChapter() ?: true
+-        menu.findItem(R.id.menu_login)?.isVisible =
+-            viewModel.bookSource?.hasLogin() == true
+-        menu.findItem(R.id.menu_set_source_variable)?.isVisible =
+-            viewModel.bookSource != null
+-        menu.findItem(R.id.menu_set_book_variable)?.isVisible =
+-            viewModel.bookSource != null
+-        menu.findItem(R.id.menu_can_update)?.isVisible =
+-            viewModel.bookSource != null
+-        menu.findItem(R.id.menu_split_long_chapter)?.isVisible =
+-            viewModel.bookData.value?.isLocalTxt ?: false
+-        menu.findItem(R.id.menu_upload)?.isVisible =
+-            viewModel.bookData.value?.isLocal ?: false
+-        menu.findItem(R.id.menu_create_book_update_task)?.isVisible =
+-            viewModel.bookData.value?.let {
+-                viewModel.inBookshelf &&
+-                    viewModel.bookSource != null &&
+-                    !it.isLocal &&
+-                    it.canUpdate
+-            } == true
+-        menu.findItem(R.id.menu_delete_alert)?.isChecked =
+-            LocalConfig.bookInfoDeleteAlert
+-        return super.onMenuOpened(featureId, menu)
+-    }
+-
+-    override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
+-        when (item.itemId) {
+-            R.id.menu_custom_btn -> {
+-                viewModel.bookSource?.customButton?.let {
+-                    viewModel.getBook()?.let { book ->
+-                        SourceCallBack.callBackBtn(
+-                            this,
+-                            SourceCallBack.CLICK_CUSTOM_BUTTON,
+-                            viewModel.bookSource,
+-                            book,
+-                            null
+-                        )
+-                    }
+-                }
+-            }
+-
+-            R.id.menu_edit -> {
+-                viewModel.getBook()?.let {
+-                    infoEditResult.launch {
+-                        putExtra("bookUrl", it.bookUrl)
+-                    }
+-                }
+-            }
+-
+-            R.id.menu_share_it -> {
+-                viewModel.getBook()?.let {
+-                    val bookJson = GSON.toJson(it)
+-                    val shareStr = "${it.bookUrl}#$bookJson"
+-                    SourceCallBack.callBackBtn(
+-                        this,
+-                        SourceCallBack.CLICK_SHARE_BOOK,
+-                        viewModel.bookSource,
+-                        it,
+-                        null,
+-                        result = shareStr
+-                    ) {
+-                        val intent = Intent(Intent.ACTION_SEND)
+-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+-                        intent.putExtra(Intent.EXTRA_TEXT, shareStr)
+-                        intent.type = "text/plain"
+-                        startActivity(Intent.createChooser(intent, it.name))
+-                    }
+-                }
+-            }
+-
+-            R.id.menu_refresh -> {
+-                refreshBook()
+-            }
+-
+-            R.id.menu_create_book_update_task -> viewModel.getBook()?.let {
+-                openBookUpdateTask(it)
+-            }
+-
+-            R.id.menu_login -> viewModel.bookSource?.let {
+-                startActivity<SourceLoginActivity> {
+-                    putExtra("type", "bookSource")
+-                    putExtra("key", it.bookSourceUrl)
+-                    putExtra("bookUrl", book?.bookUrl)
+-                }
+-            }
+-
+-            R.id.menu_top -> viewModel.topBook()
+-            R.id.menu_set_source_variable -> setSourceVariable()
+-            R.id.menu_set_book_variable -> setBookVariable()
+-            R.id.menu_copy_book_url -> viewModel.getBook()?.let {
+-                SourceCallBack.callBackBtn(
+-                    this,
+-                    SourceCallBack.CLICK_COPY_BOOK_URL,
+-                    viewModel.bookSource,
+-                    it,
+-                    null,
+-                    result = it.bookUrl
+-                ) {
+-                    sendToClip(it.bookUrl)
+-                }
+-            }
+-
+-            R.id.menu_copy_toc_url -> viewModel.getBook()?.let {
+-                SourceCallBack.callBackBtn(
+-                    this,
+-                    SourceCallBack.CLICK_COPY_TOC_URL,
+-                    viewModel.bookSource,
+-                    it,
+-                    null,
+-                    result = it.tocUrl
+-                ) {
+-                    sendToClip(it.tocUrl)
+-                }
+-            }
+-
+-            R.id.menu_can_update -> {
+-                viewModel.getBook()?.let {
+-                    it.canUpdate = !it.canUpdate
+-                    if (viewModel.inBookshelf) {
+-                        if (!it.canUpdate) {
+-                            it.removeType(BookType.updateError)
+-                        }
+-                        viewModel.saveBook(it)
+-                    }
+-                }
+-            }
+-
+-            R.id.menu_clear_cache -> viewModel.getBook()?.let {
+-                    SourceCallBack.callBackBtn(this, SourceCallBack.CLICK_CLEAR_CACHE, viewModel.bookSource, it, null) {
+-                        viewModel.clearCache(it)
+-                    }
+-                }
+-            R.id.menu_log -> showDialogFragment<AppLogDialog>()
+-            R.id.menu_split_long_chapter -> {
+-                upLoading(true)
+-                viewModel.getBook()?.let {
+-                    it.setSplitLongChapter(!item.isChecked)
+-                    viewModel.loadBookInfo(it, false)
+-                }
+-                item.isChecked = !item.isChecked
+-                if (!item.isChecked) longToastOnUi(R.string.need_more_time_load_content)
+-            }
+-
+-            R.id.menu_delete_alert -> LocalConfig.bookInfoDeleteAlert = !item.isChecked
+-            R.id.menu_upload -> {
+-                viewModel.getBook()?.let { confirmAndUploadBook(it) }
+-            }
+-        }
+-        return super.onCompatOptionsItemSelected(item)
+-    }
+-
+-    override fun observeLiveBus() {
+-        viewModel.actionLive.observe(this) {
+-            when (it) {
+-                "selectBooksDir" -> localBookTreeSelect.launch {
+-                    title = getString(R.string.select_book_folder)
+-                }
+-            }
+-        }
+-
+-        observeEvent<Boolean>(EventBus.REFRESH_BOOK_INFO) { //书源js函数触发刷新
+-            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+-                refreshBook()
+-            }
+-        }
+-
+-        observeEvent<Boolean>(EventBus.REFRESH_BOOK_TOC) { //书源js函数触发刷新
+-            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+-                refreshToc()
+-            }
+-        }
+-    }
+-
+-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+-        if (isIntroTextViewAttached && ev.action == MotionEvent.ACTION_DOWN) {
+-            currentFocus?.let {
+-                if (it === introTextView && introTextView.hasSelection()) {
+-                    it.clearFocus()
+-                }
+-            }
+-        }
+-        return super.dispatchTouchEvent(ev)
+-    }
+-
+-    private fun refreshBook() {
+-        upLoading(true)
+-        viewModel.getBook()?.let {
+-            viewModel.refreshBook(it)
+-        }
+-    }
+-
+-    private fun openBookUpdateTask(book: Book) {
+-        val task = AutoTask.buildBookUpdateTask(
+-            book = book,
+-            name = getString(R.string.auto_task_book_update_name, book.name)
+-        )
+-        lifecycleScope.launch {
+-            val existingTask = withContext(IO) {
+-                AutoTask.findBookUpdateTask(AutoTask.all(), book)
+-            }
+-            if (existingTask != null) {
+-                startActivity(AutoTaskEditActivity.intent(this@BookInfoActivity, existingTask.id))
+-            } else {
+-                showDialogFragment(ImportAutoTaskDialog(GSON.toJson(task)))
+-            }
+-        }
+-    }
+-
+-    private fun refreshToc() {
+-        upLoading(true)
+-        viewModel.getBook()?.let {
+-            viewModel.loadChapter(it, true, isFromBookInfo = true)
+-        }
+-    }
+-
+-    private fun upLoadBook(
+-        book: Book,
+-        bookWebDav: RemoteBookWebDav? = AppWebDav.defaultBookWebDav,
+-        overwrite: Boolean = true,
+-        onConflict: (() -> Unit)? = null,
+-        onFinished: () -> Unit = {},
+-    ) {
+-        lifecycleScope.launch {
+-            waitDialog.setText(R.string.loading)
+-            waitDialog.show()
+-            var uploadConflict = false
+-            try {
+-                bookWebDav
+-                    ?.upload(book, overwrite)
+-                    ?: throw NoStackTraceException(getString(R.string.webdav_not_configured))
+-                //更新书籍最后更新时间,使之比远程书籍的时间新
+-                book.lastCheckTime = System.currentTimeMillis()
+-                viewModel.saveBook(book)
+-            } catch (e: Exception) {
+-                currentCoroutineContext().ensureActive()
+-                if (!overwrite &&
+-                    e is WebDavException &&
+-                    isWebDavOverwriteConflict(e.responseCode)
+-                ) {
+-                    uploadConflict = true
+-                } else {
+-                    toastOnUi(e.localizedMessage)
+-                }
+-            } finally {
+-                waitDialog.dismiss()
+-            }
+-            if (uploadConflict) {
+-                onConflict?.invoke() ?: onFinished()
+-            } else {
+-                onFinished()
+-            }
+-        }
+-    }
+-
+-    private fun confirmAndUploadBook(
+-        book: Book,
+-        onFinished: () -> Unit = {},
+-    ) {
+-        val bookWebDav = AppWebDav.defaultBookWebDav
+-        if (bookWebDav == null) {
+-            toastOnUi(R.string.webdav_not_configured)
+-            onFinished()
+-            return
+-        }
+-        lifecycleScope.launch {
+-            waitDialog.setText(R.string.loading)
+-            waitDialog.show()
+-            val remoteExists = try {
+-                withContext(IO) { bookWebDav.hasRemoteBook(book) }
+-            } catch (e: Exception) {
+-                currentCoroutineContext().ensureActive()
+-                toastOnUi(e.localizedMessage)
+-                onFinished()
+-                return@launch
+-            } finally {
+-                waitDialog.dismiss()
+-            }
+-            if (!remoteExists) {
+-                upLoadBook(
+-                    book = book,
+-                    bookWebDav = bookWebDav,
+-                    overwrite = false,
+-                    onConflict = {
+-                        showUploadOverwriteConfirm(book, bookWebDav, onFinished)
+-                    },
+-                    onFinished = onFinished,
+-                )
+-                return@launch
+-            }
+-            showUploadOverwriteConfirm(book, bookWebDav, onFinished)
+-        }
+-    }
+-
+-    private fun showUploadOverwriteConfirm(
+-        book: Book,
+-        bookWebDav: RemoteBookWebDav,
+-        onFinished: () -> Unit,
+-    ) {
+-        alert(R.string.draw, R.string.webdav_book_exists_confirm) {
+-            yesButton {
+-                upLoadBook(
+-                    book = book,
+-                    bookWebDav = bookWebDav,
+-                    overwrite = true,
+-                    onFinished = onFinished,
+-                )
+-            }
+-            noButton { onFinished() }
+-            onCancelled { onFinished() }
+-        }
+-    }
+-
+-    private fun showBook(book: Book) = binding.run {
+-        showCover(book)
+-        tvName.text = book.name
+-        tvAuthor.text = getString(R.string.author_show, book.getRealAuthor())
+-        tvOrigin.text = getString(R.string.origin_show, book.originName)
+-        tvLasted.text = getString(R.string.lasted_show, book.latestChapterTitle)
+-        showBookIntro(book)
+-        if (book.isWebFile) {
+-            llToc.gone()
+-            tvLasted.text = getString(R.string.lasted_show, "下载中...")
+-        } else {
+-            llToc.visible()
+-        }
+-        menuCustomBtn?.isVisible = viewModel.hasCustomBtn
+-        upTvBookshelf()
+-        upKinds(book)
+-        upGroup(book.group)
+-    }
+-
+-    inner class CustomWebViewClient : WebViewClient() {
+-        private val jsStr = getInjectionString
+-        override fun shouldOverrideUrlLoading(
+-            view: WebView?,
+-            request: WebResourceRequest?
+-        ): Boolean {
+-            request?.let {
+-                val uri = it.url
+-                return when (uri.scheme) {
+-                    "http", "https" -> false
+-                    "legado", "yuedu" -> {
+-                        startActivity<OnLineImportActivity> {
+-                            data = uri
+-                        }
+-                        true
+-                    }
+-
+-                    else -> {
+-                        binding.root.longSnackbar(R.string.jump_to_another_app, R.string.confirm) {
+-                            openUrl(uri)
+-                        }
+-                        true
+-                    }
+-                }
+-            }
+-            return true
+-        }
+-        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+-            super.onPageStarted(view, url, favicon)
+-            view?.evaluateJavascript(jsStr, null)
+-        }
+-        override fun onPageFinished(view: WebView?, url: String?) {
+-            super.onPageFinished(view, url)
+-            view?.post {
+-                binding.tvIntroContainer.requestLayout()
+-            }
+-        }
+-    }
+-
+-    private fun showBookIntro(book: Book) {
+-        val intro = book.getDisplayIntro()
+-        if (intro.isNullOrBlank()) {
+-            introContent = null
+-            introExpanded = false
+-            introCanCollapse = false
+-            introRenderGeneration++
+-            introRenderJob?.cancel()
+-            destroyWeb()
+-            binding.tvIntroContainer.removeAllViews()
+-            isIntroTextViewAttached = false
+-            binding.tvIntroContainer.gone()
+-            updateIntroToggle()
+-            return
+-        }
+-        if (intro != introContent) {
+-            introContent = intro
+-            introExpanded = true
+-            introCanCollapse = false
+-        }
+-        val renderGeneration = ++introRenderGeneration
+-        introRenderJob?.cancel()
+-        binding.tvIntroContainer.visible()
+-        if (intro.startsWith("<useweb>")) {
+-            val lastIndex = intro.lastIndexOf("<")
+-            if (lastIndex < 8) {
+-                val tvIntro = prepareIntroTextView()
+-                tvIntro.text = intro
+-                scheduleIntroOverflowCheck(renderGeneration)
+-                return
+-            }
+-            introCanCollapse = false
+-            updateIntroToggle()
+-            val html = intro.substring(8, lastIndex)
+-            val pooledWebView = this.pooledWebView ?: let{
+-                val pooledWebView = WebViewPool.acquire(this)
+-                val webView = pooledWebView.realWebView
+-                webView.onResume()
+-                webView.webViewClient = CustomWebViewClient()
+-                webView.addJavascriptInterface(WebCacheManager, nameCache)
+-                viewModel.bookSource?.let {
+-                    webView.addJavascriptInterface(it as BaseSource, nameSource)
+-                    val webJsExtensions = WebJsExtensions(it, null, webView)
+-                    webView.addJavascriptInterface(webJsExtensions, nameJava)
+-                }
+-                pooledWebView
+-            }
+-            val webView = pooledWebView.realWebView
+-            if (isIntroTextViewAttached || this.pooledWebView == null) {
+-                isIntroTextViewAttached = false
+-                this.pooledWebView = pooledWebView
+-                binding.tvIntroContainer.removeAllViews()
+-                binding.tvIntroContainer.addView(webView)
+-            }
+-            val bookUrl = viewModel.getBook()?.bookUrl
+-                ?.takeIf { it.startsWith("http", true) }
+-                ?.substringBefore(",")
+-            webView.loadDataWithBaseURL(bookUrl, html, "text/html", "utf-8", bookUrl)
+-            return
+-        }
+-        val tvIntro = prepareIntroTextView()
+-        if (intro.startsWith("<usehtml>")) {
+-            val lastIndex = intro.lastIndexOf("<")
+-            if (lastIndex < 9) {
+-                tvIntro.text = intro
+-                scheduleIntroOverflowCheck(renderGeneration)
+-                return
+-            }
+-            val html = intro.substring(9, lastIndex)
+-            tvIntro.setHtml(
+-                html,
+-                glideImageGetter,
+-                textViewTagHandler,
+-                imgOnLongClickListener = {
+-                    showDialogFragment(PhotoDialog(it, viewModel.bookSource?.bookSourceUrl))
+-                },
+-                imgOnClickListener = {
+-                    viewModel.onButtonClick(this@BookInfoActivity, "info image" , it)
+-                }
+-            )
+-            scheduleIntroOverflowCheck(renderGeneration)
+-        } else if (intro.startsWith("<md>")) {
+-            val lastIndex = intro.lastIndexOf("<")
+-            if (lastIndex < 4) {
+-                tvIntro.text = intro
+-                scheduleIntroOverflowCheck(renderGeneration)
+-                return
+-            }
+-            val mark = intro.substring(4, lastIndex)
+-            tvIntro.text = null
+-            introRenderJob = lifecycleScope.launch {
+-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+-                    tvIntro.setTextClassifier(TextClassifier.NO_OP)
+-                }
+-                val context = this@BookInfoActivity
+-                val markwon: Markwon
+-                val markdown = withContext(IO) {
+-                    markwon = Markwon.builder(context)
+-                        .usePlugin(
+-                            GlideImagesPlugin.create(
+-                                Glide.with(context)
+-                                    .applyDefaultRequestOptions(
+-                                        RequestOptions()
+-                                            .override(imgAvailableWidth)
+-                                            .encodeQuality(88)
+-                                    )
+-                            )
+-                        )
+-                        .usePlugin(HtmlPlugin.create())
+-                        .usePlugin(TablePlugin.create(context))
+-                        .build()
+-                    markwon.toMarkdown(mark)
+-                }
+-                if (renderGeneration != introRenderGeneration) return@launch
+-                tvIntro.setMarkdown(
+-                    markwon,
+-                    markdown,
+-                    imgOnLongClickListener = { source ->
+-                        showDialogFragment(PhotoDialog(source, viewModel.bookSource?.bookSourceUrl))
+-                    }
+-                )
+-                scheduleIntroOverflowCheck(renderGeneration)
+-            }
+-        } else {
+-            setPlainBookIntro(tvIntro, intro)
+-            scheduleIntroOverflowCheck(renderGeneration)
+-        }
+-    }
+-
+-    private fun setPlainBookIntro(textView: ScrollTextView, intro: String) {
+-        val ranges = introIndentRanges(intro)
+-        if (ranges.isEmpty()) {
+-            textView.text = intro
+-            return
+-        }
+-        val indentWidth = textView.paint.measureText("　　").roundToInt().coerceAtLeast(1)
+-        textView.text = SpannableString(intro).apply {
+-            ranges.forEach { range ->
+-                setSpan(
+-                    LeadingMarginSpan.Standard(indentWidth, 0),
+-                    range.start,
+-                    range.endExclusive,
+-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+-                )
+-            }
+-        }
+-    }
+-
+-    private fun prepareIntroTextView(): ScrollTextView {
+-        val tvIntro = introTextView
+-        if (!isIntroTextViewAttached || pooledWebView != null) {
+-            destroyWeb()
+-            binding.tvIntroContainer.removeAllViews()
+-            tvIntro.text = null
+-            binding.tvIntroContainer.addView(tvIntro)
+-            isIntroTextViewAttached = true
+-        }
+-        applyIntroCollapseState(tvIntro)
+-        return tvIntro
+-    }
+-
+-    private fun applyIntroCollapseState(tvIntro: ScrollTextView = introTextView) {
+-        tvIntro.internalScrollEnabled = false
+-        tvIntro.maxLines = if (introExpanded) Int.MAX_VALUE else BookIntroCollapse.COLLAPSED_LINES
+-        tvIntro.maxMeasuredHeight = if (introExpanded) {
+-            null
+-        } else {
+-            collapsedIntroHeight(tvIntro)
+-        }
+-        tvIntro.ellipsize = if (introExpanded) null else TextUtils.TruncateAt.END
+-        if (!introExpanded) {
+-            tvIntro.scrollTo(0, 0)
+-        }
+-        updateIntroToggle()
+-        tvIntro.requestLayout()
+-    }
+-
+-    private fun collapsedIntroHeight(tvIntro: ScrollTextView): Int =
+-        tvIntro.lineHeight * BookIntroCollapse.COLLAPSED_LINES +
+-            tvIntro.compoundPaddingTop + tvIntro.compoundPaddingBottom
+-
+-    private fun scheduleIntroOverflowCheck(renderGeneration: Int) {
+-        introTextView.post {
+-            if (renderGeneration == introRenderGeneration &&
+-                lifecycle.currentState != Lifecycle.State.DESTROYED
+-            ) {
+-                updateIntroOverflow()
+-            }
+-        }
+-    }
+-
+-    private fun updateIntroOverflow() {
+-        if (!isIntroTextViewAttached || pooledWebView != null) return
+-        val tvIntro = introTextView
+-        val textLayout = tvIntro.layout ?: return
+-        val lineCount = textLayout.lineCount
+-        if (lineCount <= 0) return
+-        val lastLine = lineCount - 1
+-        val collapsedHeight = collapsedIntroHeight(tvIntro)
+-        val canCollapse = tvIntro.isMeasuredHeightLimited || BookIntroCollapse.hasOverflow(
+-            expanded = introExpanded,
+-            lineCount = lineCount,
+-            lastLineEllipsisCount = textLayout.getEllipsisCount(lastLine),
+-            lastLineEnd = textLayout.getLineEnd(lastLine),
+-            textLength = tvIntro.text.length,
+-            contentHeight = textLayout.height +
+-                tvIntro.compoundPaddingTop + tvIntro.compoundPaddingBottom,
+-            collapsedContentHeight = collapsedHeight,
+-        )
+-        if (introCanCollapse != canCollapse) {
+-            introCanCollapse = canCollapse
+-            updateIntroToggle()
+-        }
+-    }
+-
+-    private fun updateIntroToggle() = binding.tvIntroToggle.run {
+-        if (!introCanCollapse || !isIntroTextViewAttached || pooledWebView != null) {
+-            gone()
+-            return@run
+-        }
+-        setText(
+-            if (introExpanded) {
+-                R.string.book_intro_collapse
+-            } else {
+-                R.string.book_intro_expand
+-            }
+-        )
+-        visible()
+-    }
+-
+-    private fun upKinds(book: Book) = binding.run {
+-        lifecycleScope.launch {
+-            var kinds = book.getKindList()
+-            if (book.isLocal) {
+-                withContext(IO) {
+-                    val size = try {
+-                        FileDoc.fromUri(book.getLocalUri(), false).size
+-                    } catch (e: Exception) {
+-                        currentCoroutineContext().ensureActive()
+-                        0L
+-                    }
+-                    if (size > 0) {
+-                        kinds = kinds.toMutableList()
+-                        kinds.add(ConvertUtils.formatFileSize(size))
+-                    }
+-                }
+-            }
+-            if (kinds.isEmpty()) {
+-                lbKind.gone()
+-            } else {
+-                lbKind.visible()
+-                val source = viewModel.bookSource
+-                if (source == null) {
+-                    lbKind.setLabels(kinds)
+-                    return@launch
+-                }
+-                lbKind.setLabels(
+-                    kinds,
+-                    { kind ->
+-                        SourceCallBack.callBackBtn(
+-                            this@BookInfoActivity,
+-                            SourceCallBack.CLICK_BOOK_LABEL,
+-                            source,
+-                            book,
+-                            null,
+-                            result = kind
+-                        ) {
+-                            SearchActivity.start(this@BookInfoActivity, source, kind)
+-                        }
+-                    },
+-                    { kind ->
+-                        SourceCallBack.callBackBtn(
+-                            this@BookInfoActivity,
+-                            SourceCallBack.LONG_CLICK_BOOK_LABEL,
+-                            source,
+-                            book,
+-                            null,
+-                            result = kind
+-                        )
+-                        true
+-                    }
+-                )
+-            }
+-        }
+-    }
+-
+-    private fun showCover(book: Book) {
+-        binding.ivCover.load(book, false) {
+-            if (!AppConfig.isEInkMode) {
+-                BookCover.loadBlur(
+-                    this,
+-                    book.getDisplayCover(),
+-                    false,
+-                    book.getCoverSourceOrigin()
+-                )
+-                    .into(binding.bgBook)
+-            }
+-        }
+-    }
+-
+-    private fun upLoading(isLoading: Boolean, chapterList: List<BookChapter>? = null) {
+-        when {
+-            isLoading -> {
+-                binding.tvToc.text = getString(R.string.toc_s, getString(R.string.loading))
+-            }
+-
+-            chapterList.isNullOrEmpty() -> {
+-                binding.tvToc.text = getString(
+-                    R.string.toc_s,
+-                    getString(R.string.error_load_toc)
+-                )
+-                binding.tvLasted.text = getString(R.string.lasted_show, book?.latestChapterTitle)
+-            }
+-
+-            else -> {
+-                book?.let {
+-                    val tocTitle = resolveBookInfoTocTitle(
+-                        it.durChapterTitle,
+-                        it.durChapterIndex,
+-                        chapterList,
+-                    ) ?: getString(R.string.no_last_chapter)
+-                    val readStatus = resolveBookInfoReadProgress(it)?.let { percent ->
+-                        getString(R.string.read_y, "$percent%")
+-                    }
+-                    binding.tvToc.text = getString(
+-                        R.string.toc_s,
+-                        listOfNotNull(tocTitle, readStatus).joinToString("  ·  "),
+-                    )
+-                    binding.tvLasted.text = getString(R.string.lasted_show, it.latestChapterTitle)
+-                }
+-            }
+-        }
+-    }
+-
+-    private fun upTvBookshelf() {
+-        if (viewModel.inBookshelf) {
+-            binding.tvShelf.text = getString(R.string.remove_from_bookshelf)
+-        } else {
+-            binding.tvShelf.text = getString(R.string.add_to_bookshelf)
+-        }
+-        editMenuItem?.isVisible = viewModel.inBookshelf
++    private fun isVaultShelfTransientBook(book: Book? = viewModel.bookData.value): Boolean =
++        book?.bookUrl
++            ?.let(Uri::parse)
++            ?.authority
++            ?.endsWith(".temporary_provider") == true
++
++    private fun applyVaultShelfTransientMenuPolicy(menu: Menu) {
++        val transient = isVaultShelfTransientBook()
++        editMenuItem?.isVisible = viewModel.inBookshelf && !transient
++        menu.findItem(R.id.menu_share_it)?.isVisible = !transient
++        menu.findItem(R.id.menu_upload)?.isVisible =
++            !transient && (viewModel.bookData.value?.isLocal ?: false)
++        menu.findItem(R.id.menu_copy_book_url)?.isVisible = !transient
++        menu.findItem(R.id.menu_copy_toc_url)?.isVisible = !transient
++    }
++
++    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
++        applyVaultShelfTransientMenuPolicy(menu)
++        return super.onPrepareOptionsMenu(menu)
++    }
++
++    override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
++        menuInflater.inflate(R.menu.book_info, menu)
++        editMenuItem = menu.findItem(R.id.menu_edit)
++        menuCustomBtn = menu.findItem(R.id.menu_custom_btn).also {
++            it.isVisible = viewModel.hasCustomBtn
++        }
++        applyVaultShelfTransientMenuPolicy(menu)
++        return super.onCompatCreateOptionsMenu(menu)
++    }
++
++    override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
++        applyVaultShelfTransientMenuPolicy(menu)
++        menu.findItem(R.id.menu_can_update)?.isChecked =
++            viewModel.bookData.value?.canUpdate ?: true
++        menu.findItem(R.id.menu_split_long_chapter)?.isChecked =
++            viewModel.bookData.value?.getSplitLongChapter() ?: true
++        menu.findItem(R.id.menu_login)?.isVisible =
++            viewModel.bookSource?.hasLogin() == true
++        menu.findItem(R.id.menu_set_source_variable)?.isVisible =
++            viewModel.bookSource != null
++        menu.findItem(R.id.menu_set_book_variable)?.isVisible =
++            viewModel.bookSource != null
++        menu.findItem(R.id.menu_can_update)?.isVisible =
++            viewModel.bookSource != null
++        menu.findItem(R.id.menu_split_long_chapter)?.isVisible =
++            viewModel.bookData.value?.isLocalTxt ?: false
++        menu.findItem(R.id.menu_upload)?.isVisible =
++            !isVaultShelfTransientBook() && (viewModel.bookData.value?.isLocal ?: false)
++        menu.findItem(R.id.menu_create_book_update_task)?.isVisible =
++            viewModel.bookData.value?.let {
++                viewModel.inBookshelf &&
++                    viewModel.bookSource != null &&
++                    !it.isLocal &&
++                    it.canUpdate
++            } == true
++        menu.findItem(R.id.menu_delete_alert)?.isChecked =
++            LocalConfig.bookInfoDeleteAlert
++        return super.onMenuOpened(featureId, menu)
++    }
++
++    override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
++        when (item.itemId) {
++            R.id.menu_custom_btn -> {
++                viewModel.bookSource?.customButton?.let {
++                    viewModel.getBook()?.let { book ->
++                        SourceCallBack.callBackBtn(
++                            this,
++                            SourceCallBack.CLICK_CUSTOM_BUTTON,
++                            viewModel.bookSource,
++                            book,
++                            null
++                        )
++                    }
++                }
++            }
++
++            R.id.menu_edit -> {
++                viewModel.getBook()?.let {
++                    infoEditResult.launch {
++                        putExtra("bookUrl", it.bookUrl)
++                    }
++                }
++            }
++
++            R.id.menu_share_it -> {
++                viewModel.getBook()?.let {
++                    val bookJson = GSON.toJson(it)
++                    val shareStr = "${it.bookUrl}#$bookJson"
++                    SourceCallBack.callBackBtn(
++                        this,
++                        SourceCallBack.CLICK_SHARE_BOOK,
++                        viewModel.bookSource,
++                        it,
++                        null,
++                        result = shareStr
++                    ) {
++                        val intent = Intent(Intent.ACTION_SEND)
++                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++                        intent.putExtra(Intent.EXTRA_TEXT, shareStr)
++                        intent.type = "text/plain"
++                        startActivity(Intent.createChooser(intent, it.name))
++                    }
++                }
++            }
++
++            R.id.menu_refresh -> {
++                refreshBook()
++            }
++
++            R.id.menu_create_book_update_task -> viewModel.getBook()?.let {
++                openBookUpdateTask(it)
++            }
++
++            R.id.menu_login -> viewModel.bookSource?.let {
++                startActivity<SourceLoginActivity> {
++                    putExtra("type", "bookSource")
++                    putExtra("key", it.bookSourceUrl)
++                    putExtra("bookUrl", book?.bookUrl)
++                }
++            }
++
++            R.id.menu_top -> viewModel.topBook()
++            R.id.menu_set_source_variable -> setSourceVariable()
++            R.id.menu_set_book_variable -> setBookVariable()
++            R.id.menu_copy_book_url -> viewModel.getBook()?.let {
++                SourceCallBack.callBackBtn(
++                    this,
++                    SourceCallBack.CLICK_COPY_BOOK_URL,
++                    viewModel.bookSource,
++                    it,
++                    null,
++                    result = it.bookUrl
++                ) {
++                    sendToClip(it.bookUrl)
++                }
++            }
++
++            R.id.menu_copy_toc_url -> viewModel.getBook()?.let {
++                SourceCallBack.callBackBtn(
++                    this,
++                    SourceCallBack.CLICK_COPY_TOC_URL,
++                    viewModel.bookSource,
++                    it,
++                    null,
++                    result = it.tocUrl
++                ) {
++                    sendToClip(it.tocUrl)
++                }
++            }
++
++            R.id.menu_can_update -> {
++                viewModel.getBook()?.let {
++                    it.canUpdate = !it.canUpdate
++                    if (viewModel.inBookshelf) {
++                        if (!it.canUpdate) {
++                            it.removeType(BookType.updateError)
++                        }
++                        viewModel.saveBook(it)
++                    }
++                }
++            }
++
++            R.id.menu_clear_cache -> viewModel.getBook()?.let {
++                    SourceCallBack.callBackBtn(this, SourceCallBack.CLICK_CLEAR_CACHE, viewModel.bookSource, it, null) {
++                        viewModel.clearCache(it)
++                    }
++                }
++            R.id.menu_log -> showDialogFragment<AppLogDialog>()
++            R.id.menu_split_long_chapter -> {
++                upLoading(true)
++                viewModel.getBook()?.let {
++                    it.setSplitLongChapter(!item.isChecked)
++                    viewModel.loadBookInfo(it, false)
++                }
++                item.isChecked = !item.isChecked
++                if (!item.isChecked) longToastOnUi(R.string.need_more_time_load_content)
++            }
++
++            R.id.menu_delete_alert -> LocalConfig.bookInfoDeleteAlert = !item.isChecked
++            R.id.menu_upload -> {
++                viewModel.getBook()?.let { confirmAndUploadBook(it) }
++            }
++        }
++        return super.onCompatOptionsItemSelected(item)
++    }
++
++    override fun observeLiveBus() {
++        viewModel.actionLive.observe(this) {
++            when (it) {
++                "selectBooksDir" -> localBookTreeSelect.launch {
++                    title = getString(R.string.select_book_folder)
++                }
++            }
++        }
++
++        observeEvent<Boolean>(EventBus.REFRESH_BOOK_INFO) { //书源js函数触发刷新
++            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
++                refreshBook()
++            }
++        }
++
++        observeEvent<Boolean>(EventBus.REFRESH_BOOK_TOC) { //书源js函数触发刷新
++            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
++                refreshToc()
++            }
++        }
++    }
++
++    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
++        if (isIntroTextViewAttached && ev.action == MotionEvent.ACTION_DOWN) {
++            currentFocus?.let {
++                if (it === introTextView && introTextView.hasSelection()) {
++                    it.clearFocus()
++                }
++            }
++        }
++        return super.dispatchTouchEvent(ev)
++    }
++
++    private fun refreshBook() {
++        upLoading(true)
++        viewModel.getBook()?.let {
++            viewModel.refreshBook(it)
++        }
++    }
++
++    private fun openBookUpdateTask(book: Book) {
++        val task = AutoTask.buildBookUpdateTask(
++            book = book,
++            name = getString(R.string.auto_task_book_update_name, book.name)
++        )
++        lifecycleScope.launch {
++            val existingTask = withContext(IO) {
++                AutoTask.findBookUpdateTask(AutoTask.all(), book)
++            }
++            if (existingTask != null) {
++                startActivity(AutoTaskEditActivity.intent(this@BookInfoActivity, existingTask.id))
++            } else {
++                showDialogFragment(ImportAutoTaskDialog(GSON.toJson(task)))
++            }
++        }
++    }
++
++    private fun refreshToc() {
++        upLoading(true)
++        viewModel.getBook()?.let {
++            viewModel.loadChapter(it, true, isFromBookInfo = true)
++        }
++    }
++
++    private fun upLoadBook(
++        book: Book,
++        bookWebDav: RemoteBookWebDav? = AppWebDav.defaultBookWebDav,
++        overwrite: Boolean = true,
++        onConflict: (() -> Unit)? = null,
++        onFinished: () -> Unit = {},
++    ) {
++        lifecycleScope.launch {
++            waitDialog.setText(R.string.loading)
++            waitDialog.show()
++            var uploadConflict = false
++            try {
++                bookWebDav
++                    ?.upload(book, overwrite)
++                    ?: throw NoStackTraceException(getString(R.string.webdav_not_configured))
++                //更新书籍最后更新时间,使之比远程书籍的时间新
++                book.lastCheckTime = System.currentTimeMillis()
++                viewModel.saveBook(book)
++            } catch (e: Exception) {
++                currentCoroutineContext().ensureActive()
++                if (!overwrite &&
++                    e is WebDavException &&
++                    isWebDavOverwriteConflict(e.responseCode)
++                ) {
++                    uploadConflict = true
++                } else {
++                    toastOnUi(e.localizedMessage)
++                }
++            } finally {
++                waitDialog.dismiss()
++            }
++            if (uploadConflict) {
++                onConflict?.invoke() ?: onFinished()
++            } else {
++                onFinished()
++            }
++        }
++    }
++
++    private fun confirmAndUploadBook(
++        book: Book,
++        onFinished: () -> Unit = {},
++    ) {
++        val bookWebDav = AppWebDav.defaultBookWebDav
++        if (bookWebDav == null) {
++            toastOnUi(R.string.webdav_not_configured)
++            onFinished()
++            return
++        }
++        lifecycleScope.launch {
++            waitDialog.setText(R.string.loading)
++            waitDialog.show()
++            val remoteExists = try {
++                withContext(IO) { bookWebDav.hasRemoteBook(book) }
++            } catch (e: Exception) {
++                currentCoroutineContext().ensureActive()
++                toastOnUi(e.localizedMessage)
++                onFinished()
++                return@launch
++            } finally {
++                waitDialog.dismiss()
++            }
++            if (!remoteExists) {
++                upLoadBook(
++                    book = book,
++                    bookWebDav = bookWebDav,
++                    overwrite = false,
++                    onConflict = {
++                        showUploadOverwriteConfirm(book, bookWebDav, onFinished)
++                    },
++                    onFinished = onFinished,
++                )
++                return@launch
++            }
++            showUploadOverwriteConfirm(book, bookWebDav, onFinished)
++        }
++    }
++
++    private fun showUploadOverwriteConfirm(
++        book: Book,
++        bookWebDav: RemoteBookWebDav,
++        onFinished: () -> Unit,
++    ) {
++        alert(R.string.draw, R.string.webdav_book_exists_confirm) {
++            yesButton {
++                upLoadBook(
++                    book = book,
++                    bookWebDav = bookWebDav,
++                    overwrite = true,
++                    onFinished = onFinished,
++                )
++            }
++            noButton { onFinished() }
++            onCancelled { onFinished() }
++        }
++    }
++
++    private fun showBook(book: Book) = binding.run {
++        showCover(book)
++        tvName.text = book.name
++        tvAuthor.text = getString(R.string.author_show, book.getRealAuthor())
++        tvOrigin.text = getString(R.string.origin_show, book.originName)
++        tvLasted.text = getString(R.string.lasted_show, book.latestChapterTitle)
++        showBookIntro(book)
++        if (book.isWebFile) {
++            llToc.gone()
++            tvLasted.text = getString(R.string.lasted_show, "下载中...")
++        } else {
++            llToc.visible()
++        }
++        menuCustomBtn?.isVisible = viewModel.hasCustomBtn
++        upTvBookshelf()
++        invalidateOptionsMenu()
++        upKinds(book)
++        upGroup(book.group)
++    }
++
++    inner class CustomWebViewClient : WebViewClient() {
++        private val jsStr = getInjectionString
++        override fun shouldOverrideUrlLoading(
++            view: WebView?,
++            request: WebResourceRequest?
++        ): Boolean {
++            request?.let {
++                val uri = it.url
++                return when (uri.scheme) {
++                    "http", "https" -> false
++                    "legado", "yuedu" -> {
++                        startActivity<OnLineImportActivity> {
++                            data = uri
++                        }
++                        true
++                    }
++
++                    else -> {
++                        binding.root.longSnackbar(R.string.jump_to_another_app, R.string.confirm) {
++                            openUrl(uri)
++                        }
++                        true
++                    }
++                }
++            }
++            return true
++        }
++        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
++            super.onPageStarted(view, url, favicon)
++            view?.evaluateJavascript(jsStr, null)
++        }
++        override fun onPageFinished(view: WebView?, url: String?) {
++            super.onPageFinished(view, url)
++            view?.post {
++                binding.tvIntroContainer.requestLayout()
++            }
++        }
++    }
++
++    private fun showBookIntro(book: Book) {
++        val intro = book.getDisplayIntro()
++        if (intro.isNullOrBlank()) {
++            introContent = null
++            introExpanded = false
++            introCanCollapse = false
++            introRenderGeneration++
++            introRenderJob?.cancel()
++            destroyWeb()
++            binding.tvIntroContainer.removeAllViews()
++            isIntroTextViewAttached = false
++            binding.tvIntroContainer.gone()
++            updateIntroToggle()
++            return
++        }
++        if (intro != introContent) {
++            introContent = intro
++            introExpanded = true
++            introCanCollapse = false
++        }
++        val renderGeneration = ++introRenderGeneration
++        introRenderJob?.cancel()
++        binding.tvIntroContainer.visible()
++        if (intro.startsWith("<useweb>")) {
++            val lastIndex = intro.lastIndexOf("<")
++            if (lastIndex < 8) {
++                val tvIntro = prepareIntroTextView()
++                tvIntro.text = intro
++                scheduleIntroOverflowCheck(renderGeneration)
++                return
++            }
++            introCanCollapse = false
++            updateIntroToggle()
++            val html = intro.substring(8, lastIndex)
++            val pooledWebView = this.pooledWebView ?: let{
++                val pooledWebView = WebViewPool.acquire(this)
++                val webView = pooledWebView.realWebView
++                webView.onResume()
++                webView.webViewClient = CustomWebViewClient()
++                webView.addJavascriptInterface(WebCacheManager, nameCache)
++                viewModel.bookSource?.let {
++                    webView.addJavascriptInterface(it as BaseSource, nameSource)
++                    val webJsExtensions = WebJsExtensions(it, null, webView)
++                    webView.addJavascriptInterface(webJsExtensions, nameJava)
++                }
++                pooledWebView
++            }
++            val webView = pooledWebView.realWebView
++            if (isIntroTextViewAttached || this.pooledWebView == null) {
++                isIntroTextViewAttached = false
++                this.pooledWebView = pooledWebView
++                binding.tvIntroContainer.removeAllViews()
++                binding.tvIntroContainer.addView(webView)
++            }
++            val bookUrl = viewModel.getBook()?.bookUrl
++                ?.takeIf { it.startsWith("http", true) }
++                ?.substringBefore(",")
++            webView.loadDataWithBaseURL(bookUrl, html, "text/html", "utf-8", bookUrl)
++            return
++        }
++        val tvIntro = prepareIntroTextView()
++        if (intro.startsWith("<usehtml>")) {
++            val lastIndex = intro.lastIndexOf("<")
++            if (lastIndex < 9) {
++                tvIntro.text = intro
++                scheduleIntroOverflowCheck(renderGeneration)
++                return
++            }
++            val html = intro.substring(9, lastIndex)
++            tvIntro.setHtml(
++                html,
++                glideImageGetter,
++                textViewTagHandler,
++                imgOnLongClickListener = {
++                    showDialogFragment(PhotoDialog(it, viewModel.bookSource?.bookSourceUrl))
++                },
++                imgOnClickListener = {
++                    viewModel.onButtonClick(this@BookInfoActivity, "info image" , it)
++                }
++            )
++            scheduleIntroOverflowCheck(renderGeneration)
++        } else if (intro.startsWith("<md>")) {
++            val lastIndex = intro.lastIndexOf("<")
++            if (lastIndex < 4) {
++                tvIntro.text = intro
++                scheduleIntroOverflowCheck(renderGeneration)
++                return
++            }
++            val mark = intro.substring(4, lastIndex)
++            tvIntro.text = null
++            introRenderJob = lifecycleScope.launch {
++                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++                    tvIntro.setTextClassifier(TextClassifier.NO_OP)
++                }
++                val context = this@BookInfoActivity
++                val markwon: Markwon
++                val markdown = withContext(IO) {
++                    markwon = Markwon.builder(context)
++                        .usePlugin(
++                            GlideImagesPlugin.create(
++                                Glide.with(context)
++                                    .applyDefaultRequestOptions(
++                                        RequestOptions()
++                                            .override(imgAvailableWidth)
++                                            .encodeQuality(88)
++                                    )
++                            )
++                        )
++                        .usePlugin(HtmlPlugin.create())
++                        .usePlugin(TablePlugin.create(context))
++                        .build()
++                    markwon.toMarkdown(mark)
++                }
++                if (renderGeneration != introRenderGeneration) return@launch
++                tvIntro.setMarkdown(
++                    markwon,
++                    markdown,
++                    imgOnLongClickListener = { source ->
++                        showDialogFragment(PhotoDialog(source, viewModel.bookSource?.bookSourceUrl))
++                    }
++                )
++                scheduleIntroOverflowCheck(renderGeneration)
++            }
++        } else {
++            setPlainBookIntro(tvIntro, intro)
++            scheduleIntroOverflowCheck(renderGeneration)
++        }
++    }
++
++    private fun setPlainBookIntro(textView: ScrollTextView, intro: String) {
++        val ranges = introIndentRanges(intro)
++        if (ranges.isEmpty()) {
++            textView.text = intro
++            return
++        }
++        val indentWidth = textView.paint.measureText("　　").roundToInt().coerceAtLeast(1)
++        textView.text = SpannableString(intro).apply {
++            ranges.forEach { range ->
++                setSpan(
++                    LeadingMarginSpan.Standard(indentWidth, 0),
++                    range.start,
++                    range.endExclusive,
++                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
++                )
++            }
++        }
++    }
++
++    private fun prepareIntroTextView(): ScrollTextView {
++        val tvIntro = introTextView
++        if (!isIntroTextViewAttached || pooledWebView != null) {
++            destroyWeb()
++            binding.tvIntroContainer.removeAllViews()
++            tvIntro.text = null
++            binding.tvIntroContainer.addView(tvIntro)
++            isIntroTextViewAttached = true
++        }
++        applyIntroCollapseState(tvIntro)
++        return tvIntro
++    }
++
++    private fun applyIntroCollapseState(tvIntro: ScrollTextView = introTextView) {
++        tvIntro.internalScrollEnabled = false
++        tvIntro.maxLines = if (introExpanded) Int.MAX_VALUE else BookIntroCollapse.COLLAPSED_LINES
++        tvIntro.maxMeasuredHeight = if (introExpanded) {
++            null
++        } else {
++            collapsedIntroHeight(tvIntro)
++        }
++        tvIntro.ellipsize = if (introExpanded) null else TextUtils.TruncateAt.END
++        if (!introExpanded) {
++            tvIntro.scrollTo(0, 0)
++        }
++        updateIntroToggle()
++        tvIntro.requestLayout()
++    }
++
++    private fun collapsedIntroHeight(tvIntro: ScrollTextView): Int =
++        tvIntro.lineHeight * BookIntroCollapse.COLLAPSED_LINES +
++            tvIntro.compoundPaddingTop + tvIntro.compoundPaddingBottom
++
++    private fun scheduleIntroOverflowCheck(renderGeneration: Int) {
++        introTextView.post {
++            if (renderGeneration == introRenderGeneration &&
++                lifecycle.currentState != Lifecycle.State.DESTROYED
++            ) {
++                updateIntroOverflow()
++            }
++        }
++    }
++
++    private fun updateIntroOverflow() {
++        if (!isIntroTextViewAttached || pooledWebView != null) return
++        val tvIntro = introTextView
++        val textLayout = tvIntro.layout ?: return
++        val lineCount = textLayout.lineCount
++        if (lineCount <= 0) return
++        val lastLine = lineCount - 1
++        val collapsedHeight = collapsedIntroHeight(tvIntro)
++        val canCollapse = tvIntro.isMeasuredHeightLimited || BookIntroCollapse.hasOverflow(
++            expanded = introExpanded,
++            lineCount = lineCount,
++            lastLineEllipsisCount = textLayout.getEllipsisCount(lastLine),
++            lastLineEnd = textLayout.getLineEnd(lastLine),
++            textLength = tvIntro.text.length,
++            contentHeight = textLayout.height +
++                tvIntro.compoundPaddingTop + tvIntro.compoundPaddingBottom,
++            collapsedContentHeight = collapsedHeight,
++        )
++        if (introCanCollapse != canCollapse) {
++            introCanCollapse = canCollapse
++            updateIntroToggle()
++        }
++    }
++
++    private fun updateIntroToggle() = binding.tvIntroToggle.run {
++        if (!introCanCollapse || !isIntroTextViewAttached || pooledWebView != null) {
++            gone()
++            return@run
++        }
++        setText(
++            if (introExpanded) {
++                R.string.book_intro_collapse
++            } else {
++                R.string.book_intro_expand
++            }
++        )
++        visible()
++    }
++
++    private fun upKinds(book: Book) = binding.run {
++        lifecycleScope.launch {
++            var kinds = book.getKindList()
++            if (book.isLocal) {
++                withContext(IO) {
++                    val size = try {
++                        FileDoc.fromUri(book.getLocalUri(), false).size
++                    } catch (e: Exception) {
++                        currentCoroutineContext().ensureActive()
++                        0L
++                    }
++                    if (size > 0) {
++                        kinds = kinds.toMutableList()
++                        kinds.add(ConvertUtils.formatFileSize(size))
++                    }
++                }
++            }
++            if (kinds.isEmpty()) {
++                lbKind.gone()
++            } else {
++                lbKind.visible()
++                val source = viewModel.bookSource
++                if (source == null) {
++                    lbKind.setLabels(kinds)
++                    return@launch
++                }
++                lbKind.setLabels(
++                    kinds,
++                    { kind ->
++                        SourceCallBack.callBackBtn(
++                            this@BookInfoActivity,
++                            SourceCallBack.CLICK_BOOK_LABEL,
++                            source,
++                            book,
++                            null,
++                            result = kind
++                        ) {
++                            SearchActivity.start(this@BookInfoActivity, source, kind)
++                        }
++                    },
++                    { kind ->
++                        SourceCallBack.callBackBtn(
++                            this@BookInfoActivity,
++                            SourceCallBack.LONG_CLICK_BOOK_LABEL,
++                            source,
++                            book,
++                            null,
++                            result = kind
++                        )
++                        true
++                    }
++                )
++            }
++        }
++    }
++
++    private fun showCover(book: Book) {
++        binding.ivCover.load(book, false) {
++            if (!AppConfig.isEInkMode) {
++                BookCover.loadBlur(
++                    this,
++                    book.getDisplayCover(),
++                    false,
++                    book.getCoverSourceOrigin()
++                )
++                    .into(binding.bgBook)
++            }
++        }
++    }
++
++    private fun upLoading(isLoading: Boolean, chapterList: List<BookChapter>? = null) {
++        when {
++            isLoading -> {
++                binding.tvToc.text = getString(R.string.toc_s, getString(R.string.loading))
++            }
++
++            chapterList.isNullOrEmpty() -> {
++                binding.tvToc.text = getString(
++                    R.string.toc_s,
++                    getString(R.string.error_load_toc)
++                )
++                binding.tvLasted.text = getString(R.string.lasted_show, book?.latestChapterTitle)
++            }
++
++            else -> {
++                book?.let {
++                    val tocTitle = resolveBookInfoTocTitle(
++                        it.durChapterTitle,
++                        it.durChapterIndex,
++                        chapterList,
++                    ) ?: getString(R.string.no_last_chapter)
++                    val readStatus = resolveBookInfoReadProgress(it)?.let { percent ->
++                        getString(R.string.read_y, "$percent%")
++                    }
++                    binding.tvToc.text = getString(
++                        R.string.toc_s,
++                        listOfNotNull(tocTitle, readStatus).joinToString("  ·  "),
++                    )
++                    binding.tvLasted.text = getString(R.string.lasted_show, it.latestChapterTitle)
++                }
++            }
++        }
++    }
++
++    private fun upTvBookshelf() {
++        if (viewModel.inBookshelf) {
++            binding.tvShelf.text = getString(R.string.remove_from_bookshelf)
++        } else {
++            binding.tvShelf.text = getString(R.string.add_to_bookshelf)
++        }
++        editMenuItem?.isVisible = viewModel.inBookshelf && !isVaultShelfTransientBook()
+     }
+ 
+     private fun upGroup(groupId: Long) {
+
+# VaultShelf temporary EPUBs must not leave or share Legado's full content-URI disk cache.
+diff --git a/app/src/main/java/io/legado/app/help/book/BookHelp.kt b/app/src/main/java/io/legado/app/help/book/BookHelp.kt
+--- a/app/src/main/java/io/legado/app/help/book/BookHelp.kt
++++ b/app/src/main/java/io/legado/app/help/book/BookHelp.kt
+@@ -1,586 +1,610 @@
+ package io.legado.app.help.book
+ 
+-import android.os.ParcelFileDescriptor
+-import androidx.core.util.AtomicFile
+-import androidx.documentfile.provider.DocumentFile
+-import com.script.rhino.runScriptWithContext
+-import io.legado.app.constant.AppLog
+-import io.legado.app.constant.AppPattern
+-import io.legado.app.constant.EventBus
+-import io.legado.app.data.appDb
+-import io.legado.app.data.entities.Book
+-import io.legado.app.data.entities.BookChapter
+-import io.legado.app.data.entities.BookSource
+-import io.legado.app.data.entities.getFolderName
+-import io.legado.app.data.entities.isEpub
+-import io.legado.app.help.config.AppConfig
+-import io.legado.app.model.analyzeRule.AnalyzeUrl
+-import io.legado.app.model.localBook.EpubFile
+-import io.legado.app.model.localBook.LocalBook
+-import io.legado.app.utils.ArchiveUtils
+-import io.legado.app.utils.FileUtils
+-import io.legado.app.utils.ImageUtils
+-import io.legado.app.utils.MD5Utils
+-import io.legado.app.utils.NetworkUtils
+-import io.legado.app.utils.StringUtils
+-import io.legado.app.utils.SvgUtils
+-import io.legado.app.utils.BitmapUtils
+-import io.legado.app.utils.UrlUtil
+-import io.legado.app.utils.createFileIfNotExist
+-import io.legado.app.utils.exists
+-import io.legado.app.utils.externalFiles
+-import io.legado.app.utils.getFile
+-import io.legado.app.utils.isContentScheme
+-import io.legado.app.utils.onEachParallel
+-import io.legado.app.utils.postEvent
+-import kotlinx.coroutines.Dispatchers.IO
+-import kotlinx.coroutines.coroutineScope
+-import kotlinx.coroutines.currentCoroutineContext
+-import kotlinx.coroutines.ensureActive
+-import kotlinx.coroutines.flow.Flow
+-import kotlinx.coroutines.flow.collect
+-import kotlinx.coroutines.flow.flow
+-import kotlinx.coroutines.sync.Mutex
+-import kotlinx.coroutines.withContext
+-import org.apache.commons.text.similarity.JaccardSimilarity
+-import splitties.init.appCtx
+-import java.io.ByteArrayInputStream
+-import java.io.File
+-import java.io.FileNotFoundException
+-import java.io.FileOutputStream
+-import java.io.IOException
+-import java.util.concurrent.ConcurrentHashMap
+-import java.util.regex.Pattern
+-import java.util.zip.ZipFile
+-import kotlin.math.abs
+-import kotlin.math.max
+-import kotlin.math.min
+-
+-internal data class ContentSaveKey(val bookUrl: String, val chapterIndex: Int)
+-internal data class ContentSaveState(val version: Long = 0L, val fileName: String? = null)
+-internal sealed interface ChapterSourceMatch {
+-    data class Unique(val targetPosition: Int) : ChapterSourceMatch
+-    data class Ambiguous(val targetPositions: List<Int>) : ChapterSourceMatch
+-    data object Missing : ChapterSourceMatch
+-}
+-
+-data class ContentSaveToken internal constructor(
+-    internal val key: ContentSaveKey,
+-    internal val folderName: String,
+-    val version: Long,
+-)
+-
+-internal data class PendingResourceChapter(
+-    val chapter: BookChapter,
+-    val token: ContentSaveToken,
+-    val oldFileName: String,
+-    val content: String,
+-    val file: File,
+-)
+-
+-internal class ContentSaveFence {
+-    private val states = ConcurrentHashMap<ContentSaveKey, ContentSaveState>()
+-
+-    @Synchronized
+-    fun state(key: ContentSaveKey): ContentSaveState = states[key] ?: ContentSaveState()
+-
+-    // ponytail: serialize cache publication; use per-book locks if disk contention becomes measurable.
+-    fun <T> exclusive(block: () -> T): T = synchronized(this, block)
+-
+-    @Synchronized
+-    fun writeIfCurrent(
+-        key: ContentSaveKey,
+-        expectedVersion: Long,
+-        fileName: String,
+-        write: () -> Unit,
+-    ): Boolean {
+-        var written = false
+-        states.compute(key) { _, current ->
+-            if ((current?.version ?: 0L) == expectedVersion) {
+-                write()
+-                written = true
+-                current?.copy(fileName = fileName)
+-            } else {
+-                current
+-            }
+-        }
+-        return written
+-    }
+-
+-    @Synchronized
+-    fun replace(key: ContentSaveKey, fileName: String, write: () -> Unit) {
+-        var failure: Throwable? = null
+-        states.compute(key) { _, current ->
+-            val nextVersion = (current?.version ?: 0L) + 1L
+-            try {
+-                write()
+-                ContentSaveState(nextVersion, fileName)
+-            } catch (error: Throwable) {
+-                failure = error
+-                ContentSaveState(nextVersion, current?.fileName)
+-            }
+-        }
+-        failure?.let { throw it }
+-    }
+-}
+-
+-@Suppress("unused", "ConstPropertyName")
+-object BookHelp {
+-    private val downloadDir: File = appCtx.externalFiles
+-    private const val cacheFolderName = "book_cache"
+-    private const val cacheImageFolderName = "images"
+-    private const val cacheEpubFolderName = "epub"
+-    private val downloadImages = ConcurrentHashMap<String, Mutex>()
+-    // Guarded by this, together with image invalidation and writes.
+-    private val imageVersions = hashMapOf<String, Long>()
+-    private val contentSaveFence = ContentSaveFence()
+-
+-    val cachePath = FileUtils.getPath(downloadDir, cacheFolderName)
+-
+-    fun clearCache() {
+-        FileUtils.delete(
+-            FileUtils.getPath(downloadDir, cacheFolderName)
+-        )
+-    }
+-
+-    fun clearCache(book: Book) {
+-        val filePath = FileUtils.getPath(downloadDir, cacheFolderName, book.getFolderName())
+-        FileUtils.delete(filePath)
+-    }
+-
+-    fun updateCacheFolder(oldBook: Book, newBook: Book) {
+-        val oldFolderName = oldBook.getFolderNameNoCache()
+-        val newFolderName = newBook.getFolderNameNoCache()
+-        if (oldFolderName == newFolderName) return
+-        val oldFolderPath = FileUtils.getPath(
+-            downloadDir,
+-            cacheFolderName,
+-            oldFolderName
+-        )
+-        val newFolderPath = FileUtils.getPath(
+-            downloadDir,
+-            cacheFolderName,
+-            newFolderName
+-        )
+-        FileUtils.move(oldFolderPath, newFolderPath)
+-    }
+-
+-    /**
+-     * 清除已删除书的缓存 解压缓存
+-     */
+-    suspend fun clearInvalidCache() {
+-        withContext(IO) {
+-            val bookFolderNames = hashSetOf<String>()
+-            val originNames = hashSetOf<String>()
+-            val cleanupSnapshot = appDb.bookDao.getCacheCleanupSnapshot(
+-                includeImageBooks = AppConfig.imageRetainNum > 0,
+-            )
+-            cleanupSnapshot.imageBooks.forEach(::clearComicCache)
+-            cleanupSnapshot.books.forEach {
+-                bookFolderNames.add(it.getFolderName())
+-                if (it.isEpub) originNames.add(it.originName)
+-            }
+-            downloadDir.getFile(cacheFolderName)
+-                .listFiles()?.forEach { bookFile ->
+-                    if (!bookFolderNames.contains(bookFile.name)) {
+-                        FileUtils.delete(bookFile.absolutePath)
+-                    }
+-                }
+-            downloadDir.getFile(cacheEpubFolderName)
+-                .listFiles()?.forEach { epubFile ->
+-                    if (!originNames.contains(epubFile.name)) {
+-                        FileUtils.delete(epubFile.absolutePath)
+-                    }
+-                }
+-            FileUtils.delete(ArchiveUtils.TEMP_PATH)
+-            val filesDir = appCtx.filesDir
+-            FileUtils.delete("$filesDir/shareBookSource.json")
+-            FileUtils.delete("$filesDir/shareRssSource.json")
+-            FileUtils.delete("$filesDir/books.json")
+-        }
+-    }
+-
+-    //清除已经看过的漫画数据
+-    private fun clearComicCache(book: Book) {
+-        //只处理漫画
+-        //为0的时候，不清除已缓存数据
+-        if (!book.isImage || AppConfig.imageRetainNum == 0) {
+-            return
+-        }
+-        //向前保留设定数量，向后保留预下载数量
+-        val startIndex = book.durChapterIndex - AppConfig.imageRetainNum
+-        val endIndex = book.durChapterIndex + AppConfig.preDownloadNum
+-        val chapterList = appDb.bookChapterDao.getChapterList(book.bookUrl, startIndex, endIndex)
+-        val imgNames = hashSetOf<String>()
+-        //获取需要保留章节的图片信息
+-        chapterList.forEach {
+-            val content = getContent(book, it)
+-            if (content != null) {
+-                val matcher = AppPattern.imgPattern.matcher(content)
+-                while (matcher.find()) {
+-                    val src = matcher.group(1) ?: continue
+-                    val mSrc = NetworkUtils.getAbsoluteURL(it.url, src)
+-                    imgNames.add("${MD5Utils.md5Encode16(mSrc)}.${getImageSuffix(mSrc)}")
+-                }
+-            }
+-        }
+-        downloadDir.getFile(
+-            cacheFolderName,
+-            book.getFolderName(),
+-            cacheImageFolderName
+-        ).listFiles()?.forEach { imgFile ->
+-            if (!imgNames.contains(imgFile.name)) {
+-                imgFile.delete()
+-            }
+-        }
+-    }
+-
+-    fun saveContent(
+-        bookSource: BookSource,
+-        book: Book,
+-        bookChapter: BookChapter,
+-        content: String,
+-        token: ContentSaveToken = contentSaveToken(book, bookChapter),
+-        saveChapterMetadata: Boolean = false,
+-    ): Boolean {
+-        return try {
+-            if (token.key.bookUrl != book.bookUrl ||
+-                token.key.chapterIndex != bookChapter.index ||
+-                token.folderName != book.getFolderName()
+-            ) {
+-                return false
+-            }
+-            val fileName = bookChapter.getFileName()
+-            val saved = contentSaveFence.writeIfCurrent(
+-                token.key,
+-                token.version,
+-                fileName,
+-            ) {
+-                if (content.isNotEmpty()) {
+-                    writeText(book, bookChapter, token.folderName, fileName, content)
+-                }
+-                if (saveChapterMetadata) {
+-                    appDb.bookChapterDao.updateContentMetadata(
+-                        bookChapter.bookUrl,
+-                        bookChapter.index,
+-                        bookChapter.title,
+-                        bookChapter.imgUrl,
+-                    )
+-                }
+-            }
+-            if (saved) {
+-                //saveImages(bookSource, book, bookChapter, content)
+-                postEvent(EventBus.SAVE_CONTENT, Pair(book, bookChapter))
+-            }
+-            saved
+-        } catch (e: Exception) {
+-            e.printStackTrace()
+-            AppLog.put("保存正文失败 ${book.name} ${bookChapter.title}", e)
+-            false
+-        }
+-    }
+-
+-    fun saveText(
+-        book: Book,
+-        bookChapter: BookChapter,
+-        content: String,
+-        saveChapterMetadata: Boolean = false,
+-    ) {
+-        if (content.isEmpty()) return
+-        val folderName = book.getFolderName()
+-        val fileName = bookChapter.getFileName()
+-        contentSaveFence.replace(contentSaveKey(book, bookChapter), fileName) {
+-            writeText(book, bookChapter, folderName, fileName, content)
+-            if (saveChapterMetadata) {
+-                appDb.bookChapterDao.updateContentMetadata(
+-                    bookChapter.bookUrl,
+-                    bookChapter.index,
+-                    bookChapter.title,
+-                    bookChapter.imgUrl,
+-                )
+-            }
+-        }
+-    }
+-
+-    fun isContentReversed(book: Book, chapter: BookChapter): Boolean {
+-        val fileName = contentSaveFileName(book, chapter) ?: chapter.getFileName()
+-        val file = downloadDir.getFile(cacheFolderName, book.getFolderName(), fileName)
+-        val marker = File(file.path + ".reversed")
+-        return runCatching {
+-            marker.isFile && file.isFile &&
+-                marker.bufferedReader().use { it.readLine() } == file.inputStream().use(MD5Utils::md5Encode)
+-        }.getOrDefault(false)
+-    }
+-
+-    fun reverseContent(book: Book, chapter: BookChapter): Boolean {
+-        val folderName = book.getFolderName()
+-        val fileName = contentSaveFileName(book, chapter) ?: chapter.getFileName()
+-        val file = downloadDir.getFile(cacheFolderName, folderName, fileName)
+-        if (!file.isFile || file.length() == 0L) return false
+-        var saved = false
+-        contentSaveFence.replace(contentSaveKey(book, chapter), fileName) {
+-            if (!file.isFile) return@replace
+-            val content = file.readText().takeIf { it.isNotEmpty() } ?: return@replace
+-            val wasReversed = isContentReversed(book, chapter)
+-            val marker = File(file.path + ".reversed")
+-            // Restore the original verbatim, even when reversing plain text
+-            // happened to create a sequence that looks like reader markup.
+-            val reversed = if (wasReversed) marker.readText().substringAfter('\n')
+-                else reverseContentText(content)
+-            // Prepare the undo data before changing the cache. The fingerprint
+-            // only becomes valid after the atomic content write succeeds.
+-            if (!wasReversed) {
+-                try {
+-                    marker.writeText(MD5Utils.md5Encode(reversed) + "\n" + content)
+-                } catch (error: Throwable) {
+-                    if (marker.isFile) marker.delete()
+-                    throw error
+-                }
+-            }
+-            val atomicFile = AtomicFile(file)
+-            var output: FileOutputStream? = null
+-            try {
+-                output = atomicFile.startWrite()
+-                output.write(reversed.toByteArray(Charsets.UTF_8))
+-                atomicFile.finishWrite(output)
+-                output = null
+-                if (file.readText() != reversed) throw IOException("Reversed content was not saved")
+-            } catch (error: Throwable) {
+-                atomicFile.failWrite(output)
+-                if (!wasReversed) marker.delete()
+-                throw error
+-            }
+-            if (wasReversed) marker.delete()
+-            saved = true
+-        }
+-        return saved
+-    }
+-
+-    internal fun contentSaveToken(book: Book, bookChapter: BookChapter): ContentSaveToken {
+-        val key = contentSaveKey(book, bookChapter)
+-        return ContentSaveToken(
+-            key,
+-            book.getFolderName(),
+-            contentSaveFence.state(key).version,
+-        )
+-    }
+-
+-    internal fun isContentSaveCurrent(token: ContentSaveToken): Boolean =
+-        contentSaveFence.state(token.key).version == token.version
+-
+-    internal fun resourceStagingDir(book: Book): File {
+-        val parent = FileUtils.createFolderIfNotExist(downloadDir, cacheFolderName, book.getFolderName())
+-        return File.createTempFile(".resource-refresh-", ".tmp", parent).apply {
+-            if (!delete() || !mkdir()) throw IOException("Cannot prepare resource refresh")
+-        }
+-    }
+-
+-    internal fun resourcesOutdated(book: Book, chapter: BookChapter): Boolean {
+-        val fileName = contentSaveFileName(book, chapter) ?: chapter.getFileName()
+-        val file = downloadDir.getFile(cacheFolderName, book.getFolderName(), fileName + ".resources")
+-        val accepted = runCatching { file.readText().toLong() }.getOrDefault(0L)
+-        return accepted != ResourceThemeGeneration.current()
+-    }
+-
+-    @Synchronized
+-    internal fun imageSaveVersion(book: Book, src: String): Long =
+-        imageVersions[getImage(book, src).absolutePath] ?: 0L
+-
+-    internal fun commitResources(
+-        book: Book,
+-        chapters: List<PendingResourceChapter>,
+-        images: Map<String, File>,
+-        imageTokens: Map<String, Long>,
+-        generation: Long? = null,
+-    ) = contentSaveFence.exclusive { synchronized(this) {
+-        if (chapters.any { !isContentSaveCurrent(it.token) || it.token.folderName != book.getFolderName() ||
+-                it.token.key.bookUrl != book.bookUrl || it.token.key.chapterIndex != it.chapter.index } ||
+-            imageTokens.any { (src, version) -> imageSaveVersion(book, src) != version }) {
+-            throw IOException("资源已被其他操作更新，请重试刷新")
+-        }
+-        val files = linkedMapOf<File, File?>()
+-        chapters.forEach { pending ->
+-            val current = downloadDir.getFile(cacheFolderName, pending.token.folderName,
+-                contentSaveFileName(book, pending.chapter) ?: pending.oldFileName)
+-            val target = downloadDir.getFile(cacheFolderName, pending.token.folderName,
+-                pending.chapter.getFileName())
+-            if (current != target) files[current] = null
+-            files[File(current.path + ".reversed")] = null
+-            files[File(target.path + ".reversed")] = null
+-            files[target] = pending.file
+-            if (generation != null) {
+-                if (current != target) files[File(current.path + ".resources")] = null
+-                files[File(target.path + ".resources")] =
+-                    File(pending.file.parentFile, "generation-${pending.chapter.index}").apply {
+-                        writeText(generation.toString())
+-                    }
+-            }
+-        }
+-        images.forEach { (src, file) -> files[getImage(book, src)] = file }
+-        replaceResourceFiles(files) {
+-            appDb.runInTransaction {
+-                chapters.forEach { pending ->
+-                    val chapter = pending.chapter
+-                    appDb.bookChapterDao.updateResourceMetadata(book.bookUrl, chapter.index,
+-                        chapter.title, chapter.imgUrl, chapter.variable)
+-                    if (book.isOnLineTxt && AppConfig.tocCountWords) {
+-                        val wordCount = StringUtils.wordCountFormat(pending.content.length)
+-                        chapter.wordCount = wordCount
+-                        appDb.bookChapterDao.upWordCount(book.bookUrl, chapter.url, wordCount)
+-                    }
+-                }
+-            }
+-        }
+-        chapters.forEach {
+-            contentSaveFence.replace(it.token.key, it.chapter.getFileName()) {}
+-        }
+-        images.keys.forEach { src ->
+-            val path = getImage(book, src).absolutePath
+-            imageVersions[path] = (imageVersions[path] ?: 0L) + 1L
+-        }
+-        chapters.map { it.copy(token = contentSaveToken(book, it.chapter)) }
+-    } }
+-
+-    private fun contentSaveFileName(book: Book, bookChapter: BookChapter): String? {
+-        return contentSaveFence.state(contentSaveKey(book, bookChapter)).fileName
+-    }
+-
+-    private fun contentSaveKey(book: Book, bookChapter: BookChapter) =
+-        ContentSaveKey(book.bookUrl, bookChapter.index)
+-
+-    private fun writeText(
+-        book: Book,
+-        bookChapter: BookChapter,
+-        folderName: String,
+-        fileName: String,
+-        content: String,
+-    ) {
+-        //保存文本
+-        FileUtils.createFileIfNotExist(
+-            downloadDir,
+-            cacheFolderName,
+-            folderName,
+-            fileName,
+-        ).writeText(content)
+-        // A fresh download or a manual edit replaces the reversed cache.
+-        File(downloadDir.getFile(cacheFolderName, folderName, fileName).path + ".reversed").delete()
+-        if (book.isOnLineTxt && AppConfig.tocCountWords) {
+-            val wordCount = StringUtils.wordCountFormat(content.length)
+-            bookChapter.wordCount = wordCount
+-            appDb.bookChapterDao.upWordCount(bookChapter.bookUrl, bookChapter.url, wordCount)
+-        }
+-    }
+-
+-    fun flowImages(bookChapter: BookChapter, content: String): Flow<String> {
+-        return flow {
+-            val matcher = AppPattern.imgPattern.matcher(content)
+-            while (matcher.find()) {
+-                val src = matcher.group(1) ?: continue
+-                val mSrc = NetworkUtils.getAbsoluteURL(bookChapter.url, src)
+-                emit(mSrc)
+-            }
+-        }
+-    }
+-
+-    suspend fun saveImages(
+-        bookSource: BookSource,
+-        book: Book,
+-        bookChapter: BookChapter,
+-        content: String,
+-        concurrency: Int = AppConfig.threadCount
+-    ) = coroutineScope {
+-        flowImages(bookChapter, content).onEachParallel(concurrency) { mSrc ->
+-            saveImage(bookSource, book, mSrc, bookChapter)
+-        }.collect()
+-    }
+-
+-    suspend fun saveImage(
+-        bookSource: BookSource?,
+-        book: Book,
+-        src: String,
+-        chapter: BookChapter? = null
+-    ) {
+-        val imagePath = getImage(book, src).absolutePath
+-        val version = synchronized(this) {
+-            if (isImageExist(book, src)) return
+-            imageVersions[imagePath] ?: 0L
+-        }
+-        val mutex = synchronized(this) {
+-            downloadImages.getOrPut(src) { Mutex() }
+-        }
+-        mutex.lock()
+-        try {
+-            if (isImageExist(book, src)) {
+-                return
+-            }
+-            fetchImage(bookSource, book, src)?.let {
+-                if (!checkImage(it)) {
+-                    // 如果部分图片失效，每次进入正文都会花很长时间再次获取图片数据
+-                    // 所以无论如何都要将数据写入到文件里
+-                    // throw NoStackTraceException("数据异常")
+-                    AppLog.put("${book.name} ${chapter?.title} 图片 $src 下载错误 数据异常")
+-                }
+-                synchronized(this) {
+-                    if ((imageVersions[imagePath] ?: 0L) == version) {
+-                        writeImage(book, src, it)
+-                    }
+-                }
+-            }
+-        } catch (e: Exception) {
+-            currentCoroutineContext().ensureActive()
+-            val msg = "${book.name} ${chapter?.title} 图片 $src 下载失败\n${e.localizedMessage}"
+-            AppLog.put(msg, e)
+-        } finally {
+-            downloadImages.remove(src)
+-            mutex.unlock()
+-        }
+-    }
+-
+-    fun getImage(book: Book, src: String): File {
+-        return downloadDir.getFile(
+-            cacheFolderName,
+-            book.getFolderName(),
+-            cacheImageFolderName,
+-            "${MD5Utils.md5Encode16(src)}.${getImageSuffix(src)}"
+-        )
+-    }
+-
+-    @Synchronized
+-    fun writeImage(book: Book, src: String, bytes: ByteArray) {
+-        getImage(book, src).createFileIfNotExist().writeBytes(bytes)
+-    }
+-
+-    internal suspend fun fetchImage(bookSource: BookSource?, book: Book, src: String): ByteArray? {
+-        val bytes = AnalyzeUrl(src, source = bookSource, coroutineContext = currentCoroutineContext())
+-            .getByteArrayAwait()
+-        return runScriptWithContext { ImageUtils.decode(src, bytes, isCover = false, bookSource, book) }
+-    }
+-
+-    @Synchronized
+-    fun delImage(book: Book, src: String) {
+-        val file = getImage(book, src)
+-        imageVersions[file.absolutePath] = (imageVersions[file.absolutePath] ?: 0L) + 1L
+-        if (file.exists() && !file.delete()) {
+-            throw IOException("删除图片缓存失败: ${file.name}")
+-        }
+-    }
+-
+-    @Synchronized
+-    fun isImageExist(book: Book, src: String): Boolean {
+-        return getImage(book, src).exists()
+-    }
+-
+-    fun getImageSuffix(src: String): String {
+-        return UrlUtil.getSuffix(src, "jpg")
+-    }
+-
+-    @Throws(IOException::class, FileNotFoundException::class)
+-    fun getEpubFile(book: Book): ZipFile {
+-        val uri = book.getLocalUri()
+-        if (uri.isContentScheme()) {
+-            FileUtils.createFolderIfNotExist(downloadDir, cacheEpubFolderName)
+-            val path = FileUtils.getPath(downloadDir, cacheEpubFolderName, book.originName)
+-            val file = File(path)
++import android.net.Uri
++import android.os.ParcelFileDescriptor
++import androidx.core.util.AtomicFile
++import androidx.documentfile.provider.DocumentFile
++import com.script.rhino.runScriptWithContext
++import io.legado.app.constant.AppLog
++import io.legado.app.constant.AppPattern
++import io.legado.app.constant.EventBus
++import io.legado.app.data.appDb
++import io.legado.app.data.entities.Book
++import io.legado.app.data.entities.BookChapter
++import io.legado.app.data.entities.BookSource
++import io.legado.app.data.entities.getFolderName
++import io.legado.app.data.entities.isEpub
++import io.legado.app.help.config.AppConfig
++import io.legado.app.model.analyzeRule.AnalyzeUrl
++import io.legado.app.model.localBook.EpubFile
++import io.legado.app.model.localBook.LocalBook
++import io.legado.app.utils.ArchiveUtils
++import io.legado.app.utils.FileUtils
++import io.legado.app.utils.ImageUtils
++import io.legado.app.utils.MD5Utils
++import io.legado.app.utils.NetworkUtils
++import io.legado.app.utils.StringUtils
++import io.legado.app.utils.SvgUtils
++import io.legado.app.utils.BitmapUtils
++import io.legado.app.utils.UrlUtil
++import io.legado.app.utils.createFileIfNotExist
++import io.legado.app.utils.exists
++import io.legado.app.utils.externalFiles
++import io.legado.app.utils.getFile
++import io.legado.app.utils.isContentScheme
++import io.legado.app.utils.onEachParallel
++import io.legado.app.utils.postEvent
++import kotlinx.coroutines.Dispatchers.IO
++import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.collect
++import kotlinx.coroutines.flow.flow
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.withContext
++import org.apache.commons.text.similarity.JaccardSimilarity
++import splitties.init.appCtx
++import java.io.ByteArrayInputStream
++import java.io.File
++import java.io.FileNotFoundException
++import java.io.FileOutputStream
++import java.io.IOException
++import java.util.concurrent.ConcurrentHashMap
++import java.util.regex.Pattern
++import java.util.zip.ZipFile
++import kotlin.math.abs
++import kotlin.math.max
++import kotlin.math.min
++
++internal data class ContentSaveKey(val bookUrl: String, val chapterIndex: Int)
++internal data class ContentSaveState(val version: Long = 0L, val fileName: String? = null)
++internal sealed interface ChapterSourceMatch {
++    data class Unique(val targetPosition: Int) : ChapterSourceMatch
++    data class Ambiguous(val targetPositions: List<Int>) : ChapterSourceMatch
++    data object Missing : ChapterSourceMatch
++}
++
++data class ContentSaveToken internal constructor(
++    internal val key: ContentSaveKey,
++    internal val folderName: String,
++    val version: Long,
++)
++
++internal data class PendingResourceChapter(
++    val chapter: BookChapter,
++    val token: ContentSaveToken,
++    val oldFileName: String,
++    val content: String,
++    val file: File,
++)
++
++internal class ContentSaveFence {
++    private val states = ConcurrentHashMap<ContentSaveKey, ContentSaveState>()
++
++    @Synchronized
++    fun state(key: ContentSaveKey): ContentSaveState = states[key] ?: ContentSaveState()
++
++    // ponytail: serialize cache publication; use per-book locks if disk contention becomes measurable.
++    fun <T> exclusive(block: () -> T): T = synchronized(this, block)
++
++    @Synchronized
++    fun writeIfCurrent(
++        key: ContentSaveKey,
++        expectedVersion: Long,
++        fileName: String,
++        write: () -> Unit,
++    ): Boolean {
++        var written = false
++        states.compute(key) { _, current ->
++            if ((current?.version ?: 0L) == expectedVersion) {
++                write()
++                written = true
++                current?.copy(fileName = fileName)
++            } else {
++                current
++            }
++        }
++        return written
++    }
++
++    @Synchronized
++    fun replace(key: ContentSaveKey, fileName: String, write: () -> Unit) {
++        var failure: Throwable? = null
++        states.compute(key) { _, current ->
++            val nextVersion = (current?.version ?: 0L) + 1L
++            try {
++                write()
++                ContentSaveState(nextVersion, fileName)
++            } catch (error: Throwable) {
++                failure = error
++                ContentSaveState(nextVersion, current?.fileName)
++            }
++        }
++        failure?.let { throw it }
++    }
++}
++
++@Suppress("unused", "ConstPropertyName")
++object BookHelp {
++    private val downloadDir: File = appCtx.externalFiles
++    private const val cacheFolderName = "book_cache"
++    private const val cacheImageFolderName = "images"
++    private const val cacheEpubFolderName = "epub"
++    private val downloadImages = ConcurrentHashMap<String, Mutex>()
++    // Guarded by this, together with image invalidation and writes.
++    private val imageVersions = hashMapOf<String, Long>()
++    private val contentSaveFence = ContentSaveFence()
++
++    val cachePath = FileUtils.getPath(downloadDir, cacheFolderName)
++
++    fun clearCache() {
++        FileUtils.delete(
++            FileUtils.getPath(downloadDir, cacheFolderName)
++        )
++    }
++
++    fun clearCache(book: Book) {
++        val filePath = FileUtils.getPath(downloadDir, cacheFolderName, book.getFolderName())
++        FileUtils.delete(filePath)
++    }
++
++    fun updateCacheFolder(oldBook: Book, newBook: Book) {
++        val oldFolderName = oldBook.getFolderNameNoCache()
++        val newFolderName = newBook.getFolderNameNoCache()
++        if (oldFolderName == newFolderName) return
++        val oldFolderPath = FileUtils.getPath(
++            downloadDir,
++            cacheFolderName,
++            oldFolderName
++        )
++        val newFolderPath = FileUtils.getPath(
++            downloadDir,
++            cacheFolderName,
++            newFolderName
++        )
++        FileUtils.move(oldFolderPath, newFolderPath)
++    }
++
++    /**
++     * 清除已删除书的缓存 解压缓存
++     */
++    suspend fun clearInvalidCache() {
++        withContext(IO) {
++            val bookFolderNames = hashSetOf<String>()
++            val originNames = hashSetOf<String>()
++            val cleanupSnapshot = appDb.bookDao.getCacheCleanupSnapshot(
++                includeImageBooks = AppConfig.imageRetainNum > 0,
++            )
++            cleanupSnapshot.imageBooks.forEach(::clearComicCache)
++            cleanupSnapshot.books.forEach {
++                bookFolderNames.add(it.getFolderName())
++                if (it.isEpub) originNames.add(it.originName)
++            }
++            downloadDir.getFile(cacheFolderName)
++                .listFiles()?.forEach { bookFile ->
++                    if (!bookFolderNames.contains(bookFile.name)) {
++                        FileUtils.delete(bookFile.absolutePath)
++                    }
++                }
++            downloadDir.getFile(cacheEpubFolderName)
++                .listFiles()?.forEach { epubFile ->
++                    if (!originNames.contains(epubFile.name)) {
++                        FileUtils.delete(epubFile.absolutePath)
++                    }
++                }
++            FileUtils.delete(ArchiveUtils.TEMP_PATH)
++            val filesDir = appCtx.filesDir
++            FileUtils.delete("$filesDir/shareBookSource.json")
++            FileUtils.delete("$filesDir/shareRssSource.json")
++            FileUtils.delete("$filesDir/books.json")
++        }
++    }
++
++    //清除已经看过的漫画数据
++    private fun clearComicCache(book: Book) {
++        //只处理漫画
++        //为0的时候，不清除已缓存数据
++        if (!book.isImage || AppConfig.imageRetainNum == 0) {
++            return
++        }
++        //向前保留设定数量，向后保留预下载数量
++        val startIndex = book.durChapterIndex - AppConfig.imageRetainNum
++        val endIndex = book.durChapterIndex + AppConfig.preDownloadNum
++        val chapterList = appDb.bookChapterDao.getChapterList(book.bookUrl, startIndex, endIndex)
++        val imgNames = hashSetOf<String>()
++        //获取需要保留章节的图片信息
++        chapterList.forEach {
++            val content = getContent(book, it)
++            if (content != null) {
++                val matcher = AppPattern.imgPattern.matcher(content)
++                while (matcher.find()) {
++                    val src = matcher.group(1) ?: continue
++                    val mSrc = NetworkUtils.getAbsoluteURL(it.url, src)
++                    imgNames.add("${MD5Utils.md5Encode16(mSrc)}.${getImageSuffix(mSrc)}")
++                }
++            }
++        }
++        downloadDir.getFile(
++            cacheFolderName,
++            book.getFolderName(),
++            cacheImageFolderName
++        ).listFiles()?.forEach { imgFile ->
++            if (!imgNames.contains(imgFile.name)) {
++                imgFile.delete()
++            }
++        }
++    }
++
++    fun saveContent(
++        bookSource: BookSource,
++        book: Book,
++        bookChapter: BookChapter,
++        content: String,
++        token: ContentSaveToken = contentSaveToken(book, bookChapter),
++        saveChapterMetadata: Boolean = false,
++    ): Boolean {
++        return try {
++            if (token.key.bookUrl != book.bookUrl ||
++                token.key.chapterIndex != bookChapter.index ||
++                token.folderName != book.getFolderName()
++            ) {
++                return false
++            }
++            val fileName = bookChapter.getFileName()
++            val saved = contentSaveFence.writeIfCurrent(
++                token.key,
++                token.version,
++                fileName,
++            ) {
++                if (content.isNotEmpty()) {
++                    writeText(book, bookChapter, token.folderName, fileName, content)
++                }
++                if (saveChapterMetadata) {
++                    appDb.bookChapterDao.updateContentMetadata(
++                        bookChapter.bookUrl,
++                        bookChapter.index,
++                        bookChapter.title,
++                        bookChapter.imgUrl,
++                    )
++                }
++            }
++            if (saved) {
++                //saveImages(bookSource, book, bookChapter, content)
++                postEvent(EventBus.SAVE_CONTENT, Pair(book, bookChapter))
++            }
++            saved
++        } catch (e: Exception) {
++            e.printStackTrace()
++            AppLog.put("保存正文失败 ${book.name} ${bookChapter.title}", e)
++            false
++        }
++    }
++
++    fun saveText(
++        book: Book,
++        bookChapter: BookChapter,
++        content: String,
++        saveChapterMetadata: Boolean = false,
++    ) {
++        if (content.isEmpty()) return
++        val folderName = book.getFolderName()
++        val fileName = bookChapter.getFileName()
++        contentSaveFence.replace(contentSaveKey(book, bookChapter), fileName) {
++            writeText(book, bookChapter, folderName, fileName, content)
++            if (saveChapterMetadata) {
++                appDb.bookChapterDao.updateContentMetadata(
++                    bookChapter.bookUrl,
++                    bookChapter.index,
++                    bookChapter.title,
++                    bookChapter.imgUrl,
++                )
++            }
++        }
++    }
++
++    fun isContentReversed(book: Book, chapter: BookChapter): Boolean {
++        val fileName = contentSaveFileName(book, chapter) ?: chapter.getFileName()
++        val file = downloadDir.getFile(cacheFolderName, book.getFolderName(), fileName)
++        val marker = File(file.path + ".reversed")
++        return runCatching {
++            marker.isFile && file.isFile &&
++                marker.bufferedReader().use { it.readLine() } == file.inputStream().use(MD5Utils::md5Encode)
++        }.getOrDefault(false)
++    }
++
++    fun reverseContent(book: Book, chapter: BookChapter): Boolean {
++        val folderName = book.getFolderName()
++        val fileName = contentSaveFileName(book, chapter) ?: chapter.getFileName()
++        val file = downloadDir.getFile(cacheFolderName, folderName, fileName)
++        if (!file.isFile || file.length() == 0L) return false
++        var saved = false
++        contentSaveFence.replace(contentSaveKey(book, chapter), fileName) {
++            if (!file.isFile) return@replace
++            val content = file.readText().takeIf { it.isNotEmpty() } ?: return@replace
++            val wasReversed = isContentReversed(book, chapter)
++            val marker = File(file.path + ".reversed")
++            // Restore the original verbatim, even when reversing plain text
++            // happened to create a sequence that looks like reader markup.
++            val reversed = if (wasReversed) marker.readText().substringAfter('\n')
++                else reverseContentText(content)
++            // Prepare the undo data before changing the cache. The fingerprint
++            // only becomes valid after the atomic content write succeeds.
++            if (!wasReversed) {
++                try {
++                    marker.writeText(MD5Utils.md5Encode(reversed) + "\n" + content)
++                } catch (error: Throwable) {
++                    if (marker.isFile) marker.delete()
++                    throw error
++                }
++            }
++            val atomicFile = AtomicFile(file)
++            var output: FileOutputStream? = null
++            try {
++                output = atomicFile.startWrite()
++                output.write(reversed.toByteArray(Charsets.UTF_8))
++                atomicFile.finishWrite(output)
++                output = null
++                if (file.readText() != reversed) throw IOException("Reversed content was not saved")
++            } catch (error: Throwable) {
++                atomicFile.failWrite(output)
++                if (!wasReversed) marker.delete()
++                throw error
++            }
++            if (wasReversed) marker.delete()
++            saved = true
++        }
++        return saved
++    }
++
++    internal fun contentSaveToken(book: Book, bookChapter: BookChapter): ContentSaveToken {
++        val key = contentSaveKey(book, bookChapter)
++        return ContentSaveToken(
++            key,
++            book.getFolderName(),
++            contentSaveFence.state(key).version,
++        )
++    }
++
++    internal fun isContentSaveCurrent(token: ContentSaveToken): Boolean =
++        contentSaveFence.state(token.key).version == token.version
++
++    internal fun resourceStagingDir(book: Book): File {
++        val parent = FileUtils.createFolderIfNotExist(downloadDir, cacheFolderName, book.getFolderName())
++        return File.createTempFile(".resource-refresh-", ".tmp", parent).apply {
++            if (!delete() || !mkdir()) throw IOException("Cannot prepare resource refresh")
++        }
++    }
++
++    internal fun resourcesOutdated(book: Book, chapter: BookChapter): Boolean {
++        val fileName = contentSaveFileName(book, chapter) ?: chapter.getFileName()
++        val file = downloadDir.getFile(cacheFolderName, book.getFolderName(), fileName + ".resources")
++        val accepted = runCatching { file.readText().toLong() }.getOrDefault(0L)
++        return accepted != ResourceThemeGeneration.current()
++    }
++
++    @Synchronized
++    internal fun imageSaveVersion(book: Book, src: String): Long =
++        imageVersions[getImage(book, src).absolutePath] ?: 0L
++
++    internal fun commitResources(
++        book: Book,
++        chapters: List<PendingResourceChapter>,
++        images: Map<String, File>,
++        imageTokens: Map<String, Long>,
++        generation: Long? = null,
++    ) = contentSaveFence.exclusive { synchronized(this) {
++        if (chapters.any { !isContentSaveCurrent(it.token) || it.token.folderName != book.getFolderName() ||
++                it.token.key.bookUrl != book.bookUrl || it.token.key.chapterIndex != it.chapter.index } ||
++            imageTokens.any { (src, version) -> imageSaveVersion(book, src) != version }) {
++            throw IOException("资源已被其他操作更新，请重试刷新")
++        }
++        val files = linkedMapOf<File, File?>()
++        chapters.forEach { pending ->
++            val current = downloadDir.getFile(cacheFolderName, pending.token.folderName,
++                contentSaveFileName(book, pending.chapter) ?: pending.oldFileName)
++            val target = downloadDir.getFile(cacheFolderName, pending.token.folderName,
++                pending.chapter.getFileName())
++            if (current != target) files[current] = null
++            files[File(current.path + ".reversed")] = null
++            files[File(target.path + ".reversed")] = null
++            files[target] = pending.file
++            if (generation != null) {
++                if (current != target) files[File(current.path + ".resources")] = null
++                files[File(target.path + ".resources")] =
++                    File(pending.file.parentFile, "generation-${pending.chapter.index}").apply {
++                        writeText(generation.toString())
++                    }
++            }
++        }
++        images.forEach { (src, file) -> files[getImage(book, src)] = file }
++        replaceResourceFiles(files) {
++            appDb.runInTransaction {
++                chapters.forEach { pending ->
++                    val chapter = pending.chapter
++                    appDb.bookChapterDao.updateResourceMetadata(book.bookUrl, chapter.index,
++                        chapter.title, chapter.imgUrl, chapter.variable)
++                    if (book.isOnLineTxt && AppConfig.tocCountWords) {
++                        val wordCount = StringUtils.wordCountFormat(pending.content.length)
++                        chapter.wordCount = wordCount
++                        appDb.bookChapterDao.upWordCount(book.bookUrl, chapter.url, wordCount)
++                    }
++                }
++            }
++        }
++        chapters.forEach {
++            contentSaveFence.replace(it.token.key, it.chapter.getFileName()) {}
++        }
++        images.keys.forEach { src ->
++            val path = getImage(book, src).absolutePath
++            imageVersions[path] = (imageVersions[path] ?: 0L) + 1L
++        }
++        chapters.map { it.copy(token = contentSaveToken(book, it.chapter)) }
++    } }
++
++    private fun contentSaveFileName(book: Book, bookChapter: BookChapter): String? {
++        return contentSaveFence.state(contentSaveKey(book, bookChapter)).fileName
++    }
++
++    private fun contentSaveKey(book: Book, bookChapter: BookChapter) =
++        ContentSaveKey(book.bookUrl, bookChapter.index)
++
++    private fun writeText(
++        book: Book,
++        bookChapter: BookChapter,
++        folderName: String,
++        fileName: String,
++        content: String,
++    ) {
++        //保存文本
++        FileUtils.createFileIfNotExist(
++            downloadDir,
++            cacheFolderName,
++            folderName,
++            fileName,
++        ).writeText(content)
++        // A fresh download or a manual edit replaces the reversed cache.
++        File(downloadDir.getFile(cacheFolderName, folderName, fileName).path + ".reversed").delete()
++        if (book.isOnLineTxt && AppConfig.tocCountWords) {
++            val wordCount = StringUtils.wordCountFormat(content.length)
++            bookChapter.wordCount = wordCount
++            appDb.bookChapterDao.upWordCount(bookChapter.bookUrl, bookChapter.url, wordCount)
++        }
++    }
++
++    fun flowImages(bookChapter: BookChapter, content: String): Flow<String> {
++        return flow {
++            val matcher = AppPattern.imgPattern.matcher(content)
++            while (matcher.find()) {
++                val src = matcher.group(1) ?: continue
++                val mSrc = NetworkUtils.getAbsoluteURL(bookChapter.url, src)
++                emit(mSrc)
++            }
++        }
++    }
++
++    suspend fun saveImages(
++        bookSource: BookSource,
++        book: Book,
++        bookChapter: BookChapter,
++        content: String,
++        concurrency: Int = AppConfig.threadCount
++    ) = coroutineScope {
++        flowImages(bookChapter, content).onEachParallel(concurrency) { mSrc ->
++            saveImage(bookSource, book, mSrc, bookChapter)
++        }.collect()
++    }
++
++    suspend fun saveImage(
++        bookSource: BookSource?,
++        book: Book,
++        src: String,
++        chapter: BookChapter? = null
++    ) {
++        val imagePath = getImage(book, src).absolutePath
++        val version = synchronized(this) {
++            if (isImageExist(book, src)) return
++            imageVersions[imagePath] ?: 0L
++        }
++        val mutex = synchronized(this) {
++            downloadImages.getOrPut(src) { Mutex() }
++        }
++        mutex.lock()
++        try {
++            if (isImageExist(book, src)) {
++                return
++            }
++            fetchImage(bookSource, book, src)?.let {
++                if (!checkImage(it)) {
++                    // 如果部分图片失效，每次进入正文都会花很长时间再次获取图片数据
++                    // 所以无论如何都要将数据写入到文件里
++                    // throw NoStackTraceException("数据异常")
++                    AppLog.put("${book.name} ${chapter?.title} 图片 $src 下载错误 数据异常")
++                }
++                synchronized(this) {
++                    if ((imageVersions[imagePath] ?: 0L) == version) {
++                        writeImage(book, src, it)
++                    }
++                }
++            }
++        } catch (e: Exception) {
++            currentCoroutineContext().ensureActive()
++            val msg = "${book.name} ${chapter?.title} 图片 $src 下载失败\n${e.localizedMessage}"
++            AppLog.put(msg, e)
++        } finally {
++            downloadImages.remove(src)
++            mutex.unlock()
++        }
++    }
++
++    fun getImage(book: Book, src: String): File {
++        return downloadDir.getFile(
++            cacheFolderName,
++            book.getFolderName(),
++            cacheImageFolderName,
++            "${MD5Utils.md5Encode16(src)}.${getImageSuffix(src)}"
++        )
++    }
++
++    @Synchronized
++    fun writeImage(book: Book, src: String, bytes: ByteArray) {
++        getImage(book, src).createFileIfNotExist().writeBytes(bytes)
++    }
++
++    internal suspend fun fetchImage(bookSource: BookSource?, book: Book, src: String): ByteArray? {
++        val bytes = AnalyzeUrl(src, source = bookSource, coroutineContext = currentCoroutineContext())
++            .getByteArrayAwait()
++        return runScriptWithContext { ImageUtils.decode(src, bytes, isCover = false, bookSource, book) }
++    }
++
++    @Synchronized
++    fun delImage(book: Book, src: String) {
++        val file = getImage(book, src)
++        imageVersions[file.absolutePath] = (imageVersions[file.absolutePath] ?: 0L) + 1L
++        if (file.exists() && !file.delete()) {
++            throw IOException("删除图片缓存失败: ${file.name}")
++        }
++    }
++
++    @Synchronized
++    fun isImageExist(book: Book, src: String): Boolean {
++        return getImage(book, src).exists()
++    }
++
++    fun getImageSuffix(src: String): String {
++        return UrlUtil.getSuffix(src, "jpg")
++    }
++
++    private fun epubContentUriCacheFile(book: Book, uri: Uri): File {
++        val cacheName = if (uri.authority?.endsWith(".temporary_provider") == true) {
++            // TemporaryFileProvider URIs are per-session and may reuse an ordinary
++            // book's display filename. Never let vault plaintext share that cache.
++            "${MD5Utils.md5Encode16(book.bookUrl)}_${book.originName}"
++        } else {
++            book.originName
++        }
++        return File(FileUtils.getPath(downloadDir, cacheEpubFolderName, cacheName))
++    }
++
++    /**
++     * Removes the complete plaintext EPUB copy made for a content URI.
++     *
++     * VaultShelf calls this before dropping a temporary vault-book row. The path is
++     * derived from bookUrl directly so cleanup does not need to reopen an URI whose
++     * provider mapping may already have been wiped by DroidFS.
++     */
++    fun clearEpubContentUriCache(book: Book) {
++        if (!book.isEpub || !book.bookUrl.startsWith("content://")) return
++        val uri = Uri.parse(book.bookUrl)
++        FileUtils.delete(epubContentUriCacheFile(book, uri).absolutePath)
++    }
++
++    @Throws(IOException::class, FileNotFoundException::class)
++    fun getEpubFile(book: Book): ZipFile {
++        val uri = book.getLocalUri()
++        if (uri.isContentScheme()) {
++            FileUtils.createFolderIfNotExist(downloadDir, cacheEpubFolderName)
++            val file = epubContentUriCacheFile(book, uri)
+             val doc = DocumentFile.fromSingleUri(appCtx, uri)
+                 ?: throw IOException("文件不存在")
+             if (!file.exists() || doc.lastModified() > book.latestChapterTime) {
+
+# Transient vault books must not leave standalone memo rows or rule-data files after the Book row is removed.
+diff --git a/app/src/main/java/io/legado/app/data/dao/BookMemoDao.kt b/app/src/main/java/io/legado/app/data/dao/BookMemoDao.kt
+--- a/app/src/main/java/io/legado/app/data/dao/BookMemoDao.kt
++++ b/app/src/main/java/io/legado/app/data/dao/BookMemoDao.kt
+@@ -16,6 +16,9 @@
+     @Query("select * from book_memos where bookUrl = :bookUrl")
+     fun flow(bookUrl: String): Flow<BookMemo?>
+ 
++    @Query("delete from book_memos where bookUrl = :bookUrl")
++    fun delete(bookUrl: String)
++
+     @Query("select book_memos.* from book_memos inner join books using (bookUrl)")
+     fun all(): List<BookMemo>
+ 
+
+diff --git a/app/src/main/java/io/legado/app/help/RuleBigDataHelp.kt b/app/src/main/java/io/legado/app/help/RuleBigDataHelp.kt
+--- a/app/src/main/java/io/legado/app/help/RuleBigDataHelp.kt
++++ b/app/src/main/java/io/legado/app/help/RuleBigDataHelp.kt
+@@ -127,6 +127,16 @@
+         }
+     }
+ 
++    fun clearBook(bookUrl: String) {
++        synchronized(accessLock) {
++            val md5BookUrl = MD5Utils.md5Encode(bookUrl)
++            deleteRuleDataEntry(
++                File(FileUtils.getPath(bookData, md5BookUrl)),
++                deleteRootDir = true,
++            )
++        }
++    }
++
+     fun putBookVariable(bookUrl: String, key: String, value: String?) {
+         synchronized(accessLock) {
+             val md5BookUrl = MD5Utils.md5Encode(bookUrl)
+
+# VaultShelf transient-vault read-aloud must not expose book/chapter text on the secure lockscreen.
+diff --git a/app/src/main/java/io/legado/app/service/BaseReadAloudService.kt b/app/src/main/java/io/legado/app/service/BaseReadAloudService.kt
+--- a/app/src/main/java/io/legado/app/service/BaseReadAloudService.kt
++++ b/app/src/main/java/io/legado/app/service/BaseReadAloudService.kt
+@@ -7,766 +7,774 @@
+ import android.content.BroadcastReceiver
+ import android.content.Context
+ import android.content.Intent
+-import android.content.IntentFilter
+-import android.graphics.Bitmap
+-import android.graphics.BitmapFactory
+-import android.media.AudioManager
+-import android.net.wifi.WifiManager
+-import android.os.Bundle
+-import android.os.PowerManager
+-import android.support.v4.media.MediaMetadataCompat
+-import android.support.v4.media.session.MediaSessionCompat
+-import android.support.v4.media.session.PlaybackStateCompat
+-import android.telephony.PhoneStateListener
+-import android.telephony.TelephonyManager
+-import androidx.annotation.CallSuper
+-import androidx.core.app.NotificationCompat
+-import androidx.lifecycle.lifecycleScope
+-import androidx.media.AudioFocusRequestCompat
+-import androidx.media.AudioManagerCompat
+-import io.legado.app.R
+-import io.legado.app.base.BaseService
+-import io.legado.app.constant.AppConst
+-import io.legado.app.constant.AppLog
+-import io.legado.app.constant.AppPattern
+-import io.legado.app.constant.EventBus
+-import io.legado.app.constant.IntentAction
+-import io.legado.app.constant.NotificationId
+-import io.legado.app.constant.PreferKey
+-import io.legado.app.constant.Status
+-import io.legado.app.data.appDb
+-import io.legado.app.help.MediaHelp
+-import io.legado.app.help.book.BookHelp
+-import io.legado.app.help.book.ContentProcessor
+-import io.legado.app.help.book.isLocal
+-import io.legado.app.help.config.AppConfig
+-import io.legado.app.help.coroutine.Coroutine
+-import io.legado.app.help.glide.ImageLoader
+-import io.legado.app.lib.permission.Permissions
+-import io.legado.app.lib.permission.PermissionsCompat
+-import io.legado.app.model.CacheBook
+-import io.legado.app.model.ReadAloud
+-import io.legado.app.model.ReadBook
+-import io.legado.app.receiver.MediaButtonReceiver
+-import io.legado.app.ui.book.read.ReadBookActivity
+-import io.legado.app.ui.book.read.page.entities.TextChapter
+-import io.legado.app.ui.book.read.page.provider.ChapterProvider
+-import io.legado.app.utils.LogUtils
+-import io.legado.app.utils.activityPendingIntent
+-import io.legado.app.utils.broadcastPendingIntent
+-import io.legado.app.utils.getPrefBoolean
+-import io.legado.app.utils.observeEvent
+-import io.legado.app.utils.observeSharedPreferences
+-import io.legado.app.utils.postEvent
+-import io.legado.app.utils.toastOnUi
+-import java.text.BreakIterator
+-import java.util.concurrent.atomic.AtomicLong
+-import kotlinx.coroutines.CancellationException
+-import kotlinx.coroutines.Dispatchers.IO
+-import kotlinx.coroutines.Dispatchers.Main
+-import kotlinx.coroutines.Job
+-import kotlinx.coroutines.delay
+-import kotlinx.coroutines.ensureActive
+-import kotlinx.coroutines.isActive
+-import kotlinx.coroutines.launch
+-import kotlinx.coroutines.withContext
+-import splitties.init.appCtx
+-import splitties.systemservices.audioManager
+-import splitties.systemservices.notificationManager
+-import splitties.systemservices.powerManager
+-import splitties.systemservices.telephonyManager
+-import splitties.systemservices.wifiManager
+-
+-internal fun shouldRewindReadAloudToSentenceStart(
+-    rewindToSentenceStart: Boolean,
+-    toLast: Boolean
+-): Boolean = rewindToSentenceStart && !toLast
+-
+-internal fun findReadAloudSentenceStart(text: String, visibleOffset: Int): Int {
+-    if (text.isEmpty()) return 0
+-    val limit = visibleOffset.coerceIn(0, text.length)
+-    val sentenceIterator = BreakIterator.getSentenceInstance().apply { setText(text) }
+-    val searchOffset = if (limit < text.length) limit + 1 else limit
+-    return sentenceIterator.preceding(searchOffset).coerceAtLeast(0)
+-}
+-
+-/**
+- * 朗读服务
+- */
+-abstract class BaseReadAloudService : BaseService(),
+-    AudioManager.OnAudioFocusChangeListener {
+-
+-    companion object {
+-        @JvmStatic
+-        var isRun = false
+-            private set
+-
+-        @JvmStatic
+-        var pause = true
+-            private set
+-
+-        @JvmStatic
+-        var timeMinute: Int = 0
+-            private set
+-
+-        @JvmStatic
+-        var chapterToStop: Int = 0
+-            private set
+-
+-        fun isPlay(): Boolean {
+-            return isRun && !pause
+-        }
+-
+-        private const val TAG = "BaseReadAloudService"
+-        private val speechFollowState = SpeechFollowState()
+-
+-        /** 当前朗读所在章节索引(朗读游标),脱离跟随后与显示章节可能不同; -1 表示无 */
+-        @JvmStatic
+-        @Volatile
+-        var readAloudChapterIndex: Int = -1
+-            private set
+-
+-        /** 当前朗读位置在章内的字符偏移(朗读游标); -1 表示无。由 upTtsProgress 持续更新, 进程内存活。 */
+-        @JvmStatic
+-        @Volatile
+-        var readAloudChapterStart: Int = -1
+-            private set
+-
+-        @JvmStatic
+-        val followReadAloudPosition: Boolean
+-            get() = speechFollowState.followReadAloudPosition
+-
+-        @JvmStatic
+-        fun detachReadAloudFollow() {
+-            speechFollowState.detachForManualNavigation()
+-            postEvent(EventBus.READ_ALOUD_FOLLOW, speechFollowState.followReadAloudPosition)
+-        }
+-
+-        @JvmStatic
+-        fun restoreReadAloudFollow() {
+-            speechFollowState.restoreForNewSpeechSession()
+-            postEvent(EventBus.READ_ALOUD_FOLLOW, speechFollowState.followReadAloudPosition)
+-        }
+-
+-        @JvmStatic
+-        fun shouldSyncSpeechNavigation(): Boolean {
+-            return speechFollowState.shouldSyncSpeechNavigation()
+-        }
+-
+-        @JvmStatic
+-        internal fun updateReadAloudChapterIndex(index: Int) {
+-            readAloudChapterIndex = index
+-        }
+-
+-        @JvmStatic
+-        fun shouldApplySpeechProgressToVisibleReader(isSpeechPlaying: Boolean): Boolean {
+-            return speechFollowState.shouldApplySpeechProgressToVisibleReader(isSpeechPlaying)
+-        }
+-
+-        @JvmStatic
+-        fun nextChapterDecision(
+-            hasNextSpeechChapter: Boolean,
+-            visibleSyncMoved: Boolean
+-        ): SpeechFollowState.NextChapterDecision {
+-            return speechFollowState.nextChapterDecision(
+-                hasNextSpeechChapter = hasNextSpeechChapter,
+-                visibleSyncMoved = visibleSyncMoved
+-            )
+-        }
+-    }
+-
+-    private val useWakeLock = appCtx.getPrefBoolean(PreferKey.readAloudWakeLock, false)
+-    private val wakeLock by lazy {
+-        powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "legado:ReadAloudService")
+-            .apply {
+-                this.setReferenceCounted(false)
+-            }
+-    }
+-    private val wifiLock by lazy {
+-        @Suppress("DEPRECATION")
+-        wifiManager?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "legado:AudioPlayService")
+-            ?.apply {
+-                setReferenceCounted(false)
+-            }
+-    }
+-    private val mFocusRequest: AudioFocusRequestCompat by lazy {
+-        MediaHelp.buildAudioFocusRequestCompat(this)
+-    }
+-    private val mediaSessionCompat by lazy {
+-        MediaSessionCompat(this, "readAloud")
+-    }
+-    private val phoneStateListener by lazy {
+-        ReadAloudPhoneStateListener()
+-    }
+-    internal var contentList = emptyList<String>()
+-    internal var nowSpeak: Int = 0
+-    internal var readAloudNumber: Int = 0
+-    internal var textChapter: TextChapter? = null
+-    internal var pageIndex = 0
+-    private var needResumeOnAudioFocusGain = false
+-    private var needResumeOnCallStateIdle = false
+-    private var registeredPhoneStateListener = false
+-    private val chapterStopTimer = ChapterStopTimer()
+-    private var dsJob: Job? = null
+-    private var readAloudJob: Coroutine<*>? = null
+-    private val readAloudGeneration = AtomicLong()
+-    private var upNotificationJob: Coroutine<*>? = null
+-    private var cover: Bitmap =
+-        BitmapFactory.decodeResource(appCtx.resources, R.drawable.icon_read_book)
+-    var pageChanged = false
+-    private var toLast = false
+-    var paragraphStartPos = 0
+-    var readAloudByPage = false
+-        private set
+-
+-    private data class PreparedReadAloud(
+-        val textChapter: TextChapter,
+-        val pageIndex: Int,
+-        val readAloudNumber: Int,
+-        val readAloudByPage: Boolean,
+-        val contentList: List<String>,
+-        val nowSpeak: Int,
+-        val readAloudChapterStart: Int,
+-        val paragraphStartPos: Int,
+-        val consumedToLast: Boolean
+-    )
+-
+-    private val broadcastReceiver = object : BroadcastReceiver() {
+-        override fun onReceive(context: Context, intent: Intent) {
+-            if (AudioManager.ACTION_AUDIO_BECOMING_NOISY == intent.action) {
+-                pauseReadAloud()
+-            }
+-        }
+-    }
+-
+-    @SuppressLint("WakelockTimeout")
+-    override fun onCreate() {
+-        super.onCreate()
+-        isRun = true
+-        pause = false
+-        chapterStopTimer.clear()
+-        chapterToStop = 0
+-        restoreReadAloudFollow()
+-        observeLiveBus()
+-        initMediaSession()
+-        initBroadcastReceiver()
+-        initPhoneStateListener()
+-        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PLAYING)
+-        setTimer(AppConfig.ttsTimer)
+-        if (AppConfig.ttsTimer > 0) {
+-            toastOnUi("朗读定时 ${AppConfig.ttsTimer} 分钟")
+-        }
+-        execute {
+-            val book = ReadBook.book
+-            ImageLoader
+-                .loadBitmap(
+-                    this@BaseReadAloudService,
+-                    book?.getDisplayCover(),
+-                    book?.getCoverSourceOrigin(),
+-                )
+-                .submit()
+-                .get()
+-        }.onSuccess {
+-            if (it.width > 16 && it.height > 16) {
+-                cover = it
+-                upReadAloudNotification()
+-            }
+-        }
+-    }
+-
+-    fun observeLiveBus() {
+-        observeEvent<Bundle>(EventBus.READ_ALOUD_PLAY) {
+-            val play = it.getBoolean("play")
+-            val pageIndex = it.getInt("pageIndex")
+-            val startPos = it.getInt("startPos")
+-            val rewindToSentenceStart = it.getBoolean("rewindToSentenceStart")
+-            newReadAloud(play, pageIndex, startPos, rewindToSentenceStart)
+-        }
+-        observeSharedPreferences { _, key ->
+-            when (key) {
+-                PreferKey.ignoreAudioFocus,
+-                PreferKey.pauseReadAloudWhilePhoneCalls -> {
+-                    initPhoneStateListener()
+-                }
+-            }
+-        }
+-    }
+-
+-    override fun onDestroy() {
+-        readAloudGeneration.incrementAndGet()
+-        readAloudJob?.cancel()
+-        super.onDestroy()
+-        restoreReadAloudFollow()
+-        updateReadAloudChapterIndex(-1)
+-        readAloudChapterStart = -1
+-        if (useWakeLock) {
+-            wakeLock.release()
+-            wifiLock?.release()
+-        }
+-        isRun = false
+-        pause = true
+-        timeMinute = 0
+-        chapterStopTimer.clear()
+-        chapterToStop = 0
+-        postEvent(EventBus.READ_ALOUD_DS, 0)
+-        postEvent(EventBus.READ_ALOUD_CHAPTER_STOP, 0)
+-        abandonFocus()
+-        unregisterReceiver(broadcastReceiver)
+-        postEvent(EventBus.ALOUD_STATE, Status.STOP)
+-        notificationManager.cancel(NotificationId.ReadAloudService)
+-        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_STOPPED)
+-        mediaSessionCompat.release()
+-        ReadBook.uploadProgress()
+-        unregisterPhoneStateListener(phoneStateListener)
+-        upNotificationJob?.invokeOnCompletion {
+-            notificationManager.cancel(NotificationId.ReadAloudService)
+-        }
+-    }
+-
+-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+-        if (intent == null) {
+-            stopSelfResult(startId)
+-            return START_NOT_STICKY
+-        }
+-        when (intent.action) {
+-            IntentAction.play -> newReadAloud(
+-                intent.getBooleanExtra("play", true),
+-                intent.getIntExtra("pageIndex", ReadBook.durPageIndex),
+-                intent.getIntExtra("startPos", 0),
+-                intent.getBooleanExtra("rewindToSentenceStart", false)
+-            )
+-
+-            IntentAction.pause -> pauseReadAloud()
+-            IntentAction.resume -> resumeReadAloud()
+-            IntentAction.upTtsSpeechRate -> upSpeechRate(true)
+-            IntentAction.prevParagraph -> prevP()
+-            IntentAction.nextParagraph -> nextP()
+-            IntentAction.prev -> prevChapter()
+-            IntentAction.next -> nextChapter()
+-            IntentAction.addTimer -> addTimer()
+-            IntentAction.setTimer -> setTimer(intent.getIntExtra("minute", 0))
+-            IntentAction.setChapterStop -> setChapterStop(intent.getIntExtra("count", 0))
+-            IntentAction.stop -> stopSelf()
+-        }
+-        super.onStartCommand(intent, flags, startId)
+-        return START_NOT_STICKY
+-    }
+-
+-    private fun newReadAloud(
+-        play: Boolean,
+-        pageIndex: Int,
+-        startPos: Int,
+-        rewindToSentenceStart: Boolean
+-    ) {
+-        val generation = readAloudGeneration.incrementAndGet()
+-        val toLast = this@BaseReadAloudService.toLast
+-        readAloudJob?.cancel()
+-        playStop()
+-        restoreReadAloudFollow()
+-        readAloudJob = execute(executeContext = IO) {
+-            val textChapter = ReadBook.curTextChapter ?: return@execute
+-            if (!textChapter.isCompleted) return@execute
+-            val readAloudByPage = getPrefBoolean(PreferKey.readAloudByPage)
+-            val contentList = textChapter.getNeedReadAloud(0, readAloudByPage, 0)
+-                .split("\n")
+-                .filter { it.isNotEmpty() }
+-            var readAloudNumber = textChapter.getReadLength(pageIndex) + startPos
+-            if (shouldRewindReadAloudToSentenceStart(rewindToSentenceStart, toLast)) {
+-                val paragraphIndex = textChapter.getParagraphNum(readAloudNumber + 1, false) - 1
+-                val paragraph = textChapter.paragraphs[paragraphIndex]
+-                val sentenceStart = findReadAloudSentenceStart(
+-                    paragraph.text, readAloudNumber - paragraph.chapterPosition
+-                )
+-                readAloudNumber = paragraph.chapterPosition + sentenceStart
+-            }
+-            if (toLast) readAloudNumber = textChapter.getLastParagraphPosition()
+-            val nowSpeak = textChapter.getParagraphNum(readAloudNumber + 1, readAloudByPage) - 1
+-            val pos = readAloudNumber - textChapter.getParagraphs(readAloudByPage)[nowSpeak].chapterPosition
+-            val prepared = PreparedReadAloud(
+-                textChapter = textChapter,
+-                pageIndex = textChapter.getPageIndexByCharIndex(readAloudNumber),
+-                readAloudNumber = readAloudNumber,
+-                readAloudByPage = readAloudByPage,
+-                contentList = contentList,
+-                nowSpeak = nowSpeak,
+-                readAloudChapterStart = readAloudNumber,
+-                paragraphStartPos = pos,
+-                consumedToLast = toLast
+-            )
+-            ensureActive()
+-            withContext(Main.immediate) {
+-                if (generation != readAloudGeneration.get()) return@withContext
+-                this@BaseReadAloudService.pageIndex = prepared.pageIndex
+-                this@BaseReadAloudService.textChapter = prepared.textChapter
+-                this@BaseReadAloudService.readAloudNumber = prepared.readAloudNumber
+-                this@BaseReadAloudService.readAloudByPage = prepared.readAloudByPage
+-                this@BaseReadAloudService.contentList = prepared.contentList
+-                this@BaseReadAloudService.nowSpeak = prepared.nowSpeak
+-                updateReadAloudChapterIndex(prepared.textChapter.chapter.index)
+-                BaseReadAloudService.readAloudChapterStart = prepared.readAloudChapterStart
+-                this@BaseReadAloudService.paragraphStartPos = prepared.paragraphStartPos
+-                if (prepared.consumedToLast) this@BaseReadAloudService.toLast = false
+-                if (play) play() else pageChanged = true
+-            }
+-        }.onError(Main) {
+-            if (it !is CancellationException && generation == readAloudGeneration.get()) {
+-                AppLog.put("启动朗读出错\n${it.localizedMessage}", it, true)
+-            }
+-        }
+-    }
+-
+-    @SuppressLint("WakelockTimeout")
+-    open fun play() {
+-        if (useWakeLock) {
+-            wakeLock.acquire()
+-            wifiLock?.acquire()
+-        }
+-        isRun = true
+-        pause = false
+-        needResumeOnAudioFocusGain = false
+-        needResumeOnCallStateIdle = false
+-        upReadAloudNotification()
+-        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PLAYING)
+-        postEvent(EventBus.ALOUD_STATE, Status.PLAY)
+-    }
+-
+-    abstract fun playStop()
+-
+-    @CallSuper
+-    open fun pauseReadAloud(abandonFocus: Boolean = true) {
+-        if (useWakeLock) {
+-            wakeLock.release()
+-            wifiLock?.release()
+-        }
+-        pause = true
+-        if (abandonFocus) {
+-            abandonFocus()
+-        }
+-        upReadAloudNotification()
+-        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PAUSED)
+-        postEvent(EventBus.ALOUD_STATE, Status.PAUSE)
+-        ReadBook.uploadProgress()
+-        doDs()
+-    }
+-
+-    @SuppressLint("WakelockTimeout")
+-    @CallSuper
+-    open fun resumeReadAloud() {
+-        resumeReadAloudInternal()
+-    }
+-
+-    private fun resumeReadAloudInternal() {
+-        pause = false
+-        needResumeOnAudioFocusGain = false
+-        needResumeOnCallStateIdle = false
+-        upReadAloudNotification()
+-        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PLAYING)
+-        postEvent(EventBus.ALOUD_STATE, Status.PLAY)
+-    }
+-
+-    abstract fun upSpeechRate(reset: Boolean = false)
+-
+-    fun upTtsProgress(progress: Int) {
+-        readAloudChapterStart = progress
+-        postEvent(EventBus.TTS_PROGRESS, progress)
+-    }
+-
+-    private fun prevP() {
+-        if (nowSpeak > 0) {
+-            playStop()
+-            do {
+-                nowSpeak--
+-                readAloudNumber -= contentList[nowSpeak].length + 1 + paragraphStartPos
+-                paragraphStartPos = 0
+-            } while (contentList[nowSpeak].matches(AppPattern.notReadAloudRegex))
+-            textChapter?.let {
+-                if (readAloudByPage) {
+-                    val paragraphs = it.getParagraphs(true)
+-                    if (!paragraphs[nowSpeak].isParagraphEnd) readAloudNumber++
+-                }
+-                if (readAloudNumber < it.getReadLength(pageIndex)) {
+-                    pageIndex--
+-                    ReadBook.moveToPrevPage(syncReadAloudFollow = true)
+-                }
+-            }
+-            upTtsProgress(readAloudNumber)
+-            play()
+-        } else {
+-            toLast = true
+-            ReadBook.moveToPrevChapter(true, syncReadAloudFollow = true)
+-        }
+-    }
+-
+-    private fun nextP() {
+-        if (nowSpeak < contentList.size - 1) {
+-            playStop()
+-            readAloudNumber += contentList[nowSpeak].length.plus(1) - paragraphStartPos
+-            paragraphStartPos = 0
+-            nowSpeak++
+-            textChapter?.let {
+-                if (readAloudByPage) {
+-                    val paragraphs = it.getParagraphs(true)
+-                    if (!paragraphs[nowSpeak].isParagraphEnd) readAloudNumber--
+-                }
+-                if (pageIndex + 1 < it.pageSize
+-                    && readAloudNumber >= it.getReadLength(pageIndex + 1)
+-                ) {
+-                    pageIndex++
+-                    ReadBook.moveToNextPage(syncReadAloudFollow = true)
+-                }
+-            }
+-            upTtsProgress(readAloudNumber)
+-            play()
+-        } else {
+-            nextChapter()
+-        }
+-    }
+-
+-    private fun setTimer(minute: Int) {
+-        timeMinute = minute.coerceIn(0, 180)
+-        chapterStopTimer.clear()
+-        chapterToStop = 0
+-        postEvent(EventBus.READ_ALOUD_CHAPTER_STOP, 0)
+-        doDs()
+-    }
+-
+-    private fun addTimer() {
+-        val next = nextSleepTimerIncrement(
+-            timeMinute, chapterToStop, AppConfig.sleepTimerPreferChapter
+-        )
+-        if (next.chapter > 0) setChapterStop(next.chapter) else setTimer(next.minute)
+-    }
+-
+-    private fun setChapterStop(count: Int) {
+-        chapterToStop = chapterStopTimer.set(count)
+-        timeMinute = 0
+-        dsJob?.cancel()
+-        postEvent(EventBus.READ_ALOUD_DS, 0)
+-        postEvent(EventBus.READ_ALOUD_CHAPTER_STOP, chapterToStop)
+-        upReadAloudNotification()
+-    }
+-
+-    /**
+-     * 定时
+-     */
+-    @Synchronized
+-    private fun doDs() {
+-        postEvent(EventBus.READ_ALOUD_DS, timeMinute)
+-        upReadAloudNotification()
+-        dsJob?.cancel()
+-        if (timeMinute <= 0) return
+-        dsJob = lifecycleScope.launch {
+-            while (isActive) {
+-                delay(60000)
+-                if (!pause) {
+-                    if (timeMinute >= 0) {
+-                        timeMinute--
+-                    }
+-                    if (timeMinute == 0) {
+-                        ReadAloud.stop(this@BaseReadAloudService)
+-                        postEvent(EventBus.READ_ALOUD_DS, timeMinute)
+-                        break
+-                    }
+-                }
+-                postEvent(EventBus.READ_ALOUD_DS, timeMinute)
+-                upReadAloudNotification()
+-            }
+-        }
+-    }
+-
+-    /**
+-     * 请求音频焦点
+-     * @return 音频焦点
+-     */
+-    fun requestFocus(): Boolean {
+-        if (AppConfig.ignoreAudioFocus) {
+-            return true
+-        }
+-        val requestFocus = MediaHelp.requestFocus(mFocusRequest)
+-        if (!requestFocus) {
+-            pauseReadAloud(false)
+-            toastOnUi("未获取到音频焦点")
+-        }
+-        return requestFocus
+-    }
+-
+-    /**
+-     * 放弃音频焦点
+-     */
+-    private fun abandonFocus() {
+-        AudioManagerCompat.abandonAudioFocusRequest(audioManager, mFocusRequest)
+-    }
+-
+-    /**
+-     * 更新媒体状态
+-     */
+-    private fun upMediaSessionPlaybackState(state: Int) {
+-        mediaSessionCompat.setPlaybackState(
+-            PlaybackStateCompat.Builder()
+-                .setActions(MediaHelp.MEDIA_SESSION_ACTIONS)
+-                .setState(state, nowSpeak.toLong(), 1f)
+-                // 为系统媒体控件添加定时按钮
+-                .addCustomAction(
+-                    "ACTION_ADD_TIMER",
+-                    getString(R.string.set_timer),
+-                    R.drawable.ic_time_add_24dp
+-                )
+-                .build()
+-        )
+-    }
+-
+-    /**
+-     * 初始化MediaSession, 注册多媒体按钮
+-     */
+-    @SuppressLint("UnspecifiedImmutableFlag")
+-    private fun initMediaSession() {
+-        mediaSessionCompat.setFlags(
+-            MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
+-                    MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+-        )
+-        mediaSessionCompat.setCallback(object : MediaSessionCompat.Callback() {
+-            override fun onPlay() {
+-                resumeReadAloud()
+-            }
+-
+-            override fun onPause() {
+-                pauseReadAloud()
+-            }
+-
+-            override fun onSkipToNext() {
+-                if (getPrefBoolean("mediaButtonPerNext", false)) {
+-                    nextChapter()
+-                } else {
+-                    nextP()
+-                }
+-            }
+-
+-            override fun onSkipToPrevious() {
+-                if (getPrefBoolean("mediaButtonPerNext", false)) {
+-                    prevChapter()
+-                } else {
+-                    prevP()
+-                }
+-            }
+-
+-            override fun onStop() {
+-                stopSelf()
+-            }
+-
+-            override fun onCustomAction(action: String, extras: Bundle?) {
+-                if (action == "ACTION_ADD_TIMER") addTimer()
+-            }
+-
+-            override fun onMediaButtonEvent(mediaButtonEvent: Intent): Boolean {
+-                return MediaButtonReceiver.handleIntent(
+-                    this@BaseReadAloudService, mediaButtonEvent
+-                )
+-            }
+-        })
+-        mediaSessionCompat.setMediaButtonReceiver(
+-            broadcastPendingIntent<MediaButtonReceiver>(Intent.ACTION_MEDIA_BUTTON)
+-        )
+-        mediaSessionCompat.isActive = true
+-    }
+-
+-    private fun upMediaMetadata() {
+-        var nTitle: String = when {
+-            pause -> getString(R.string.read_aloud_pause)
+-            chapterToStop > 0 -> getString(R.string.read_aloud_timer_chapter, chapterToStop)
+-            timeMinute > 0 -> getString(
+-                R.string.read_aloud_timer,
+-                timeMinute
+-            )
+-
+-            else -> getString(R.string.read_aloud_t)
+-        }
+-        nTitle += ": ${ReadBook.book?.name}"
+-        val metadata = MediaMetadataCompat.Builder()
+-            .putBitmap(MediaMetadataCompat.METADATA_KEY_ART, cover)
+-            .putText(MediaMetadataCompat.METADATA_KEY_TITLE, ReadBook.curTextChapter?.title ?: "null")
+-            .putText(MediaMetadataCompat.METADATA_KEY_ARTIST, nTitle)
+-            .putText(MediaMetadataCompat.METADATA_KEY_ALBUM, ReadBook.book?.author ?: "null")
+-//            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, nowSpeak.toLong())
+-            .build()
+-        mediaSessionCompat.setMetadata(metadata)
+-    }
+-
+-    /**
+-     * 注册多媒体按钮监听
+-     */
+-    private fun initBroadcastReceiver() {
+-        val intentFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+-        registerReceiver(broadcastReceiver, intentFilter)
+-    }
+-
+-    /**
+-     * 音频焦点变化
+-     */
+-    override fun onAudioFocusChange(focusChange: Int) {
+-        if (AppConfig.ignoreAudioFocus) {
+-            AppLog.put("忽略音频焦点处理(TTS)")
+-            return
+-        }
+-        when (focusChange) {
+-            AudioManager.AUDIOFOCUS_GAIN -> {
+-                if (needResumeOnAudioFocusGain) {
+-                    AppLog.put("音频焦点获得,继续朗读")
+-                    resumeReadAloud()
+-                } else {
+-                    AppLog.put("音频焦点获得")
+-                }
+-            }
+-
+-            AudioManager.AUDIOFOCUS_LOSS -> {
+-                AppLog.put("音频焦点丢失,暂停朗读")
+-                pauseReadAloud()
+-            }
+-
+-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+-                AppLog.put("音频焦点暂时丢失并会很快再次获得,暂停朗读")
+-                if (!pause) {
+-                    needResumeOnAudioFocusGain = true
+-                    pauseReadAloud(false)
+-                }
+-            }
+-
+-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+-                // 短暂丢失焦点，这种情况是被其他应用申请了短暂的焦点希望其他声音能压低音量（或者关闭声音）凸显这个声音（比如短信提示音），
+-                AppLog.put("音频焦点短暂丢失,不做处理")
+-            }
+-        }
+-    }
+-
+-    private fun upReadAloudNotification() {
+-        upNotificationJob = execute {
+-            try {
+-                upMediaMetadata()
+-                val notification = createNotification()
+-                notificationManager.notify(NotificationId.ReadAloudService, notification.build())
+-            } catch (e: Exception) {
+-                AppLog.put("创建朗读通知出错,${e.localizedMessage}", e, true)
+-            }
+-        }
+-    }
+-
+-    private fun createNotification(): NotificationCompat.Builder {
+-        var nTitle: String = when {
+-            pause -> getString(R.string.read_aloud_pause)
+-            chapterToStop > 0 -> getString(R.string.read_aloud_timer_chapter, chapterToStop)
+-            timeMinute > 0 -> getString(
+-                R.string.read_aloud_timer,
+-                timeMinute
+-            )
+-
+-            else -> getString(R.string.read_aloud_t)
+-        }
+-        nTitle += ": ${ReadBook.book?.name}"
+-        var nSubtitle = ReadBook.curTextChapter?.title
+-        if (nSubtitle.isNullOrBlank())
+-            nSubtitle = getString(R.string.read_aloud_s)
+-        val builder = NotificationCompat
+-            .Builder(this, AppConst.channelIdReadAloud)
+-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
++import android.net.Uri
++import android.content.IntentFilter
++import android.graphics.Bitmap
++import android.graphics.BitmapFactory
++import android.media.AudioManager
++import android.net.wifi.WifiManager
++import android.os.Bundle
++import android.os.PowerManager
++import android.support.v4.media.MediaMetadataCompat
++import android.support.v4.media.session.MediaSessionCompat
++import android.support.v4.media.session.PlaybackStateCompat
++import android.telephony.PhoneStateListener
++import android.telephony.TelephonyManager
++import androidx.annotation.CallSuper
++import androidx.core.app.NotificationCompat
++import androidx.lifecycle.lifecycleScope
++import androidx.media.AudioFocusRequestCompat
++import androidx.media.AudioManagerCompat
++import io.legado.app.R
++import io.legado.app.base.BaseService
++import io.legado.app.constant.AppConst
++import io.legado.app.constant.AppLog
++import io.legado.app.constant.AppPattern
++import io.legado.app.constant.EventBus
++import io.legado.app.constant.IntentAction
++import io.legado.app.constant.NotificationId
++import io.legado.app.constant.PreferKey
++import io.legado.app.constant.Status
++import io.legado.app.data.appDb
++import io.legado.app.help.MediaHelp
++import io.legado.app.help.book.BookHelp
++import io.legado.app.help.book.ContentProcessor
++import io.legado.app.help.book.isLocal
++import io.legado.app.help.config.AppConfig
++import io.legado.app.help.coroutine.Coroutine
++import io.legado.app.help.glide.ImageLoader
++import io.legado.app.lib.permission.Permissions
++import io.legado.app.lib.permission.PermissionsCompat
++import io.legado.app.model.CacheBook
++import io.legado.app.model.ReadAloud
++import io.legado.app.model.ReadBook
++import io.legado.app.receiver.MediaButtonReceiver
++import io.legado.app.ui.book.read.ReadBookActivity
++import io.legado.app.ui.book.read.page.entities.TextChapter
++import io.legado.app.ui.book.read.page.provider.ChapterProvider
++import io.legado.app.utils.LogUtils
++import io.legado.app.utils.activityPendingIntent
++import io.legado.app.utils.broadcastPendingIntent
++import io.legado.app.utils.getPrefBoolean
++import io.legado.app.utils.observeEvent
++import io.legado.app.utils.observeSharedPreferences
++import io.legado.app.utils.postEvent
++import io.legado.app.utils.toastOnUi
++import java.text.BreakIterator
++import java.util.concurrent.atomic.AtomicLong
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers.IO
++import kotlinx.coroutines.Dispatchers.Main
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.isActive
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++import splitties.init.appCtx
++import splitties.systemservices.audioManager
++import splitties.systemservices.notificationManager
++import splitties.systemservices.powerManager
++import splitties.systemservices.telephonyManager
++import splitties.systemservices.wifiManager
++
++internal fun shouldRewindReadAloudToSentenceStart(
++    rewindToSentenceStart: Boolean,
++    toLast: Boolean
++): Boolean = rewindToSentenceStart && !toLast
++
++internal fun findReadAloudSentenceStart(text: String, visibleOffset: Int): Int {
++    if (text.isEmpty()) return 0
++    val limit = visibleOffset.coerceIn(0, text.length)
++    val sentenceIterator = BreakIterator.getSentenceInstance().apply { setText(text) }
++    val searchOffset = if (limit < text.length) limit + 1 else limit
++    return sentenceIterator.preceding(searchOffset).coerceAtLeast(0)
++}
++
++/**
++ * 朗读服务
++ */
++abstract class BaseReadAloudService : BaseService(),
++    AudioManager.OnAudioFocusChangeListener {
++
++    companion object {
++        @JvmStatic
++        var isRun = false
++            private set
++
++        @JvmStatic
++        var pause = true
++            private set
++
++        @JvmStatic
++        var timeMinute: Int = 0
++            private set
++
++        @JvmStatic
++        var chapterToStop: Int = 0
++            private set
++
++        fun isPlay(): Boolean {
++            return isRun && !pause
++        }
++
++        private const val TAG = "BaseReadAloudService"
++        private val speechFollowState = SpeechFollowState()
++
++        /** 当前朗读所在章节索引(朗读游标),脱离跟随后与显示章节可能不同; -1 表示无 */
++        @JvmStatic
++        @Volatile
++        var readAloudChapterIndex: Int = -1
++            private set
++
++        /** 当前朗读位置在章内的字符偏移(朗读游标); -1 表示无。由 upTtsProgress 持续更新, 进程内存活。 */
++        @JvmStatic
++        @Volatile
++        var readAloudChapterStart: Int = -1
++            private set
++
++        @JvmStatic
++        val followReadAloudPosition: Boolean
++            get() = speechFollowState.followReadAloudPosition
++
++        @JvmStatic
++        fun detachReadAloudFollow() {
++            speechFollowState.detachForManualNavigation()
++            postEvent(EventBus.READ_ALOUD_FOLLOW, speechFollowState.followReadAloudPosition)
++        }
++
++        @JvmStatic
++        fun restoreReadAloudFollow() {
++            speechFollowState.restoreForNewSpeechSession()
++            postEvent(EventBus.READ_ALOUD_FOLLOW, speechFollowState.followReadAloudPosition)
++        }
++
++        @JvmStatic
++        fun shouldSyncSpeechNavigation(): Boolean {
++            return speechFollowState.shouldSyncSpeechNavigation()
++        }
++
++        @JvmStatic
++        internal fun updateReadAloudChapterIndex(index: Int) {
++            readAloudChapterIndex = index
++        }
++
++        @JvmStatic
++        fun shouldApplySpeechProgressToVisibleReader(isSpeechPlaying: Boolean): Boolean {
++            return speechFollowState.shouldApplySpeechProgressToVisibleReader(isSpeechPlaying)
++        }
++
++        @JvmStatic
++        fun nextChapterDecision(
++            hasNextSpeechChapter: Boolean,
++            visibleSyncMoved: Boolean
++        ): SpeechFollowState.NextChapterDecision {
++            return speechFollowState.nextChapterDecision(
++                hasNextSpeechChapter = hasNextSpeechChapter,
++                visibleSyncMoved = visibleSyncMoved
++            )
++        }
++    }
++
++    private val useWakeLock = appCtx.getPrefBoolean(PreferKey.readAloudWakeLock, false)
++    private val wakeLock by lazy {
++        powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "legado:ReadAloudService")
++            .apply {
++                this.setReferenceCounted(false)
++            }
++    }
++    private val wifiLock by lazy {
++        @Suppress("DEPRECATION")
++        wifiManager?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "legado:AudioPlayService")
++            ?.apply {
++                setReferenceCounted(false)
++            }
++    }
++    private val mFocusRequest: AudioFocusRequestCompat by lazy {
++        MediaHelp.buildAudioFocusRequestCompat(this)
++    }
++    private val mediaSessionCompat by lazy {
++        MediaSessionCompat(this, "readAloud")
++    }
++    private val phoneStateListener by lazy {
++        ReadAloudPhoneStateListener()
++    }
++    internal var contentList = emptyList<String>()
++    internal var nowSpeak: Int = 0
++    internal var readAloudNumber: Int = 0
++    internal var textChapter: TextChapter? = null
++    internal var pageIndex = 0
++    private var needResumeOnAudioFocusGain = false
++    private var needResumeOnCallStateIdle = false
++    private var registeredPhoneStateListener = false
++    private val chapterStopTimer = ChapterStopTimer()
++    private var dsJob: Job? = null
++    private var readAloudJob: Coroutine<*>? = null
++    private val readAloudGeneration = AtomicLong()
++    private var upNotificationJob: Coroutine<*>? = null
++    private var cover: Bitmap =
++        BitmapFactory.decodeResource(appCtx.resources, R.drawable.icon_read_book)
++    var pageChanged = false
++    private var toLast = false
++    var paragraphStartPos = 0
++    var readAloudByPage = false
++        private set
++
++    private data class PreparedReadAloud(
++        val textChapter: TextChapter,
++        val pageIndex: Int,
++        val readAloudNumber: Int,
++        val readAloudByPage: Boolean,
++        val contentList: List<String>,
++        val nowSpeak: Int,
++        val readAloudChapterStart: Int,
++        val paragraphStartPos: Int,
++        val consumedToLast: Boolean
++    )
++
++    private val broadcastReceiver = object : BroadcastReceiver() {
++        override fun onReceive(context: Context, intent: Intent) {
++            if (AudioManager.ACTION_AUDIO_BECOMING_NOISY == intent.action) {
++                pauseReadAloud()
++            }
++        }
++    }
++
++    @SuppressLint("WakelockTimeout")
++    override fun onCreate() {
++        super.onCreate()
++        isRun = true
++        pause = false
++        chapterStopTimer.clear()
++        chapterToStop = 0
++        restoreReadAloudFollow()
++        observeLiveBus()
++        initMediaSession()
++        initBroadcastReceiver()
++        initPhoneStateListener()
++        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PLAYING)
++        setTimer(AppConfig.ttsTimer)
++        if (AppConfig.ttsTimer > 0) {
++            toastOnUi("朗读定时 ${AppConfig.ttsTimer} 分钟")
++        }
++        execute {
++            val book = ReadBook.book
++            ImageLoader
++                .loadBitmap(
++                    this@BaseReadAloudService,
++                    book?.getDisplayCover(),
++                    book?.getCoverSourceOrigin(),
++                )
++                .submit()
++                .get()
++        }.onSuccess {
++            if (it.width > 16 && it.height > 16) {
++                cover = it
++                upReadAloudNotification()
++            }
++        }
++    }
++
++    fun observeLiveBus() {
++        observeEvent<Bundle>(EventBus.READ_ALOUD_PLAY) {
++            val play = it.getBoolean("play")
++            val pageIndex = it.getInt("pageIndex")
++            val startPos = it.getInt("startPos")
++            val rewindToSentenceStart = it.getBoolean("rewindToSentenceStart")
++            newReadAloud(play, pageIndex, startPos, rewindToSentenceStart)
++        }
++        observeSharedPreferences { _, key ->
++            when (key) {
++                PreferKey.ignoreAudioFocus,
++                PreferKey.pauseReadAloudWhilePhoneCalls -> {
++                    initPhoneStateListener()
++                }
++            }
++        }
++    }
++
++    override fun onDestroy() {
++        readAloudGeneration.incrementAndGet()
++        readAloudJob?.cancel()
++        super.onDestroy()
++        restoreReadAloudFollow()
++        updateReadAloudChapterIndex(-1)
++        readAloudChapterStart = -1
++        if (useWakeLock) {
++            wakeLock.release()
++            wifiLock?.release()
++        }
++        isRun = false
++        pause = true
++        timeMinute = 0
++        chapterStopTimer.clear()
++        chapterToStop = 0
++        postEvent(EventBus.READ_ALOUD_DS, 0)
++        postEvent(EventBus.READ_ALOUD_CHAPTER_STOP, 0)
++        abandonFocus()
++        unregisterReceiver(broadcastReceiver)
++        postEvent(EventBus.ALOUD_STATE, Status.STOP)
++        notificationManager.cancel(NotificationId.ReadAloudService)
++        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_STOPPED)
++        mediaSessionCompat.release()
++        ReadBook.uploadProgress()
++        unregisterPhoneStateListener(phoneStateListener)
++        upNotificationJob?.invokeOnCompletion {
++            notificationManager.cancel(NotificationId.ReadAloudService)
++        }
++    }
++
++    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
++        if (intent == null) {
++            stopSelfResult(startId)
++            return START_NOT_STICKY
++        }
++        when (intent.action) {
++            IntentAction.play -> newReadAloud(
++                intent.getBooleanExtra("play", true),
++                intent.getIntExtra("pageIndex", ReadBook.durPageIndex),
++                intent.getIntExtra("startPos", 0),
++                intent.getBooleanExtra("rewindToSentenceStart", false)
++            )
++
++            IntentAction.pause -> pauseReadAloud()
++            IntentAction.resume -> resumeReadAloud()
++            IntentAction.upTtsSpeechRate -> upSpeechRate(true)
++            IntentAction.prevParagraph -> prevP()
++            IntentAction.nextParagraph -> nextP()
++            IntentAction.prev -> prevChapter()
++            IntentAction.next -> nextChapter()
++            IntentAction.addTimer -> addTimer()
++            IntentAction.setTimer -> setTimer(intent.getIntExtra("minute", 0))
++            IntentAction.setChapterStop -> setChapterStop(intent.getIntExtra("count", 0))
++            IntentAction.stop -> stopSelf()
++        }
++        super.onStartCommand(intent, flags, startId)
++        return START_NOT_STICKY
++    }
++
++    private fun newReadAloud(
++        play: Boolean,
++        pageIndex: Int,
++        startPos: Int,
++        rewindToSentenceStart: Boolean
++    ) {
++        val generation = readAloudGeneration.incrementAndGet()
++        val toLast = this@BaseReadAloudService.toLast
++        readAloudJob?.cancel()
++        playStop()
++        restoreReadAloudFollow()
++        readAloudJob = execute(executeContext = IO) {
++            val textChapter = ReadBook.curTextChapter ?: return@execute
++            if (!textChapter.isCompleted) return@execute
++            val readAloudByPage = getPrefBoolean(PreferKey.readAloudByPage)
++            val contentList = textChapter.getNeedReadAloud(0, readAloudByPage, 0)
++                .split("\n")
++                .filter { it.isNotEmpty() }
++            var readAloudNumber = textChapter.getReadLength(pageIndex) + startPos
++            if (shouldRewindReadAloudToSentenceStart(rewindToSentenceStart, toLast)) {
++                val paragraphIndex = textChapter.getParagraphNum(readAloudNumber + 1, false) - 1
++                val paragraph = textChapter.paragraphs[paragraphIndex]
++                val sentenceStart = findReadAloudSentenceStart(
++                    paragraph.text, readAloudNumber - paragraph.chapterPosition
++                )
++                readAloudNumber = paragraph.chapterPosition + sentenceStart
++            }
++            if (toLast) readAloudNumber = textChapter.getLastParagraphPosition()
++            val nowSpeak = textChapter.getParagraphNum(readAloudNumber + 1, readAloudByPage) - 1
++            val pos = readAloudNumber - textChapter.getParagraphs(readAloudByPage)[nowSpeak].chapterPosition
++            val prepared = PreparedReadAloud(
++                textChapter = textChapter,
++                pageIndex = textChapter.getPageIndexByCharIndex(readAloudNumber),
++                readAloudNumber = readAloudNumber,
++                readAloudByPage = readAloudByPage,
++                contentList = contentList,
++                nowSpeak = nowSpeak,
++                readAloudChapterStart = readAloudNumber,
++                paragraphStartPos = pos,
++                consumedToLast = toLast
++            )
++            ensureActive()
++            withContext(Main.immediate) {
++                if (generation != readAloudGeneration.get()) return@withContext
++                this@BaseReadAloudService.pageIndex = prepared.pageIndex
++                this@BaseReadAloudService.textChapter = prepared.textChapter
++                this@BaseReadAloudService.readAloudNumber = prepared.readAloudNumber
++                this@BaseReadAloudService.readAloudByPage = prepared.readAloudByPage
++                this@BaseReadAloudService.contentList = prepared.contentList
++                this@BaseReadAloudService.nowSpeak = prepared.nowSpeak
++                updateReadAloudChapterIndex(prepared.textChapter.chapter.index)
++                BaseReadAloudService.readAloudChapterStart = prepared.readAloudChapterStart
++                this@BaseReadAloudService.paragraphStartPos = prepared.paragraphStartPos
++                if (prepared.consumedToLast) this@BaseReadAloudService.toLast = false
++                if (play) play() else pageChanged = true
++            }
++        }.onError(Main) {
++            if (it !is CancellationException && generation == readAloudGeneration.get()) {
++                AppLog.put("启动朗读出错\n${it.localizedMessage}", it, true)
++            }
++        }
++    }
++
++    @SuppressLint("WakelockTimeout")
++    open fun play() {
++        if (useWakeLock) {
++            wakeLock.acquire()
++            wifiLock?.acquire()
++        }
++        isRun = true
++        pause = false
++        needResumeOnAudioFocusGain = false
++        needResumeOnCallStateIdle = false
++        upReadAloudNotification()
++        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PLAYING)
++        postEvent(EventBus.ALOUD_STATE, Status.PLAY)
++    }
++
++    abstract fun playStop()
++
++    @CallSuper
++    open fun pauseReadAloud(abandonFocus: Boolean = true) {
++        if (useWakeLock) {
++            wakeLock.release()
++            wifiLock?.release()
++        }
++        pause = true
++        if (abandonFocus) {
++            abandonFocus()
++        }
++        upReadAloudNotification()
++        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PAUSED)
++        postEvent(EventBus.ALOUD_STATE, Status.PAUSE)
++        ReadBook.uploadProgress()
++        doDs()
++    }
++
++    @SuppressLint("WakelockTimeout")
++    @CallSuper
++    open fun resumeReadAloud() {
++        resumeReadAloudInternal()
++    }
++
++    private fun resumeReadAloudInternal() {
++        pause = false
++        needResumeOnAudioFocusGain = false
++        needResumeOnCallStateIdle = false
++        upReadAloudNotification()
++        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PLAYING)
++        postEvent(EventBus.ALOUD_STATE, Status.PLAY)
++    }
++
++    abstract fun upSpeechRate(reset: Boolean = false)
++
++    fun upTtsProgress(progress: Int) {
++        readAloudChapterStart = progress
++        postEvent(EventBus.TTS_PROGRESS, progress)
++    }
++
++    private fun prevP() {
++        if (nowSpeak > 0) {
++            playStop()
++            do {
++                nowSpeak--
++                readAloudNumber -= contentList[nowSpeak].length + 1 + paragraphStartPos
++                paragraphStartPos = 0
++            } while (contentList[nowSpeak].matches(AppPattern.notReadAloudRegex))
++            textChapter?.let {
++                if (readAloudByPage) {
++                    val paragraphs = it.getParagraphs(true)
++                    if (!paragraphs[nowSpeak].isParagraphEnd) readAloudNumber++
++                }
++                if (readAloudNumber < it.getReadLength(pageIndex)) {
++                    pageIndex--
++                    ReadBook.moveToPrevPage(syncReadAloudFollow = true)
++                }
++            }
++            upTtsProgress(readAloudNumber)
++            play()
++        } else {
++            toLast = true
++            ReadBook.moveToPrevChapter(true, syncReadAloudFollow = true)
++        }
++    }
++
++    private fun nextP() {
++        if (nowSpeak < contentList.size - 1) {
++            playStop()
++            readAloudNumber += contentList[nowSpeak].length.plus(1) - paragraphStartPos
++            paragraphStartPos = 0
++            nowSpeak++
++            textChapter?.let {
++                if (readAloudByPage) {
++                    val paragraphs = it.getParagraphs(true)
++                    if (!paragraphs[nowSpeak].isParagraphEnd) readAloudNumber--
++                }
++                if (pageIndex + 1 < it.pageSize
++                    && readAloudNumber >= it.getReadLength(pageIndex + 1)
++                ) {
++                    pageIndex++
++                    ReadBook.moveToNextPage(syncReadAloudFollow = true)
++                }
++            }
++            upTtsProgress(readAloudNumber)
++            play()
++        } else {
++            nextChapter()
++        }
++    }
++
++    private fun setTimer(minute: Int) {
++        timeMinute = minute.coerceIn(0, 180)
++        chapterStopTimer.clear()
++        chapterToStop = 0
++        postEvent(EventBus.READ_ALOUD_CHAPTER_STOP, 0)
++        doDs()
++    }
++
++    private fun addTimer() {
++        val next = nextSleepTimerIncrement(
++            timeMinute, chapterToStop, AppConfig.sleepTimerPreferChapter
++        )
++        if (next.chapter > 0) setChapterStop(next.chapter) else setTimer(next.minute)
++    }
++
++    private fun setChapterStop(count: Int) {
++        chapterToStop = chapterStopTimer.set(count)
++        timeMinute = 0
++        dsJob?.cancel()
++        postEvent(EventBus.READ_ALOUD_DS, 0)
++        postEvent(EventBus.READ_ALOUD_CHAPTER_STOP, chapterToStop)
++        upReadAloudNotification()
++    }
++
++    /**
++     * 定时
++     */
++    @Synchronized
++    private fun doDs() {
++        postEvent(EventBus.READ_ALOUD_DS, timeMinute)
++        upReadAloudNotification()
++        dsJob?.cancel()
++        if (timeMinute <= 0) return
++        dsJob = lifecycleScope.launch {
++            while (isActive) {
++                delay(60000)
++                if (!pause) {
++                    if (timeMinute >= 0) {
++                        timeMinute--
++                    }
++                    if (timeMinute == 0) {
++                        ReadAloud.stop(this@BaseReadAloudService)
++                        postEvent(EventBus.READ_ALOUD_DS, timeMinute)
++                        break
++                    }
++                }
++                postEvent(EventBus.READ_ALOUD_DS, timeMinute)
++                upReadAloudNotification()
++            }
++        }
++    }
++
++    /**
++     * 请求音频焦点
++     * @return 音频焦点
++     */
++    fun requestFocus(): Boolean {
++        if (AppConfig.ignoreAudioFocus) {
++            return true
++        }
++        val requestFocus = MediaHelp.requestFocus(mFocusRequest)
++        if (!requestFocus) {
++            pauseReadAloud(false)
++            toastOnUi("未获取到音频焦点")
++        }
++        return requestFocus
++    }
++
++    /**
++     * 放弃音频焦点
++     */
++    private fun abandonFocus() {
++        AudioManagerCompat.abandonAudioFocusRequest(audioManager, mFocusRequest)
++    }
++
++    /**
++     * 更新媒体状态
++     */
++    private fun upMediaSessionPlaybackState(state: Int) {
++        mediaSessionCompat.setPlaybackState(
++            PlaybackStateCompat.Builder()
++                .setActions(MediaHelp.MEDIA_SESSION_ACTIONS)
++                .setState(state, nowSpeak.toLong(), 1f)
++                // 为系统媒体控件添加定时按钮
++                .addCustomAction(
++                    "ACTION_ADD_TIMER",
++                    getString(R.string.set_timer),
++                    R.drawable.ic_time_add_24dp
++                )
++                .build()
++        )
++    }
++
++    /**
++     * 初始化MediaSession, 注册多媒体按钮
++     */
++    @SuppressLint("UnspecifiedImmutableFlag")
++    private fun initMediaSession() {
++        mediaSessionCompat.setFlags(
++            MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
++                    MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
++        )
++        mediaSessionCompat.setCallback(object : MediaSessionCompat.Callback() {
++            override fun onPlay() {
++                resumeReadAloud()
++            }
++
++            override fun onPause() {
++                pauseReadAloud()
++            }
++
++            override fun onSkipToNext() {
++                if (getPrefBoolean("mediaButtonPerNext", false)) {
++                    nextChapter()
++                } else {
++                    nextP()
++                }
++            }
++
++            override fun onSkipToPrevious() {
++                if (getPrefBoolean("mediaButtonPerNext", false)) {
++                    prevChapter()
++                } else {
++                    prevP()
++                }
++            }
++
++            override fun onStop() {
++                stopSelf()
++            }
++
++            override fun onCustomAction(action: String, extras: Bundle?) {
++                if (action == "ACTION_ADD_TIMER") addTimer()
++            }
++
++            override fun onMediaButtonEvent(mediaButtonEvent: Intent): Boolean {
++                return MediaButtonReceiver.handleIntent(
++                    this@BaseReadAloudService, mediaButtonEvent
++                )
++            }
++        })
++        mediaSessionCompat.setMediaButtonReceiver(
++            broadcastPendingIntent<MediaButtonReceiver>(Intent.ACTION_MEDIA_BUTTON)
++        )
++        mediaSessionCompat.isActive = true
++    }
++
++    private fun upMediaMetadata() {
++        var nTitle: String = when {
++            pause -> getString(R.string.read_aloud_pause)
++            chapterToStop > 0 -> getString(R.string.read_aloud_timer_chapter, chapterToStop)
++            timeMinute > 0 -> getString(
++                R.string.read_aloud_timer,
++                timeMinute
++            )
++
++            else -> getString(R.string.read_aloud_t)
++        }
++        nTitle += ": ${ReadBook.book?.name}"
++        val metadata = MediaMetadataCompat.Builder()
++            .putBitmap(MediaMetadataCompat.METADATA_KEY_ART, cover)
++            .putText(MediaMetadataCompat.METADATA_KEY_TITLE, ReadBook.curTextChapter?.title ?: "null")
++            .putText(MediaMetadataCompat.METADATA_KEY_ARTIST, nTitle)
++            .putText(MediaMetadataCompat.METADATA_KEY_ALBUM, ReadBook.book?.author ?: "null")
++//            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, nowSpeak.toLong())
++            .build()
++        mediaSessionCompat.setMetadata(metadata)
++    }
++
++    /**
++     * 注册多媒体按钮监听
++     */
++    private fun initBroadcastReceiver() {
++        val intentFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
++        registerReceiver(broadcastReceiver, intentFilter)
++    }
++
++    /**
++     * 音频焦点变化
++     */
++    override fun onAudioFocusChange(focusChange: Int) {
++        if (AppConfig.ignoreAudioFocus) {
++            AppLog.put("忽略音频焦点处理(TTS)")
++            return
++        }
++        when (focusChange) {
++            AudioManager.AUDIOFOCUS_GAIN -> {
++                if (needResumeOnAudioFocusGain) {
++                    AppLog.put("音频焦点获得,继续朗读")
++                    resumeReadAloud()
++                } else {
++                    AppLog.put("音频焦点获得")
++                }
++            }
++
++            AudioManager.AUDIOFOCUS_LOSS -> {
++                AppLog.put("音频焦点丢失,暂停朗读")
++                pauseReadAloud()
++            }
++
++            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
++                AppLog.put("音频焦点暂时丢失并会很快再次获得,暂停朗读")
++                if (!pause) {
++                    needResumeOnAudioFocusGain = true
++                    pauseReadAloud(false)
++                }
++            }
++
++            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
++                // 短暂丢失焦点，这种情况是被其他应用申请了短暂的焦点希望其他声音能压低音量（或者关闭声音）凸显这个声音（比如短信提示音），
++                AppLog.put("音频焦点短暂丢失,不做处理")
++            }
++        }
++    }
++
++    private fun upReadAloudNotification() {
++        upNotificationJob = execute {
++            try {
++                upMediaMetadata()
++                val notification = createNotification()
++                notificationManager.notify(NotificationId.ReadAloudService, notification.build())
++            } catch (e: Exception) {
++                AppLog.put("创建朗读通知出错,${e.localizedMessage}", e, true)
++            }
++        }
++    }
++
++    private fun createNotification(): NotificationCompat.Builder {
++        var nTitle: String = when {
++            pause -> getString(R.string.read_aloud_pause)
++            chapterToStop > 0 -> getString(R.string.read_aloud_timer_chapter, chapterToStop)
++            timeMinute > 0 -> getString(
++                R.string.read_aloud_timer,
++                timeMinute
++            )
++
++            else -> getString(R.string.read_aloud_t)
++        }
++        nTitle += ": ${ReadBook.book?.name}"
++        var nSubtitle = ReadBook.curTextChapter?.title
++        if (nSubtitle.isNullOrBlank())
++            nSubtitle = getString(R.string.read_aloud_s)
++        val vaultShelfTransient = ReadBook.book
++            ?.bookUrl
++            ?.let { runCatching { Uri.parse(it).authority }.getOrNull() }
++            ?.endsWith(".temporary_provider") == true
++        val builder = NotificationCompat
++            .Builder(this, AppConst.channelIdReadAloud)
++            .setVisibility(
++                if (vaultShelfTransient) NotificationCompat.VISIBILITY_SECRET
++                else NotificationCompat.VISIBILITY_PUBLIC
++            )
+             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+             .setSmallIcon(R.drawable.ic_volume_up)
+
+diff --git a/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt b/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt
+--- a/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt
++++ b/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt
+@@ -85,7 +85,6 @@
+ import io.legado.app.utils.isJsonObject
+ import io.legado.app.model.localBook.EpubFile
+ import io.legado.app.model.localBook.MobiFile
+-import io.legado.app.receiver.NetworkChangedListener
+ import io.legado.app.receiver.TimeBatteryReceiver
+ import io.legado.app.service.BaseReadAloudService
+ import io.legado.app.ui.about.AppLogDialog
+@@ -136,7 +135,6 @@
+ import io.legado.app.utils.ColorUtils
+ import io.legado.app.utils.Debounce
+ import io.legado.app.utils.LogUtils
+-import io.legado.app.utils.NetworkUtils
+ import io.legado.app.utils.StartActivityContract
+ import io.legado.app.utils.buildMainHandler
+ import io.legado.app.utils.dismissDialogFragment
+@@ -334,9 +332,6 @@
+ 
+     //恢复跳转前进度对话框的交互结果
+     private var confirmRestoreProcess: Boolean? = null
+-    private val networkChangedListener by lazy {
+-        NetworkChangedListener(this)
+-    }
+     private var justInitData: Boolean = false
+     private var syncDialog: AlertDialog? = null
+ 
+@@ -415,7 +410,7 @@
+         ChapterProvider.clearReviewProviders()
+         binding.readView.doOnLayout {
+             Looper.myQueue().addIdleHandler {
+-                viewModel.initData(intent)
++                viewModel.initData(intent) { maybeShowVaultShelfReaderSettings() }
+                 false
+             }
+         }
+@@ -428,7 +423,7 @@
+         editingHighlight = null
+         resetBookmarkObserver()
+         resetReviewSummaryState()
+-        viewModel.initData(intent)
++        viewModel.initData(intent) { maybeShowVaultShelfReaderSettings() }
+     }
+ 
+     override fun onWindowFocusChanged(hasFocus: Boolean) {
+@@ -461,7 +456,7 @@
+         if (bookChanged) {
+             bookChanged = false
+             ReadBook.callBack = this
+-            viewModel.initData(intent)
++            viewModel.initData(intent) { maybeShowVaultShelfReaderSettings() }
+             justInitData = true
+         } else {
+             //web端阅读时，app处于阅读界面，本地记录会覆盖web保存的进度，在此处恢复
+@@ -475,20 +470,24 @@
+         binding.readView.upTime()
+         updateReadAloudFloatBar()
+         screenOffTimerStart()
+-        // 网络监听，当从无网切换到网络环境时同步进度（注意注册的同时就会收到监听，因此界面激活时无需重复执行同步操作）
+-        networkChangedListener.register()
+-        networkChangedListener.onNetworkChanged = {
+-            // 当网络是可用状态且无需初始化时同步进度（初始化中已有同步进度逻辑）
+-            if (AppConfig.syncBookProgressPlus && NetworkUtils.isAvailable() && !justInitData && ReadBook.inBookshelf) {
+-                ReadBook.syncProgress({ progress -> sureNewProgress(progress) })
+-            }
+-        }
+     }
+ 
+-    override fun onPostResume() {
+-        super.onPostResume()
+-        showPendingSourceReimport()
+-    }
++    override fun onPostResume() {
++        super.onPostResume()
++        showPendingSourceReimport()
++        maybeShowVaultShelfReaderSettings()
++    }
++
++    private fun maybeShowVaultShelfReaderSettings() {
++        if (
++            intent.getBooleanExtra("vaultshelf.open_reader_settings", false) &&
++            ReadBook.book != null &&
++            !supportFragmentManager.isStateSaved
++        ) {
++            intent.removeExtra("vaultshelf.open_reader_settings")
++            showReadStyle()
++        }
++    }
+ 
+     private fun showPendingSourceReimport() {
+         val pending = viewModel.pendingSourceReimport.value ?: return
+@@ -522,7 +521,6 @@
+             Backup.autoBack(this)
+         }
+         justInitData = false
+-        networkChangedListener.unRegister()
+     }
+ 
+     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
+diff --git a/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt b/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt
+--- a/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt
++++ b/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt
+@@ -201,9 +201,9 @@
+         }
+         fabSearch.backgroundTintList = bottomBackgroundList
+         fabSearch.setColorFilter(textColor)
+         fabAutoPage.backgroundTintList = bottomBackgroundList
+         fabAutoPage.setColorFilter(textColor)
+-        fabReplaceRule.backgroundTintList = bottomBackgroundList
+-        fabReplaceRule.setColorFilter(textColor)
++        fabBookmark.backgroundTintList = bottomBackgroundList
++        fabBookmark.setColorFilter(textColor)
+         fabNightTheme.backgroundTintList = bottomBackgroundList
+         fabNightTheme.setColorFilter(textColor)
+@@ -570,5 +570,5 @@
+ 
+-        //替换
+-        fabReplaceRule.setOnClickListener { callBack.openReplaceRule() }
++        //书签
++        fabBookmark.setOnClickListener { callBack.addBookmark() }
+ 
+         //夜间模式
+@@ -737,5 +737,6 @@
+     interface CallBack {
+         fun autoPage()
++        fun addBookmark()
+         fun openReplaceRule()
+         fun openChapterList()
+         fun openSearchActivity(searchWord: String?)
+
+diff --git a/app/src/main/res/layout/view_read_menu.xml b/app/src/main/res/layout/view_read_menu.xml
+--- a/app/src/main/res/layout/view_read_menu.xml
++++ b/app/src/main/res/layout/view_read_menu.xml
+@@ -199,12 +199,12 @@
+             <com.google.android.material.floatingactionbutton.FloatingActionButton
+-                android:id="@+id/fabReplaceRule"
++                android:id="@+id/fabBookmark"
+                 android:layout_width="wrap_content"
+                 android:layout_height="wrap_content"
+                 android:layout_margin="16dp"
+-                android:contentDescription="@string/replace_rule_title"
+-                android:src="@drawable/ic_find_replace"
++                android:contentDescription="@string/bookmark"
++                android:src="@drawable/ic_bookmark"
+                 android:tint="@color/primaryText"
+-                android:tooltipText="@string/replace_rule_title"
++                android:tooltipText="@string/bookmark"
+                 app:backgroundTint="@color/background_menu"
+                 app:elevation="2dp"
+                 app:fabSize="mini"
+
+diff --git a/app/src/main/java/io/legado/app/ui/book/toc/rule/TxtTocRuleDialog.kt b/app/src/main/java/io/legado/app/ui/book/toc/rule/TxtTocRuleDialog.kt
+--- a/app/src/main/java/io/legado/app/ui/book/toc/rule/TxtTocRuleDialog.kt
++++ b/app/src/main/java/io/legado/app/ui/book/toc/rule/TxtTocRuleDialog.kt
+@@ -163,13 +163,7 @@
+     private fun initSelectedName(tocRules: List<TxtTocRule>) {
+-        if (selectedName == null && durRegex != null) {
+-            tocRules.forEach {
+-                if (durRegex == it.rule + TextFile.spaceChars + it.replacement) {
+-                    selectedName = it.name
+-                    return@forEach
+-                }
+-            }
+-            if (selectedName == null) {
+-                selectedName = ""
+-            }
++        if (selectedName == null) {
++            selectedName = tocRules.firstOrNull { durRegex == it.rule + TextFile.spaceChars + it.replacement }?.name
++                ?: tocRules.firstOrNull { it.enable }?.name
++                ?: tocRules.firstOrNull()?.name
+         }
+     }

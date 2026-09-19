@@ -42,5 +42,5 @@
     <color name="audio_backdrop">#FF171717</color>
 
     <!-- Launcher art is still inherited from Gander for this foundation milestone. -->
-    <color name="ic_launcher_background">#F6F1E6</color>
+    <color name="gander_ic_launcher_background">#F6F1E6</color>
 </resources>

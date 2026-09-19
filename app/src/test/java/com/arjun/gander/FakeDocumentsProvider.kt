@@ -64,7 +64,7 @@ internal class FakeDocumentsProvider : ContentProvider() {
         return MatrixCursor(columns).apply {
             rows.forEach { child ->
                 addRow(
-                    columns.map { column ->
+                    columns.map<String, Any?> { column ->
                         when (column) {
                             DocumentsContract.Document.COLUMN_DOCUMENT_ID -> child.docId
                             DocumentsContract.Document.COLUMN_DISPLAY_NAME -> child.name

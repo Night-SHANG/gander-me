@@ -68,11 +68,25 @@
 <article id="content"></article>
 <script src="app.js"></script>
 <script>
+function restoreScrollPosition() {
+  var raw = new URLSearchParams(location.search).get("resumeScroll");
+  var fraction = Number(raw || 0);
+  if (!(fraction > 0 && fraction < 1)) return;
+
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () {
+      var max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      window.scrollTo(0, Math.round(max * fraction));
+    });
+  });
+}
+
 vwFetchDoc("text")
   .then(function (txt) {
     var html = marked.parse(txt, { gfm: true, breaks: false });
     document.getElementById("content").innerHTML = DOMPurify.sanitize(html);
     vwStatusDone();
+    restoreScrollPosition();
   })
   .catch(function (e) { vwError("Could not render this Markdown file", String(e)); });
 </script>

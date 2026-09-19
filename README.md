@@ -1,88 +1,109 @@
 # VaultShelf
 
-VaultShelf is an offline Android document viewer and private reading library built on the mature Gander file-viewer foundation and adapted reading technology from Legado / 阅读 3.0.
+VaultShelf is an offline Android document viewer, local reading library and encrypted private vault. It deliberately reuses mature open-source subsystems instead of reimplementing them.
 
-The project keeps two jobs separate:
+## What VaultShelf uses
 
-- **Documents:** PDF, Word, Excel, PowerPoint, Markdown, images, audio/video and other files continue to use Gander's proven local viewer path.
-- **Books:** TXT and EPUB can be imported into an app-private library and opened in a dedicated novel-reading experience.
+- **General documents:** Gander's mature local browser and document viewer.
+- **Local ebooks:** the original Legado / 阅读 3.0 reader source, pinned as a Git submodule.
+- **Audio/video:** DroidFS' original Media3 player UI is reused for both ordinary files and encrypted-vault media.
+- **Encrypted vault:** the original DroidFS hidden-volume stack backed by gocryptfs, pinned as a Git submodule.
+- **VaultShelf code:** the application shell, bookshelf index, routing and the thin synchronization layers required to connect those mature subsystems.
 
-No document or book content is uploaded by VaultShelf. The Android app does not request the `INTERNET` permission.
+The Android app does not request the `INTERNET` permission. Document, book and vault content stays on-device unless the user explicitly exports or shares something through Android. DroidFS' original external-storage permissions remain declared so its explicit encrypted-volume backup/migration workflow can work; normal Files, bookshelf and hidden-vault use do not require granting broad storage access.
 
-## Current reading features
+## Reading library
 
-- App-private TXT and EPUB imports.
-- Bookshelf with reading progress and recent-reading state.
-- TXT chapter detection and resume position.
-- EPUB spine/TOC parsing and embedded image rendering.
-- One shared TXT/EPUB reader surface based on the adapted Legado `ReadView` model.
-- Cover, slide, simulation/curl, continuous-scroll and no-animation page modes.
-- Center-tap reading controls with automatic hiding.
-- Font size, line spacing, page margins and light/sepia/dark reading themes.
-- Chinese-oriented paragraph indentation, layout and full justification.
-- Edge-to-edge Android layout with safe handling of display cutouts and gesture insets.
-- Complete Simplified Chinese UI alongside English through the project's i18n resources.
+The bookshelf accepts:
 
-## Document formats
+- TXT
+- EPUB
+- UMD
+- PDF
+- MOBI
+- AZW3
+- AZW
+- Markdown
 
-The Gander-derived viewer currently covers:
+TXT, EPUB, UMD, MOBI, AZW3 and AZW are registered with Legado's original local-book model and opened in its original reading UI. Typography, page turning, themes, TOC, search, bookmarks/highlights and other supported reading behavior remain Legado behavior rather than VaultShelf reimplementations.
 
-| Category | Formats / renderer |
-| --- | --- |
-| PDF | pdf.js, offline in a sandboxed WebView |
-| Word | `.docx` through docx-preview |
-| Spreadsheets | `.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.csv`, `.ods` through SheetJS |
-| Slides | `.pptx` through PPTXjs |
-| Images | common raster formats plus GIF/SVG/AVIF/ICO paths |
-| Video / audio | Media3 |
-| Markdown | marked + DOMPurify |
-| Text / code | local text viewer |
+PDF and Markdown continue to use Gander's mature viewer. Their reading position is synchronized back to the bookshelf.
 
-Legacy binary `.doc` and `.ppt` are not currently supported.
-
-## Architecture
-
-`VaultShelfActivity` is the Compose application shell. The mature Gander `MainActivity` and `ViewerActivity` remain responsible for general file browsing and document rendering.
-
-Novel reading is isolated in `:legado-reader`. TXT and EPUB are converted into the same `TextChapter` / `TextPage` model and rendered by the same `ReadView`, so page-turning, typography, themes and interaction behavior do not diverge by book format.
-
-EPUB parsing uses Legado's standalone `modules:book` parser pinned to upstream commit:
+Pinned Legado commit:
 
 `62003ce732a7e30602754d28996da7f98b9ea296`
 
+## Private vault
+
+VaultShelf routes the Vault entry directly into DroidFS' original vault UI and lifecycle.
+
+The intended VaultShelf vault is DroidFS' **hidden volume** mode:
+
+- encrypted volume lives under the app-private files directory;
+- ordinary Android file managers and media scanners do not have normal access to that directory;
+- gocryptfs encrypts the stored file contents and names;
+- password and biometric unlock use DroidFS' existing implementation;
+- DroidFS' original lifecycle performs locking and sensitive temporary-file cleanup;
+- encrypted files can still be viewed and managed after the vault is unlocked using DroidFS' original Explorer and viewers;
+- DroidFS' original encrypted-volume copy workflow remains available;
+- VaultShelf can additionally create a portable `.vsbackup` file for a locked hidden volume. The package contains the existing gocryptfs ciphertext plus opaque per-volume reading/playback position metadata; document contents are never decrypted for backup. The original volume UUID is preserved so that metadata remains usable after restore, while biometric cached credentials are deliberately not exported. The original vault password is still required on the destination device.
+
+Pinned DroidFS commit:
+
+`296713c7627b43db4b8508fb8c6c65acb257aefe`
+
+The project currently builds the DroidFS integration in gocryptfs-only mode; CryFS is disabled through DroidFS' own supported build switch.
+
+## File viewing
+
+VaultShelf routes each format to the mature subsystem that already handles it well:
+
+- TXT, EPUB, UMD, MOBI, AZW3 and AZW → original Legado reader.
+- PDF, Word, spreadsheets, slides, Markdown and text/code document paths → Gander-derived viewer.
+- Audio and video → original DroidFS Media3 player.
+- Encrypted-vault files use the same routing after DroidFS supplies its controlled temporary decrypted URI.
+
+Gander-originated code retains its original MIT notice.
+
+## Project structure
+
+- `app` — VaultShelf shell, bookshelf and Gander viewer.
+- `legado-upstream` — Gradle adapter that compiles the pinned original Legado reader source.
+- `droidfs-upstream` — Gradle adapter that compiles the pinned original DroidFS source.
+- `third_party/legado` — pinned upstream Legado Git submodule.
+- `third_party/droidfs` — pinned upstream DroidFS Git submodule.
+
 ## Build
 
-Requirements:
+The development branch intentionally does not run CI for every intermediate commit. A full build/test/lint pass is performed after the current integration work is complete.
 
-- JDK 21 for the current CI/test toolchain.
-- Android SDK 36.
+Current toolchain target:
 
-```sh
-./gradlew testDebugUnitTest lintDebug assembleDebug
-```
+- JDK 21
+- Android SDK 36
 
-Release builds can also be assembled with:
-
-```sh
-./gradlew assembleRelease
-```
-
-The project includes CI checks for Android unit tests, lint, viewer tests, debug/release APK builds and the merged-manifest permission invariant.
+The repository uses submodules, so a local checkout must initialize them before building.
 
 ## Privacy
 
-VaultShelf uses Android's Storage Access Framework and app-private storage. It does not request broad storage access and does not declare the Android `INTERNET` permission. Imported library books are copied into VaultShelf's private storage; deleting a library entry deletes that private copy, not the user's original source file.
+VaultShelf is designed around local processing.
 
-The ordinary library is currently app-private but **not yet an encrypted vault**. Encryption/PIN/biometric protection is a separate planned Vault module and should not be confused with the current library storage.
+- No Android `INTERNET` permission.
+- Gander uses the Storage Access Framework for ordinary files.
+- Broad storage access is only part of DroidFS' original external encrypted-volume backup/migration path and is not needed for normal hidden-vault use.
+- Books imported to the bookshelf are copied into app-private storage.
+- DroidFS hidden vaults live under app-private storage and remain encrypted at rest.
+- Portable vault backup copies the already-encrypted gocryptfs volume; it does not decrypt document contents.
+- Export/share only occurs through an explicit user action.
 
 ## Licence and attribution
 
-The combined VaultShelf application is distributed under **GNU GPL v3.0** because the novel-reading core incorporates and adapts GPL-3.0 code from Legado / 阅读 3.0. See [`LICENSE`](LICENSE).
+The combined VaultShelf application is distributed under **GNU Affero General Public License v3.0 (AGPL-3.0)** because it incorporates the AGPL-3.0 DroidFS subsystem. See [`LICENSE`](LICENSE).
 
-VaultShelf started from the MIT-licensed Gander project by Arjun Maniyani. Gander-originated source retains its original copyright and MIT notice; the original MIT text is preserved in [`LICENSES/GANDER-MIT.txt`](LICENSES/GANDER-MIT.txt).
+Upstream components retain their notices and licence obligations:
 
-Legado source: https://github.com/LegadoTeam/legado
+- DroidFS: https://github.com/hardcore-sushi/DroidFS — AGPL-3.0
+- Legado / 阅读 3.0: https://github.com/LegadoTeam/legado — GPL-3.0
+- Gander: https://github.com/mokshablr/gander — MIT
 
-Gander source: https://github.com/mokshablr/gander
-
-Additional attribution and bundled viewer-library licences are documented in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and are also shipped inside the APK.
+Gander-originated source retains its MIT copyright and notice in [`LICENSES/GANDER-MIT.txt`](LICENSES/GANDER-MIT.txt). Additional notices are kept in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and the in-app open-source licence asset.
