@@ -28,7 +28,7 @@ class VaultShelfUxRegressionTest {
             "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
         ).readText()
 
-        assertThat(source).contains("destination == VaultShelfDestination.FILES")
+        assertThat(source).contains("VaultShelfDestination.FILES -> onOpenFiles()")
         assertThat(source).contains("onOpenFiles()")
     }
 

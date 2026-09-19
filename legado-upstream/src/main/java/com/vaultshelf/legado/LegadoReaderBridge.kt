@@ -222,7 +222,7 @@ object LegadoReaderBridge {
                 return@runBlocking
             }
 
-            // Do not use LocalConfig.needUpTxtTocRule here: its getter advances the
+            // Do not use Legado's upstream TOC-rule version helper here: its getter advances the
             // version marker before the database import succeeds.
             DefaultData.importDefaultTocRules()
             check(
