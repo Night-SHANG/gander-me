@@ -593,3 +593,141 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt 
 similarity index 100%
 rename from app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt
 rename to app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt.vaultshelf-disabled
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+@@ -11,7 +11,6 @@
+ import com.google.android.material.floatingactionbutton.FloatingActionButton
+ import kotlinx.coroutines.launch
+-import sushi.hardcore.droidfs.CameraActivity
+ import sushi.hardcore.droidfs.LoadingTask
+ import sushi.hardcore.droidfs.MainActivity
+ import sushi.hardcore.droidfs.R
+@@ -178,8 +177,7 @@
+                     listOf("importFiles", R.string.import_files, R.drawable.icon_encrypt),
+                     listOf("importFolder", R.string.import_folder, R.drawable.icon_import_folder),
+                     listOf("createFile", R.string.new_file, R.drawable.icon_file_unknown),
+-                    listOf("createFolder", R.string.mkdir, R.drawable.icon_create_new_folder),
+-                    listOf("camera", R.string.camera, R.drawable.icon_photo)
++                    listOf("createFolder", R.string.mkdir, R.drawable.icon_create_new_folder)
+                 )
+                 MaterialAlertDialogBuilder(this)
+                     .setSingleChoiceItems(adapter, -1){ thisDialog, which ->
+@@ -211,12 +209,6 @@
+                             "createFolder" -> {
+                                 openDialogCreateFolder()
+                             }
+-                            "camera" -> {
+-                                val intent = Intent(this, CameraActivity::class.java)
+-                                intent.putExtra("path", currentDirectoryPath)
+-                                intent.putExtra("volumeId", volumeId)
+-                                startActivity(intent)
+-                            }
+                         }
+                         thisDialog.dismiss()
+                     }
+diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
+--- a/app/src/main/res/xml/root_preferences.xml
++++ b/app/src/main/res/xml/root_preferences.xml
+@@ -75,31 +75,4 @@
+ 
+     </PreferenceCategory>
+ 
+-    <PreferenceCategory android:title="@string/debug">
+-
+-        <Preference
+-            android:key="logcat"
+-            android:title="@string/logcat"
+-            android:summary="@string/logcat_summary"
+-            android:icon="@drawable/icon_debug"/>
+-
+-    </PreferenceCategory>
+-
+-    <PreferenceCategory android:title="@string/about">
+-
+-        <Preference
+-            android:title="@string/github"
+-            android:summary="@string/github_summary"
+-            android:icon="@drawable/icon_github">
+-            <intent android:action="android.intent.action.VIEW" android:data="https://github.com/hardcore-sushi/DroidFS"/>
+-        </Preference>
+-
+-        <Preference
+-            android:title="@string/tangled"
+-            android:summary="@string/tangled_summary"
+-            android:icon="@drawable/icon_tangled">
+-            <intent android:action="android.intent.action.VIEW" android:data="https://tangled.org/cipherd.arkensys.dedyn.io/DroidFS"/>
+-        </Preference>
+-
+-        <Preference
+-            android:icon="@drawable/icon_info"
+-            android:title="@string/version"
+-            android:summary="@string/versionName"/> <!--added by gradle at build time-->
+-
+-    </PreferenceCategory>
+-
+ </PreferenceScreen>
+diff --git a/app/src/main/res/xml/unsafe_features_preferences.xml b/app/src/main/res/xml/unsafe_features_preferences.xml
+--- a/app/src/main/res/xml/unsafe_features_preferences.xml
++++ b/app/src/main/res/xml/unsafe_features_preferences.xml
+@@ -3,17 +3,6 @@
+     xmlns:android="http://schemas.android.com/apk/res/android">
+ 
+-    <PreferenceCategory android:title="@string/about">
+-
+-        <Preference
+-            android:icon="@drawable/icon_notes"
+-            android:summary="@string/usf_read_doc"
+-            android:title="@string/usf_doc">
+-            <intent
+-                android:action="android.intent.action.VIEW"
+-                android:data="https://tangled.org/cipherd.arkensys.dedyn.io/DroidFS#unsafe-features" />
+-        </Preference>
+-
+-    </PreferenceCategory>
+-
+     <PreferenceCategory android:title="@string/ux">
+ 
+         <SwitchPreferenceCompat
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt b/app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt b/app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/MediaMuxer.kt b/app/src/main/java/androidx/camera/video/MediaMuxer.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/MediaMuxer.kt
+rename to app/src/main/java/androidx/camera/video/MediaMuxer.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt b/app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt
+rename to app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/SucklessPendingRecording.java b/app/src/main/java/androidx/camera/video/SucklessPendingRecording.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/SucklessPendingRecording.java
+rename to app/src/main/java/androidx/camera/video/SucklessPendingRecording.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/SucklessRecorder.java b/app/src/main/java/androidx/camera/video/SucklessRecorder.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/SucklessRecorder.java
+rename to app/src/main/java/androidx/camera/video/SucklessRecorder.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/SucklessRecording.java b/app/src/main/java/androidx/camera/video/SucklessRecording.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/SucklessRecording.java
+rename to app/src/main/java/androidx/camera/video/SucklessRecording.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java b/app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java
+rename to app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java.vaultshelf-disabled
+diff --git a/app/src/main/res/layout/activity_camera.xml b/app/src/main/res/layout/activity_camera.xml.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/res/layout/activity_camera.xml
+rename to app/src/main/res/layout/activity_camera.xml.vaultshelf-disabled
+# VaultShelf disables DroidFS camera capture: hidden-volume storage/import/export remain intact.

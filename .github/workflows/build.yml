@@ -53,7 +53,7 @@ jobs:
         run: |
           git submodule update --init third_party/legado third_party/droidfs
           git -C third_party/droidfs config             submodule.app/libgocryptfs.url https://github.com/hardcore-sushi/libgocryptfs.git
-          git -C third_party/droidfs submodule update --init app/libgocryptfs app/ffmpeg/ffmpeg
+          git -C third_party/droidfs submodule update --init app/libgocryptfs
           git -C third_party/droidfs/app/libgocryptfs submodule update --init openssl
 
       # The wrapper jar is a binary that runs before any of this repo's own
@@ -83,7 +83,6 @@ jobs:
       - name: Build pinned DroidFS native dependencies
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
-          (cd third_party/droidfs/app/ffmpeg && ./build.sh)
           (cd third_party/droidfs/app/libgocryptfs && ./build.sh)
 
       # Ahead of the builds: a compile error or a broken assertion should be

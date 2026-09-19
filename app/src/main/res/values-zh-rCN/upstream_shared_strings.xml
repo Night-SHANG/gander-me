@@ -20,4 +20,14 @@
     <string name="version">版本</string>
     <string name="video">视频</string>
     <string name="yes">是</string>
+    <string name="title_activity_settings">保险库设置</string>
+    <string name="propose_wipe_imported_files">导入后询问是否擦除原文件</string>
+    <string name="propose_wipe_imported_files_summary">文件导入保险库后，询问是否擦除来源位置中的原文件。</string>
+    <string name="usf_background">禁用保险库自动锁定</string>
+    <string name="usf_background_summary">VaultShelf 进入后台时仍保持保险库解锁。</string>
+    <string name="lock_on_screen_lock">锁屏时锁定保险库</string>
+    <string name="usf_keep_open">保持保险库开启</string>
+    <string name="usf_keep_open_summary">让 VaultShelf 在后台持续运行，以保持已解锁的保险库开启。</string>
+    <string name="export_method">导出方式</string>
+    <string name="export_method_summary">用于临时外部打开、分享和暴露文件时的导出方式。</string>
 </resources>

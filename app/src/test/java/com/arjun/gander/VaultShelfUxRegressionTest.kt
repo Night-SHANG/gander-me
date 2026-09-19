@@ -503,6 +503,44 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun unusedDroidFsCameraStackIsNotShipped() {
+        val wrapperManifest = File(repo, "droidfs-upstream/src/main/AndroidManifest.xml").readText()
+        val wrapperBuild = File(repo, "droidfs-upstream/build.gradle.kts").readText()
+        val wrapperCmake = File(repo, "droidfs-upstream/CMakeLists.txt").readText()
+        val workflow = File(repo, ".github/workflows/build.yml").readText()
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+
+        assertThat(wrapperManifest).doesNotContain("android.permission.CAMERA")
+        assertThat(wrapperManifest).doesNotContain("android.permission.RECORD_AUDIO")
+        assertThat(wrapperManifest).doesNotContain("CameraActivity")
+        assertThat(wrapperBuild).doesNotContain("androidx.camera:camera-")
+        assertThat(wrapperCmake).doesNotContain("libavcodec")
+        assertThat(wrapperCmake).doesNotContain("libavformat")
+        assertThat(workflow).doesNotContain("app/ffmpeg/ffmpeg")
+        assertThat(workflow).doesNotContain("app/ffmpeg && ./build.sh")
+        assertThat(patch).contains("CameraActivity.kt.vaultshelf-disabled")
+    }
+
+    @Test
+    fun vaultSettingsFillKnownSimplifiedChineseTranslationGaps() {
+        val zh = File(
+            repo,
+            "app/src/main/res/values-zh-rCN/upstream_shared_strings.xml",
+        ).readText()
+
+        listOf(
+            "title_activity_settings",
+            "propose_wipe_imported_files",
+            "usf_background",
+            "lock_on_screen_lock",
+            "usf_keep_open",
+            "export_method",
+        ).forEach { key ->
+            assertThat(zh).contains("name=\"$key\"")
+        }
+    }
+
+    @Test
     fun networkPermissionRemainsStripped() {
         val manifest = File(repo, "app/src/main/AndroidManifest.xml").readText()
         assertThat(manifest).contains("android.permission.INTERNET")

@@ -26,4 +26,14 @@
     <string name="version">Version</string>
     <string name="video">Video</string>
     <string name="yes">Yes</string>
+    <string name="title_activity_settings">Vault settings</string>
+    <string name="propose_wipe_imported_files">Offer to wipe imported files</string>
+    <string name="propose_wipe_imported_files_summary">After importing files, ask whether to wipe them from the source.</string>
+    <string name="usf_background">Disable vault auto-locking</string>
+    <string name="usf_background_summary">Keep the vault unlocked when VaultShelf moves to the background.</string>
+    <string name="lock_on_screen_lock">Lock vaults when the screen is locked</string>
+    <string name="usf_keep_open">Keep vaults open</string>
+    <string name="usf_keep_open_summary">Keep VaultShelf running in the background so unlocked vaults stay open.</string>
+    <string name="export_method">Export method</string>
+    <string name="export_method_summary">Method used for temporary external opening, sharing and exposed files.</string>
 </resources>

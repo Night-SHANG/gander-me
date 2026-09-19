@@ -30,34 +30,5 @@ target_include_directories(
 )
 target_link_libraries(gocryptfs_jni gocryptfs)
 
-# DroidFS' original encrypted camera/video path depends on its small FFmpeg mux bridge.
-add_library(avformat SHARED IMPORTED)
-set_target_properties(
-    avformat
-    PROPERTIES IMPORTED_LOCATION
-    "${DROIDFS_APP_DIR}/ffmpeg/build/${ANDROID_ABI}/libavformat/libavformat.so"
-)
-add_library(avcodec SHARED IMPORTED)
-set_target_properties(
-    avcodec
-    PROPERTIES IMPORTED_LOCATION
-    "${DROIDFS_APP_DIR}/ffmpeg/build/${ANDROID_ABI}/libavcodec/libavcodec.so"
-)
-add_library(avutil SHARED IMPORTED)
-set_target_properties(
-    avutil
-    PROPERTIES IMPORTED_LOCATION
-    "${DROIDFS_APP_DIR}/ffmpeg/build/${ANDROID_ABI}/libavutil/libavutil.so"
-)
-
-add_library(
-    mux
-    SHARED
-    "${DROIDFS_APP_DIR}/src/main/native/libmux.c"
-)
-target_include_directories(
-    mux
-    PRIVATE
-    "${DROIDFS_APP_DIR}/ffmpeg/build/${ANDROID_ABI}"
-)
-target_link_libraries(mux avformat avcodec avutil log)
+# VaultShelf does not embed DroidFS' encrypted camera/video capture path.
+# Omitting its FFmpeg mux bridge removes libavformat/libavcodec/libavutil/libmux from every ABI.

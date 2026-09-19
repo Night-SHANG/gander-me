@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="color_names">
+        <item>动态</item>
+        <item>绿</item>
+        <item>红</item>
+        <item>蓝</item>
+        <item>黄</item>
+        <item>橙</item>
+        <item>紫</item>
+        <item>粉</item>
+    </string-array>
+    <string-array name="export_methods">
+        <item>自动（根据可用内存选择）</item>
+        <item>临时导出到磁盘（更可靠，但可能留下痕迹）</item>
+        <item>内存文件（更安全，但部分设备可能不可用）</item>
+    </string-array>
+</resources>

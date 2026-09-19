@@ -108,13 +108,6 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.10.1")
     implementation("androidx.media3:media3-datasource:1.10.1")
 
-    implementation("androidx.camera:camera-camera2:1.4.2")
-    implementation("androidx.camera:camera-lifecycle:1.4.2")
-    implementation("androidx.camera:camera-view:1.4.2")
-    implementation("androidx.camera:camera-extensions:1.4.2")
-    implementation("androidx.concurrent:concurrent-futures:1.3.0")
-    implementation("com.google.auto.value:auto-value-annotations:1.11.1")
-    annotationProcessor("com.google.auto.value:auto-value:1.11.1")
 }
 
 
