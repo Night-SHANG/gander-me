@@ -112,7 +112,8 @@
     <string name="vaultshelf_settings_vault">保险库设置</string>
     <string name="vaultshelf_settings_vault_detail">直接打开 DroidFS 原安全设置，包括生物识别解锁、自动锁定和保险库行为。</string>
     <string name="vaultshelf_settings_reader">阅读设置</string>
-    <string name="vaultshelf_settings_reader_detail">字体、主题、翻页和其他阅读选项由原 Legado 阅读器在打开书籍时直接管理。</string>
+    <string name="vaultshelf_settings_reader_detail">字体、主题、翻页等沿用原 Legado 阅读器设置；点击可打开最近一本书的阅读设置。</string>
+    <string name="vaultshelf_settings_reader_requires_book">请先在书库导入并打开一本由 Legado 支持的书籍。</string>
     <string name="vaultshelf_settings_about">关于与开源</string>
     <string name="vaultshelf_settings_about_detail">版本、权限、源代码以及所有内置开源项目的许可证。</string>
 

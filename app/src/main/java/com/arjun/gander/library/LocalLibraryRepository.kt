@@ -8,6 +8,7 @@ import com.vaultshelf.legado.LegadoReaderBridge
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.security.MessageDigest
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,10 +20,8 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     private val preferences = appContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     override suspend fun listBooks(): List<LibraryBook> = withContext(Dispatchers.IO) {
-        preferences.all
+        storedBooks()
             .asSequence()
-            .filter { (key, value) -> key.startsWith(BOOK_KEY_PREFIX) && value is String }
-            .mapNotNull { (_, value) -> runCatching { decodeBook(value as String) }.getOrNull() }
             .sortedWith(
                 compareByDescending<LibraryBook> {
                     if (it.lastOpenedAtEpochMillis > 0L) it.lastOpenedAtEpochMillis else it.addedAtEpochMillis
@@ -131,6 +130,12 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
                 }
             }
 
+            val contentSha256 = sha256(temporaryFile)
+            findDuplicate(format, temporaryFile.length(), contentSha256)?.let { existing ->
+                temporaryFile.delete()
+                return existing
+            }
+
             if (!temporaryFile.renameTo(storedFile)) {
                 temporaryFile.copyTo(storedFile, overwrite = true)
                 temporaryFile.delete()
@@ -152,6 +157,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
                 addedAtEpochMillis = now,
                 lastOpenedAtEpochMillis = 0L,
                 readingOffset = 0,
+                contentSha256 = contentSha256,
             )
             if (!saveBook(book)) throw IOException("Unable to save library metadata")
             return book
@@ -278,6 +284,52 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             ?: appContext.getString(R.string.vaultshelf_untitled_book)
     }
 
+    private fun storedBooks(): List<LibraryBook> = preferences.all
+        .asSequence()
+        .filter { (key, value) -> key.startsWith(BOOK_KEY_PREFIX) && value is String }
+        .mapNotNull { (_, value) -> runCatching { decodeBook(value as String) }.getOrNull() }
+        .toList()
+
+    private fun findDuplicate(
+        format: BookFormat,
+        sizeBytes: Long,
+        contentSha256: String,
+    ): LibraryBook? {
+        storedBooks()
+            .asSequence()
+            .filter { it.format == format && it.sizeBytes == sizeBytes }
+            .forEach { candidate ->
+                val file = File(libraryDirectory(), candidate.storedFileName)
+                if (!file.isFile) return@forEach
+                val candidateHash = candidate.contentSha256
+                    ?: runCatching { sha256(file) }.getOrNull()
+                    ?: return@forEach
+                if (candidateHash == contentSha256) {
+                    return if (candidate.contentSha256 == null) {
+                        candidate.copy(contentSha256 = candidateHash).also(::saveBook)
+                    } else {
+                        candidate
+                    }
+                }
+            }
+        return null
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                if (read > 0) digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") {
+            (it.toInt() and 0xff).toString(16).padStart(2, '0')
+        }
+    }
+
     private fun saveBook(book: LibraryBook): Boolean = preferences.edit()
         .putString(bookKey(book.id), encodeBook(book))
         .commit()
@@ -295,6 +347,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         .put("publicationProgression", book.publicationProgression ?: JSONObject.NULL)
         .put("coverFileName", book.coverFileName ?: JSONObject.NULL)
         .put("legadoBookUrl", book.legadoBookUrl ?: JSONObject.NULL)
+        .put("contentSha256", book.contentSha256 ?: JSONObject.NULL)
         .toString()
 
     private fun decodeBook(json: String): LibraryBook {
@@ -310,6 +363,8 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             .takeIf { it.isNotBlank() && it != "null" }
         val legadoBookUrl = value.optString("legadoBookUrl")
             .takeIf { it.isNotBlank() && it != "null" }
+        val contentSha256 = value.optString("contentSha256")
+            .takeIf { it.isNotBlank() && it != "null" }
         return LibraryBook(
             id = value.getString("id"),
             title = value.getString("title"),
@@ -323,6 +378,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             publicationProgression = publicationProgression,
             coverFileName = coverFileName,
             legadoBookUrl = legadoBookUrl,
+            contentSha256 = contentSha256,
         )
     }
 

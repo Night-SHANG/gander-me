@@ -117,7 +117,8 @@
     <string name="vaultshelf_settings_vault">Vault settings</string>
     <string name="vaultshelf_settings_vault_detail">Open DroidFS security, biometric unlock, auto-lock and vault behavior settings.</string>
     <string name="vaultshelf_settings_reader">Reading settings</string>
-    <string name="vaultshelf_settings_reader_detail">Typography, themes, page turning and other reading options are managed in the original Legado reader while a book is open.</string>
+    <string name="vaultshelf_settings_reader_detail">Fonts, themes and page turns use the original Legado reader settings; tap to open settings on your most recent book.</string>
+    <string name="vaultshelf_settings_reader_requires_book">Import and open a Legado-supported book in the library first.</string>
     <string name="vaultshelf_settings_about">About and open source</string>
     <string name="vaultshelf_settings_about_detail">Version, permissions, source code and bundled open-source licences.</string>
 

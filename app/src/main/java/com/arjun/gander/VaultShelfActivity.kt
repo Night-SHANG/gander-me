@@ -2,15 +2,19 @@ package com.arjun.gander
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.lifecycle.lifecycleScope
 import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.vault.VaultBackupActivity
 import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.ui.theme.VaultShelfTheme
+import com.vaultshelf.legado.LegadoReaderBridge
+import kotlinx.coroutines.launch
 import sushi.hardcore.droidfs.MainActivity as DroidFsMainActivity
 import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 
@@ -50,6 +54,27 @@ class VaultShelfActivity : AppCompatActivity() {
                             startActivity(
                                 Intent(this@VaultShelfActivity, VaultBackupActivity::class.java),
                             )
+                        },
+                        onOpenReaderSettings = {
+                            lifecycleScope.launch {
+                                val bookUrl = libraryRepository.listBooks()
+                                    .firstOrNull { !it.legadoBookUrl.isNullOrBlank() }
+                                    ?.legadoBookUrl
+                                if (bookUrl == null) {
+                                    Toast.makeText(
+                                        this@VaultShelfActivity,
+                                        R.string.vaultshelf_settings_reader_requires_book,
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                } else {
+                                    startActivity(
+                                        LegadoReaderBridge.readerSettingsIntent(
+                                            this@VaultShelfActivity,
+                                            bookUrl,
+                                        ),
+                                    )
+                                }
+                            }
                         },
                         onOpenAbout = {
                             startActivity(

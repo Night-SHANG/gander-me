@@ -117,6 +117,25 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun transientStartupCleanupCompletesBeforeAReplacementSessionIsImported() {
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+        val dispatcher = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/FileDispatchActivity.kt",
+        ).readText()
+
+        val cleanupBarrier = bridge.indexOf("ensureTransientStartupCleanup(context)")
+        val importPreview = bridge.indexOf("val preview = LocalBook.previewImportFile(uri)", cleanupBarrier)
+        assertThat(cleanupBarrier).isAtLeast(0)
+        assertThat(importPreview).isGreaterThan(cleanupBarrier)
+        assertThat(dispatcher).doesNotContain("ensurePersistentUriBook")
+        assertThat(dispatcher).contains("createTransientBookSession")
+    }
+
+    @Test
     fun legadoBridgeInitializesSplittiesBeforeReadingAppConfig() {
         val bridge = File(
             repo,
@@ -218,6 +237,9 @@ class VaultShelfUxRegressionTest {
 
         assertThat(shell).contains("SettingsScreen(")
         assertThat(shell).contains("onOpenVaultSettings")
+        assertThat(shell).contains("onOpenReaderSettings")
+        assertThat(shell).contains("onClick = onOpenReaderSettings")
+        assertThat(activity).contains("LegadoReaderBridge.readerSettingsIntent")
         assertThat(shell).contains("onOpenAbout")
         assertThat(shell).doesNotContain("FoundationScreen")
         assertThat(activity).contains("DroidFsSettingsActivity")

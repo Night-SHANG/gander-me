@@ -116,6 +116,8 @@ object LegadoReaderBridge {
     )
 
     private val initialized = AtomicBoolean(false)
+    private val transientStartupCleanupComplete = AtomicBoolean(false)
+    private const val OPEN_READER_SETTINGS = "vaultshelf.open_reader_settings"
 
     fun initialize(context: Context) {
         val appContext = context.applicationContext
@@ -170,7 +172,6 @@ object LegadoReaderBridge {
             // Online Cronet/WebDAV/source sync/auto-task initialization is omitted.
             // TXT rules are initialized by a synchronous reader-entry barrier below so an
             // external "Open with VaultShelf" intent cannot race the database seed.
-            cleanupOrphanedTransientSessions(appContext)
             BookCover.toString()
             ReadBookConfig.clearBgAndCache()
             when (AppConfig.chineseConverterType) {
@@ -244,6 +245,7 @@ object LegadoReaderBridge {
         uri: Uri,
     ): LocalBookSnapshot {
         initialize(context)
+        ensureTransientStartupCleanup(context)
         ensureLocalTxtTocRules()
         val preview = LocalBook.previewImportFile(uri)
         val book = appDb.bookDao.getBook(preview.bookUrl)
@@ -375,6 +377,13 @@ object LegadoReaderBridge {
         metadataSnapshot?.let(::restoreTransientMetadataSnapshot)
         ReadRecordCoverCache.prune()
         forgetTransientMetadataSnapshot(context, bookUrl)
+    }
+
+    @Synchronized
+    private fun ensureTransientStartupCleanup(context: Context) {
+        if (transientStartupCleanupComplete.get()) return
+        cleanupOrphanedTransientSessions(context)
+        transientStartupCleanupComplete.set(true)
     }
 
     private fun cleanupOrphanedTransientSessions(context: Context) {
@@ -579,6 +588,12 @@ object LegadoReaderBridge {
             .putExtra("bookUrl", bookUrl)
             .putExtra("inBookshelf", true)
     }
+
+    fun readerSettingsIntent(
+        context: Context,
+        bookUrl: String,
+    ): Intent = readerIntent(context, bookUrl)
+        .putExtra(OPEN_READER_SETTINGS, true)
 
     fun forgetLocalBook(context: Context, bookUrl: String) {
         initialize(context)

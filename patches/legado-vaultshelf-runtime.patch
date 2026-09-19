@@ -4327,3 +4327,22 @@ diff --git a/app/src/main/java/io/legado/app/service/BaseReadAloudService.kt b/a
              .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
              .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
              .setSmallIcon(R.drawable.ic_volume_up)
+
+diff --git a/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt b/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt
+--- a/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt
++++ b/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt
+@@ -477,6 +477,14 @@
+     override fun onPostResume() {
+         super.onPostResume()
+         showPendingSourceReimport()
++        if (
++            intent.getBooleanExtra("vaultshelf.open_reader_settings", false) &&
++            ReadBook.book != null &&
++            !supportFragmentManager.isStateSaved
++        ) {
++            intent.removeExtra("vaultshelf.open_reader_settings")
++            showReadStyle()
++        }
+     }
+ 
+     private fun showPendingSourceReimport() {

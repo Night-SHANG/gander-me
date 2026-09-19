@@ -65,6 +65,24 @@ class LibraryManagementTest {
     }
 
     @Test
+    fun importingSameContentTwiceReusesTheExistingBook() = runBlocking {
+        val firstSource = File(context.cacheDir, "duplicate-a.txt").apply {
+            writeText("第一章\n完全相同的正文")
+        }
+        val secondSource = File(context.cacheDir, "duplicate-b.txt").apply {
+            writeBytes(firstSource.readBytes())
+        }
+
+        val first = repository.importTxt(Uri.fromFile(firstSource))
+        val second = repository.importTxt(Uri.fromFile(secondSource))
+
+        assertThat(second.id).isEqualTo(first.id)
+        assertThat(repository.listBooks().map { it.id }).containsExactly(first.id)
+        assertThat(File(context.filesDir, "library").listFiles().orEmpty()
+            .count { it.extension == "txt" }).isEqualTo(1)
+    }
+
+    @Test
     fun generatedCoverStyleIsStableForSameBook() {
         val book = LibraryBook(
             id = "stable-id",

@@ -24,6 +24,7 @@ data class LibraryBook(
     val publicationProgression: Float? = null,
     val coverFileName: String? = null,
     val legadoBookUrl: String? = null,
+    val contentSha256: String? = null,
 ) {
     val progressFraction: Float
         get() = when (format) {
