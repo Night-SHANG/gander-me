@@ -153,9 +153,3 @@ jobs:
         run: |
           echo "Android validation: ${{ steps.android_validation.outcome }}"
           echo "Gradle ran unit tests, lint, debug and release in one task graph with --continue."
-          done
-
-          if [ "$failed" -ne 0 ]; then
-            echo "One or more validation gates failed; see all logs above and uploaded reports."
-            exit 1
-          fi
