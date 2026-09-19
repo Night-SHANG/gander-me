@@ -590,7 +590,7 @@ class MainActivity : AppCompatActivity() {
     private fun openManagedFolder(treeUri: Uri, label: String) {
         val app = application as VolumeManagerApp
         val volume = runCatching { SafVolume(applicationContext, treeUri) }.getOrElse {
-            Toast.makeText(this, R.string.open_failed, Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.vault_open_failed, Toast.LENGTH_SHORT).show()
             return
         }
         val volumeId = app.volumeManager.insert(
@@ -613,7 +613,7 @@ class MainActivity : AppCompatActivity() {
         }.getOrDefault(false)
         if (!opened) {
             app.volumeManager.closeVolume(volumeId)
-            Toast.makeText(this, R.string.open_failed, Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.vault_open_failed, Toast.LENGTH_SHORT).show()
         }
     }
 
