@@ -4452,7 +4452,7 @@ diff --git a/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt b/app/src/
 +        fabBookmark.setOnClickListener { callBack.toggleBookmark() }
  
          //夜间模式
-@@ -737,6 +737,7 @@
+@@ -737,5 +737,6 @@
      interface CallBack {
          fun autoPage()
 +        fun toggleBookmark()
@@ -4463,7 +4463,7 @@ diff --git a/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt b/app/src/
 diff --git a/app/src/main/res/layout/view_read_menu.xml b/app/src/main/res/layout/view_read_menu.xml
 --- a/app/src/main/res/layout/view_read_menu.xml
 +++ b/app/src/main/res/layout/view_read_menu.xml
-@@ -199,13 +199,13 @@
+@@ -199,12 +199,12 @@
              <com.google.android.material.floatingactionbutton.FloatingActionButton
 -                android:id="@+id/fabReplaceRule"
 +                android:id="@+id/fabBookmark"
