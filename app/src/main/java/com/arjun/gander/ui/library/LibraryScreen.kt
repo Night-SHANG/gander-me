@@ -795,16 +795,21 @@ private fun BookGridItem(
                     modifier = Modifier.align(Alignment.TopEnd),
                 )
             }
+            LinearProgressIndicator(
+                progress = { book.progressFraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter),
+            )
         }
         Text(
             text = book.title,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
+            minLines = 2,
             maxLines = 2,
+            textAlign = TextAlign.Center,
             overflow = TextOverflow.Ellipsis,
-        )
-        LinearProgressIndicator(
-            progress = { book.progressFraction },
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
@@ -816,7 +821,9 @@ private fun BookGridItem(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
+            textAlign = TextAlign.Center,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -955,9 +962,9 @@ private fun GeneratedBookCover(book: LibraryBook) {
     val style = remember(book.id, book.title, book.format) { BookCoverStyle.from(book) }
     val background = COVER_COLORS[style.paletteIndex % COVER_COLORS.size]
     val titleSize = when {
-        style.title.length > 36 -> 13.sp
-        style.title.length > 22 -> 15.sp
-        else -> 17.sp
+        style.title.length > 30 -> 12.sp
+        style.title.length > 18 -> 14.sp
+        else -> 16.sp
     }
     Column(
         modifier = Modifier
@@ -979,7 +986,7 @@ private fun GeneratedBookCover(book: LibraryBook) {
             lineHeight = (titleSize.value * 1.25f).sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
-            maxLines = 5,
+            maxLines = 4,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth(),
         )

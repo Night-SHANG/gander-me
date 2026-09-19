@@ -86,6 +86,7 @@ object LegadoReaderBridge {
     private const val GCM_TAG_BITS = 128
     private const val TXT_TOC_RULE_VERSION_KEY = "txtTocRuleVersion"
     private const val TXT_TOC_RULE_VERSION = 3
+    private const val VAULTSHELF_SOFT_WHITE_PRESET = "VaultShelf 柔和白"
 
     data class TransientBookSession(
         val bookUrl: String,
@@ -127,6 +128,7 @@ object LegadoReaderBridge {
         appContext.injectAsAppCtx()
 
         if (!initialized.compareAndSet(false, true)) return
+        ensureVaultShelfReadingPreset()
         val configuration = Configuration(appContext.resources.configuration)
         var observedNightMode = configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
 
@@ -196,6 +198,28 @@ object LegadoReaderBridge {
         RhinoWrapFactory.register(ContentRule::class.java, ReadOnlyJavaObject.factory)
         RhinoWrapFactory.register(BookChapter::class.java, ReadOnlyJavaObject.factory)
         RhinoWrapFactory.register(Book.ReadConfig::class.java, ReadOnlyJavaObject.factory)
+    }
+
+    /**
+     * Add VaultShelf's softer light reading palette without shifting Legado's persisted
+     * preset indexes. Existing users keep their current style; the extra preset is appended.
+     */
+    private fun ensureVaultShelfReadingPreset() {
+        if (ReadBookConfig.configList.any { it.name == VAULTSHELF_SOFT_WHITE_PRESET }) return
+        ReadBookConfig.configList.add(
+            ReadBookConfig.Config(
+                name = VAULTSHELF_SOFT_WHITE_PRESET,
+                bgStr = "#F3F3F3",
+                bgStrNight = "#202020",
+                textColor = "#1B1B1B",
+                textColorNight = "#F5F5F5",
+                textAccentColor = "#005FB8",
+                textAccentColorNight = "#60CDFF",
+                bgType = 0,
+                bgTypeNight = 0,
+            ),
+        )
+        ReadBookConfig.save()
     }
 
     private fun createReadAloudChannel(context: Context) {

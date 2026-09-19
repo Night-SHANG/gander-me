@@ -35,5 +35,6 @@
     <string name="usf_keep_open">Keep vaults open</string>
     <string name="usf_keep_open_summary">Keep VaultShelf running in the background so unlocked vaults stay open.</string>
     <string name="export_method">Export method</string>
+    <string name="enter_volume_path">Enter volume path</string>
     <string name="export_method_summary">Method used for temporary external opening, sharing and exposed files.</string>
 </resources>

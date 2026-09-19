@@ -245,13 +245,66 @@ class VaultShelfUxRegressionTest {
 
         assertThat(shell).contains("SettingsScreen(")
         assertThat(shell).contains("onOpenVaultSettings")
-        assertThat(shell).contains("onOpenReaderSettings")
-        assertThat(shell).contains("onClick = onOpenReaderSettings")
-        assertThat(activity).contains("LegadoReaderBridge.readerSettingsIntent")
+        assertThat(shell).doesNotContain("onOpenReaderSettings")
+        assertThat(activity).doesNotContain("readerSettingsIntent")
         assertThat(shell).contains("onOpenAbout")
         assertThat(shell).doesNotContain("FoundationScreen")
         assertThat(activity).contains("DroidFsSettingsActivity")
         assertThat(main).contains("EXTRA_SHOW_ABOUT")
+    }
+
+    @Test
+    fun localReaderKeepsTtsEngineDiscoveryWithoutNetworkPermission() {
+        val manifest = File(repo, "legado-upstream/src/main/AndroidManifest.xml").readText()
+        assertThat(manifest).contains("android.intent.action.TTS_SERVICE")
+    }
+
+    @Test
+    fun vaultShelfSoftWhitePresetUsesAppPaletteWithoutShiftingExistingStyles() {
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+
+        assertThat(bridge).contains("VaultShelf 柔和白")
+        assertThat(bridge).contains("bgStr = \"#F3F3F3\"")
+        assertThat(bridge).contains("textColor = \"#1B1B1B\"")
+        assertThat(bridge).contains("textAccentColor = \"#005FB8\"")
+        assertThat(bridge).contains("ReadBookConfig.configList.add(")
+        assertThat(bridge).doesNotContain("ReadBookConfig.configList.add(1,")
+    }
+
+    @Test
+    fun readerFloatingActionsKeepFourSlotsAndUseBookmarkInsteadOfReplaceRule() {
+        val patch = File(repo, "patches/legado-vaultshelf-runtime.patch").readText()
+
+        assertThat(patch).contains("android:id=\"@+id/fabBookmark\"")
+        assertThat(patch).contains("android:src=\"@drawable/ic_bookmark\"")
+        assertThat(patch).contains("fabBookmark.setOnClickListener { callBack.toggleBookmark() }")
+    }
+
+    @Test
+    fun droidFsManualVolumePathActionIsLocalized() {
+        val chinese = File(
+            repo,
+            "app/src/main/res/values-zh-rCN/upstream_shared_strings.xml",
+        ).readText()
+
+        assertThat(chinese).contains(
+            "<string name=\"enter_volume_path\">手动输入路径</string>",
+        )
+    }
+
+    @Test
+    fun bookshelfGridUsesStableLegadoStyleGeometry() {
+        val source = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
+        ).readText()
+
+        assertThat(source).contains("minLines = 2")
+        assertThat(source).contains(".align(Alignment.BottomCenter)")
+        assertThat(source).contains("textAlign = TextAlign.Center")
     }
 
     @Test

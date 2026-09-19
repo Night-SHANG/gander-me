@@ -29,5 +29,6 @@
     <string name="usf_keep_open">保持保险库开启</string>
     <string name="usf_keep_open_summary">让 VaultShelf 在后台持续运行，以保持已解锁的保险库开启。</string>
     <string name="export_method">导出方式</string>
+    <string name="enter_volume_path">手动输入路径</string>
     <string name="export_method_summary">用于临时外部打开、分享和暴露文件时的导出方式。</string>
 </resources>

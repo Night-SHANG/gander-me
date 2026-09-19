@@ -87,7 +87,6 @@ fun VaultShelfShell(
     onOpenVault: () -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
-    onOpenReaderSettings: () -> Unit,
     onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -148,7 +147,6 @@ fun VaultShelfShell(
             VaultShelfDestination.SETTINGS -> SettingsScreen(
                 onOpenVaultSettings = onOpenVaultSettings,
                 onOpenVaultBackup = onOpenVaultBackup,
-                onOpenReaderSettings = onOpenReaderSettings,
                 onOpenAbout = onOpenAbout,
                 modifier = Modifier.padding(innerPadding),
             )
@@ -469,7 +467,6 @@ private fun QuickActionTile(
 private fun SettingsScreen(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
-    onOpenReaderSettings: () -> Unit,
     onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -499,13 +496,6 @@ private fun SettingsScreen(
             detailRes = R.string.vaultshelf_settings_backup_detail,
             iconRes = R.drawable.ic_vaultshelf_vault,
             onClick = onOpenVaultBackup,
-        )
-
-        SettingsEntry(
-            titleRes = R.string.vaultshelf_settings_reader,
-            detailRes = R.string.vaultshelf_settings_reader_detail,
-            iconRes = R.drawable.ic_vaultshelf_library,
-            onClick = onOpenReaderSettings,
         )
 
         SettingsEntry(
