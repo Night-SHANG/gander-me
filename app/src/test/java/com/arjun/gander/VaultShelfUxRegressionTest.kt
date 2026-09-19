@@ -58,7 +58,7 @@ class VaultShelfUxRegressionTest {
         assertThat(bridge).contains("AES/GCM/NoPadding")
         assertThat(bridge).contains("GCMParameterSpec")
         assertThat(bridge).contains("cipher.updateAAD(bookUrl.toByteArray")
-        assertThat(bridge).contains("\"$digest.bin\"")
+        assertThat(bridge).contains("\"\$digest.bin\"")
         assertThat(bridge).doesNotContain("output.write(GSON.toJson(snapshot).toByteArray")
     }
 

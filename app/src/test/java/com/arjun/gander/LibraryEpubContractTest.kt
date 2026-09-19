@@ -40,7 +40,6 @@ class LibraryEpubContractTest {
             addedAtEpochMillis = 1L,
             lastOpenedAtEpochMillis = 2L,
             readingOffset = 0,
-            readingLocatorJson = "{\"href\":\"chapter.xhtml\"}",
             publicationProgression = 0.625f,
         )
 
@@ -63,7 +62,7 @@ class LibraryEpubContractTest {
         assertThat(book).isNotNull()
         assertThat(book!!.format).isEqualTo(BookFormat.TXT)
         assertThat(book.readingOffset).isEqualTo(25)
-        assertThat(book.readingLocatorJson).isNull()
+        assertThat(book.legadoBookUrl).isNull()
         assertThat(book.publicationProgression).isNull()
         assertThat(book.progressPercent).isEqualTo(25)
     }
@@ -86,20 +85,20 @@ class LibraryEpubContractTest {
     }
 
     @Test
-    fun epubProgressRoundTripsLocatorAndProgression() = runBlocking {
+    fun epubProgressRoundTripsLegadoUrlAndProgression() = runBlocking {
         val source = File(context.cacheDir, "progress.epub").apply {
             writeBytes(byteArrayOf(0x50, 0x4B, 0x03, 0x04, 9, 8, 7, 6))
         }
         val repository = LocalLibraryRepository(context)
         val imported = repository.importEpub(Uri.fromFile(source))
-        val locator = """{"href":"chapter-2.xhtml","type":"application/xhtml+xml","locations":{"totalProgression":0.4}}"""
+        val legadoBookUrl = "legado-local://progress-test"
 
-        val updated = repository.updateEpubProgress(imported.id, locator, 0.4f)
+        val updated = repository.updateLegadoProgress(imported.id, legadoBookUrl, 0.4f)
         val reloaded = repository.getBook(imported.id)
 
-        assertThat(updated?.readingLocatorJson).isEqualTo(locator)
+        assertThat(updated?.legadoBookUrl).isEqualTo(legadoBookUrl)
         assertThat(updated?.publicationProgression).isWithin(0.0001f).of(0.4f)
-        assertThat(reloaded?.readingLocatorJson).isEqualTo(locator)
+        assertThat(reloaded?.legadoBookUrl).isEqualTo(legadoBookUrl)
         assertThat(reloaded?.publicationProgression).isWithin(0.0001f).of(0.4f)
     }
 }

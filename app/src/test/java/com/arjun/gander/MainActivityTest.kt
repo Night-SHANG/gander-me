@@ -489,7 +489,7 @@ class MainActivityTest {
         assertThat(folder.isLongClickable).isTrue()
         val longClick = folder.createAccessibilityNodeInfo()!!.actionList
             .first { it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_LONG_CLICK.id }
-        assertThat(longClick.label.toString()).isEqualTo(context.getString(R.string.remove))
+        assertThat(longClick.label.toString()).isEqualTo(context.getString(R.string.gander_remove))
 
         val add = controller.rowView(context.getString(R.string.add_folder))
         assertThat(add.isLongClickable).isFalse()
