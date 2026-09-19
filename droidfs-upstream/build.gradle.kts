@@ -1,3 +1,5 @@
+import java.io.ByteArrayOutputStream
+
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -115,7 +117,7 @@ val applyVaultShelfDroidFsPatch = tasks.register("applyVaultShelfDroidFsPatch") 
         // This task can run more than once in a single Gradle invocation (tests, lint,
         // debug, release). Probe the already-applied state first and silence expected
         // git-apply check failures so CI logs only contain real patch errors.
-        val reverseOutput = java.io.ByteArrayOutputStream()
+        val reverseOutput = ByteArrayOutputStream()
         val alreadyApplied = project.exec {
             workingDir(upstreamDir)
             commandLine("git", "apply", "--reverse", "--check", patchFile.absolutePath)
@@ -124,7 +126,7 @@ val applyVaultShelfDroidFsPatch = tasks.register("applyVaultShelfDroidFsPatch") 
             errorOutput = reverseOutput
         }
         if (alreadyApplied.exitValue != 0) {
-            val checkOutput = java.io.ByteArrayOutputStream()
+            val checkOutput = ByteArrayOutputStream()
             val check = project.exec {
                 workingDir(upstreamDir)
                 commandLine("git", "apply", "--check", patchFile.absolutePath)
