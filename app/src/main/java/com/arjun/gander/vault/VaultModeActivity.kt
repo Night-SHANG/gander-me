@@ -14,7 +14,6 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.lifecycleScope
 import com.arjun.gander.BookReadingPositions
-import com.arjun.gander.MainActivity
 import com.arjun.gander.R
 import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.ui.theme.VaultShelfTheme
@@ -28,6 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 import sushi.hardcore.droidfs.VolumeManagerApp
+import sushi.hardcore.droidfs.explorers.ExplorerActivity
 import sushi.hardcore.droidfs.util.finishOnClose
 
 class VaultModeActivity : AppCompatActivity() {
@@ -83,9 +83,9 @@ class VaultModeActivity : AppCompatActivity() {
                         },
                         onOpenFiles = {
                             startActivity(
-                                Intent(this@VaultModeActivity, MainActivity::class.java)
-                                    .putExtra(MainActivity.EXTRA_VAULT_VOLUME_ID, volumeId)
-                                    .putExtra(MainActivity.EXTRA_VAULT_VOLUME_NAME, volumeName),
+                                Intent(this@VaultModeActivity, ExplorerActivity::class.java)
+                                    .putExtra("volumeId", volumeId)
+                                    .putExtra("volumeName", volumeName),
                             )
                         },
                         onOpenVaultSettings = {

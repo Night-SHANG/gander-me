@@ -192,4 +192,10 @@
     <string name="logcat_summary">查看保险库底层运行日志</string>
     <string name="tangled_summary">DroidFS 在 Tangled 上的源码仓库、文档与问题追踪。</string>
 
+
+    <string name="vaultshelf_files_import_to_vault">导入保险库</string>
+    <string name="vault_file_import_done_title">已导入保险库</string>
+    <string name="vault_file_import_done_message">选中的文件已经加密复制到保险库。是否删除外部原文件？</string>
+    <string name="vault_file_import_done_with_library">其中 %1$d 个文件原本已经在外部书库中，现已同时加入保险库书库。如果删除外部原文件，对应的外部书库记录也会一并移除。</string>
+
 </resources>

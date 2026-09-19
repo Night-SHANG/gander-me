@@ -12,7 +12,6 @@ import android.provider.DocumentsContract
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import android.view.LayoutInflater
-import android.view.WindowManager
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -33,14 +32,14 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
-import com.arjun.gander.vault.VaultFileItem
-import com.arjun.gander.vault.VaultFileRepository
-import com.arjun.gander.vault.VaultLibraryStore
-import com.vaultshelf.droidfs.VaultShelfFileRouter
+import com.vaultshelf.droidfs.SafVolume
 import java.io.File
-import java.util.concurrent.Executors
+import java.util.UUID
+import sushi.hardcore.droidfs.VolumeData
 import sushi.hardcore.droidfs.VolumeManagerApp
-import sushi.hardcore.droidfs.util.finishOnClose
+import com.arjun.gander.files.ExternalExplorerActivity
+import sushi.hardcore.droidfs.filesystems.EncryptedVolume
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
@@ -80,13 +79,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var welcome: View
     private lateinit var fab: ExtendedFloatingActionButton
     private var standaloneAbout = false
-    private var vaultVolumeId = -1
-    private var vaultVolumeName = ""
-    private var vaultPath = ""
-    private var vaultFileRepository: VaultFileRepository? = null
-    private var vaultLibraryStore: VaultLibraryStore? = null
-    private val vaultMode: Boolean
-        get() = vaultVolumeId >= 0
 
     /**
      * The last "Removed" toast, kept only so the next one can cancel it.
@@ -134,25 +126,14 @@ class MainActivity : AppCompatActivity() {
 
     private val backCallback = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() {
-            if (vaultMode) {
-                vaultPath = parentVaultPath(vaultPath)
-            } else {
-                stack.removeLast()
-            }
+            stack.removeLast()
             render()
         }
     }
 
     private val openDocument =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) {
-                if (vaultMode) importVaultUris(listOf(uri)) else openInViewer(uri)
-            }
-        }
-
-    private val importVaultDocuments =
-        registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-            if (uris.isNotEmpty()) importVaultUris(uris)
+            if (uri != null) openInViewer(uri)
         }
 
     private val openTree =
@@ -169,22 +150,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        vaultVolumeId = intent.getIntExtra(EXTRA_VAULT_VOLUME_ID, -1)
-        vaultVolumeName = intent.getStringExtra(EXTRA_VAULT_VOLUME_NAME).orEmpty()
-        if (vaultMode) {
-            val volumeManager = (application as VolumeManagerApp).volumeManager
-            val volume = volumeManager.getVolume(vaultVolumeId)
-            if (volume == null) {
-                finish()
-                return
-            }
-            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            finishOnClose(volume)
-            vaultFileRepository = VaultFileRepository(applicationContext, vaultVolumeId)
-            vaultLibraryStore = VaultLibraryStore(applicationContext, requireNotNull(vaultFileRepository))
-        }
-
         setContentView(R.layout.gander_activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { v, insets ->
             val bars = insets.getInsets(
@@ -203,8 +168,7 @@ class MainActivity : AppCompatActivity() {
         toolbar.inflateMenu(R.menu.main_menu)
         // Set once, like the inflate: the installer cannot change while this process
         // lives, because any reinstall or update kills the process first.
-        toolbar.menu.findItem(R.id.action_rate).isVisible = !vaultMode && installedFromPlay()
-        toolbar.menu.findItem(R.id.action_share_app).isVisible = !vaultMode
+        toolbar.menu.findItem(R.id.action_rate).isVisible = installedFromPlay()
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_rate -> { openPlayListing(); true }
@@ -244,21 +208,10 @@ class MainActivity : AppCompatActivity() {
         // are the same action seen in two states of the screen, and the outlined button is
         // what the "+ Add a folder" row does once there is a list to put it in.
         fab = findViewById(R.id.openFab)
-        val openFile = View.OnClickListener {
-            if (vaultMode) {
-                importVaultDocuments.launch(arrayOf("*/*"))
-            } else {
-                openDocument.launch(arrayOf("*/*"))
-            }
-        }
+        val openFile = View.OnClickListener { openDocument.launch(arrayOf("*/*")) }
         fab.setOnClickListener(openFile)
         findViewById<View>(R.id.openFileButton).setOnClickListener(openFile)
         findViewById<View>(R.id.addFolderButton).setOnClickListener { openTree.launch(null) }
-        if (vaultMode) {
-            fab.setText(R.string.vault_files_import)
-            findViewById<TextView>(R.id.openFileButton).setText(R.string.vault_files_import)
-            findViewById<View>(R.id.addFolderButton).visibility = View.GONE
-        }
 
         restoreStack(savedInstanceState)
         onBackPressedDispatcher.addCallback(this, backCallback)
@@ -289,20 +242,12 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        if (vaultMode) {
-            outState.putString(STATE_VAULT_PATH, vaultPath)
-            return
-        }
         outState.putStringArrayList(STATE_TREE_URIS, ArrayList(stack.map { it.treeUri.toString() }))
         outState.putStringArrayList(STATE_DOC_IDS, ArrayList(stack.map { it.docId }))
         outState.putStringArrayList(STATE_LABELS, ArrayList(stack.map { it.label }))
     }
 
     private fun restoreStack(state: Bundle?) {
-        if (vaultMode) {
-            vaultPath = state?.getString(STATE_VAULT_PATH).orEmpty()
-            return
-        }
         val uris = state?.getStringArrayList(STATE_TREE_URIS) ?: return
         val docIds = state.getStringArrayList(STATE_DOC_IDS) ?: return
         val labels = state.getStringArrayList(STATE_LABELS) ?: return
@@ -501,10 +446,6 @@ class MainActivity : AppCompatActivity() {
      * screen until the new one is ready rather than blinking through empty.
      */
     private fun render() {
-        if (vaultMode) {
-            renderVault()
-            return
-        }
         val here = stack.lastOrNull()
         backCallback.isEnabled = here != null
         // At the root the wordmark is the title, centred; inside a folder the title is the
@@ -546,195 +487,6 @@ class MainActivity : AppCompatActivity() {
                 adapter.submit(screen.rows)
             }
         }
-    }
-
-    private fun renderVault() {
-        backCallback.isEnabled = vaultPath.isNotBlank()
-        toolbar.title = if (vaultPath.isBlank()) {
-            vaultVolumeName.ifBlank { getString(R.string.vault_files_title) }
-        } else {
-            File(vaultPath).name
-        }
-        lockup.visibility = View.GONE
-        toolbar.navigationIcon =
-            if (vaultPath.isBlank()) null
-            else androidx.appcompat.content.res.AppCompatResources.getDrawable(this, R.drawable.gander_ic_back)
-        toolbar.navigationContentDescription = getString(R.string.gander_back)
-        welcome.visibility = View.GONE
-        list.visibility = View.VISIBLE
-        fab.show()
-
-        val token = ++renderToken
-        val announce = Runnable {
-            if (token == renderToken && !isDestroyed) progress.visibility = View.VISIBLE
-        }
-        main.postDelayed(announce, RENDER_PROGRESS_DELAY_MS)
-
-        loader.execute {
-            if (token != renderToken) return@execute
-            val rows = runCatching {
-                requireNotNull(vaultFileRepository).list(vaultPath).map { item ->
-                    vaultRow(item)
-                }
-            }.getOrElse {
-                listOf(Row.Hint(getString(R.string.vault_files_import_failed)))
-            }
-            val shown = if (rows.isEmpty()) {
-                listOf(Row.Hint(getString(R.string.vault_files_empty)))
-            } else {
-                rows
-            }
-            main.post {
-                main.removeCallbacks(announce)
-                if (token != renderToken || isDestroyed) return@post
-                progress.visibility = View.GONE
-                adapter.submit(shown)
-            }
-        }
-    }
-
-    private fun vaultRow(item: VaultFileItem): Row {
-        if (item.isDirectory) {
-            return Row.Item(
-                badge = "DIR",
-                color = DIR_COLOR,
-                title = item.name,
-                subtitle = null,
-                onClick = {
-                    vaultPath = item.path
-                    render()
-                },
-                onLongClick = { showVaultFileActions(item) },
-            )
-        }
-
-        val (badge, color) = badgeFor(item.name, null)
-        val subtitle = listOfNotNull(
-            Formatter.formatShortFileSize(this, item.sizeBytes).takeIf { item.sizeBytes > 0L },
-            DateUtils.getRelativeTimeSpanString(item.modifiedAtEpochMillis).toString()
-                .takeIf { item.modifiedAtEpochMillis > 0L },
-        ).joinToString(" · ").ifEmpty { null }
-
-        return Row.Item(
-            badge = badge,
-            color = color,
-            title = item.name,
-            subtitle = subtitle,
-            onClick = {
-                val opened = VaultShelfFileRouter.openAny(
-                    this,
-                    item.path,
-                    item.sizeBytes,
-                    vaultVolumeId,
-                )
-                if (!opened) {
-                    Toast.makeText(this, R.string.vault_open_failed, Toast.LENGTH_SHORT).show()
-                }
-            },
-            onLongClick = { showVaultFileActions(item) },
-        )
-    }
-
-    private fun showVaultFileActions(item: VaultFileItem) {
-        val library = vaultLibraryStore
-        val canAdd = !item.isDirectory && library?.supportsPath(item.path) == true
-        val labels = buildList {
-            if (canAdd) add(getString(R.string.vault_files_add_to_library))
-            add(getString(R.string.vault_files_delete))
-        }
-        MaterialAlertDialogBuilder(this)
-            .setTitle(item.name)
-            .setItems(labels.toTypedArray()) { _, which ->
-                if (canAdd && which == 0) {
-                    loader.execute {
-                        val added = runCatching { library?.addPath(item.path) }.isSuccess
-                        main.post {
-                            Toast.makeText(
-                                this,
-                                if (added) R.string.vault_files_added_to_library
-                                else R.string.vault_files_import_failed,
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                    }
-                } else {
-                    confirmDeleteVaultItem(item)
-                }
-            }
-            .show()
-    }
-
-    private fun confirmDeleteVaultItem(item: VaultFileItem) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.vault_files_delete_title)
-            .setMessage(getString(R.string.vault_files_delete_message, item.name))
-            .setPositiveButton(R.string.vault_files_delete) { _, _ ->
-                loader.execute {
-                    val deleted = runCatching {
-                        requireNotNull(vaultFileRepository).delete(item.path)
-                    }.getOrDefault(false)
-                    if (deleted) runCatching { vaultLibraryStore?.removePath(item.path) }
-                    main.post {
-                        if (deleted) render()
-                        else Toast.makeText(
-                            this,
-                            R.string.vault_files_import_failed,
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private fun importVaultUris(uris: List<Uri>) {
-        if (!vaultMode || uris.isEmpty()) return
-        loader.execute {
-            val imported = ArrayList<Uri>()
-            var failed = false
-            uris.forEach { uri ->
-                runCatching {
-                    requireNotNull(vaultFileRepository).importUri(uri, vaultPath)
-                }.onSuccess {
-                    imported += uri
-                }.onFailure {
-                    failed = true
-                }
-            }
-            main.post {
-                if (failed) {
-                    Toast.makeText(
-                        this,
-                        R.string.vault_files_import_failed,
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
-                render()
-                if (imported.isNotEmpty()) promptDeleteImportedSources(imported)
-            }
-        }
-    }
-
-    private fun promptDeleteImportedSources(uris: List<Uri>) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.vault_files_delete_source_title)
-            .setMessage(R.string.vault_files_delete_source_message)
-            .setPositiveButton(R.string.vault_files_delete_source_confirm) { _, _ ->
-                loader.execute {
-                    uris.forEach { uri ->
-                        runCatching { contentResolver.delete(uri, null, null) }
-                    }
-                }
-            }
-            .setNegativeButton(R.string.vault_files_keep_source, null)
-            .show()
-    }
-
-    private fun parentVaultPath(path: String): String {
-        val normalized = path.trimEnd('/')
-        val parent = normalized.substringBeforeLast('/', missingDelimiterValue = "")
-        return parent.takeUnless { it == "/" }.orEmpty()
     }
 
     /** Shows the removal badge, replacing any still on screen rather than queueing behind it. */
@@ -790,10 +542,7 @@ class MainActivity : AppCompatActivity() {
             rows += Row.Item(
                 "DIR", DIR_COLOR, label, null,
                 onClick = {
-                    stack.addLast(
-                        Crumb(perm.uri, DocumentsContract.getTreeDocumentId(perm.uri), label)
-                    )
-                    render()
+                    openManagedFolder(perm.uri, label)
                 },
                 // The only confirmation in the app, because this is the only thing on the
                 // screen that cannot be undone. Android has no inverse for a released
@@ -836,6 +585,36 @@ class MainActivity : AppCompatActivity() {
         rows += Row.Item("+", ADD_COLOR, getString(R.string.add_folder), null,
             onClick = { openTree.launch(null) })
         return Screen(rows)
+    }
+
+    private fun openManagedFolder(treeUri: Uri, label: String) {
+        val app = application as VolumeManagerApp
+        val volume = runCatching { SafVolume(applicationContext, treeUri) }.getOrElse {
+            Toast.makeText(this, R.string.open_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val volumeId = app.volumeManager.insert(
+            volume,
+            VolumeData(
+                uuid = UUID.randomUUID().toString(),
+                name = "saf:$treeUri",
+                isHidden = false,
+                type = EncryptedVolume.GOCRYPTFS_VOLUME_TYPE,
+            ),
+        )
+        val opened = runCatching {
+            startActivity(
+                Intent(this, ExternalExplorerActivity::class.java)
+                    .putExtra("volumeId", volumeId)
+                    .putExtra("volumeName", label)
+                    .putExtra(EXTRA_PLAIN_VOLUME, true),
+            )
+            true
+        }.getOrDefault(false)
+        if (!opened) {
+            app.volumeManager.closeVolume(volumeId)
+            Toast.makeText(this, R.string.open_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     @android.annotation.SuppressLint("Recycle")
@@ -946,8 +725,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_SHOW_ABOUT = "vaultshelf.show_about"
-        const val EXTRA_VAULT_VOLUME_ID = "vaultshelf.files.volume_id"
-        const val EXTRA_VAULT_VOLUME_NAME = "vaultshelf.files.volume_name"
+        const val EXTRA_PLAIN_VOLUME = "vaultshelf.plain_volume"
         private const val LICENCES_ASSET = "licences.md"
 
         /** Google Play's package: the installer Rate depends on, and the app it opens. */
@@ -960,7 +738,6 @@ class MainActivity : AppCompatActivity() {
         const val STATE_TREE_URIS = "stack.treeUris"
         const val STATE_DOC_IDS = "stack.docIds"
         const val STATE_LABELS = "stack.labels"
-        const val STATE_VAULT_PATH = "vault.path"
     }
 
     private class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {

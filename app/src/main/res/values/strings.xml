@@ -199,4 +199,10 @@
     <string name="vault_external_import_partial">%1$d item(s) could not be imported.</string>
     <string name="vaultshelf_library_import_to_vault">Import to vault</string>
 
+
+    <string name="vaultshelf_files_import_to_vault">Import to vault</string>
+    <string name="vault_file_import_done_title">Imported into vault</string>
+    <string name="vault_file_import_done_message">The selected files were encrypted and copied into the vault. Delete the original files?</string>
+    <string name="vault_file_import_done_with_library">%1$d selected file(s) were already in the external library and were also added to the vault library. If you delete the originals, those external library entries will also be removed.</string>
+
 </resources>

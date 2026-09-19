@@ -544,6 +544,57 @@ class VaultShelfUxRegressionTest {
         assertThat(duplicates).isEmpty()
     }
 
+
+    @Test
+    fun plainAndVaultFilesReuseDroidFsExplorerCore() {
+        val main = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/MainActivity.kt",
+        ).readText()
+        val safVolume = File(
+            repo,
+            "droidfs-upstream/src/main/java/com/vaultshelf/droidfs/SafVolume.kt",
+        ).readText()
+        val externalExplorer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
+        ).readText()
+        val vaultMode = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
+        val patch = File(
+            repo,
+            "patches/droidfs-vaultshelf-file-routing.patch",
+        ).readText()
+
+        assertThat(safVolume).contains("class SafVolume")
+        assertThat(safVolume).contains(": EncryptedVolume()")
+        assertThat(main).contains("ExternalExplorerActivity")
+        assertThat(main).contains("SafVolume(applicationContext, treeUri)")
+        assertThat(externalExplorer).contains("class ExternalExplorerActivity : ExplorerActivity()")
+        assertThat(externalExplorer).contains("action_import_to_vault")
+        assertThat(vaultMode).contains("Intent(this@VaultModeActivity, ExplorerActivity::class.java)")
+        assertThat(patch).contains("open class ExplorerActivity : BaseExplorerActivity()")
+        assertThat(patch).contains("VaultImportTargetActivity")
+        assertThat(main).doesNotContain("private fun renderVault()")
+    }
+
+    @Test
+    fun fileImportToVaultPreservesExistingLibraryIdentity() {
+        val target = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultImportTargetActivity.kt",
+        ).readText()
+
+        assertThat(target).contains("fileOperationService.copyElements")
+        assertThat(target).contains("VaultLibraryStore.formatForPath")
+        assertThat(target).contains("contentSha256")
+        assertThat(target).contains("vaultLibrary.addPath")
+        assertThat(target).contains("BookReadingPositions.save")
+        assertThat(target).contains("repository.deleteBook(book.id)")
+    }
+
     @Test
     fun unlockedVaultUsesVaultShelfShellInsteadOfDroidFsExplorer() {
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
@@ -566,9 +617,8 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
         ).readText()
-        assertThat(files).contains("EXTRA_VAULT_VOLUME_ID")
-        assertThat(files).contains("VaultFileRepository")
-        assertThat(files).contains("VaultShelfFileRouter.openAny")
+        assertThat(files).contains("ExternalExplorerActivity")
+        assertThat(files).contains("SafVolume")
         assertThat(shell).contains("onOpenFiles: () -> Unit")
         assertThat(shell).doesNotContain("private fun VaultFilesScreen")
         assertThat(storage).contains("METADATA_FILE = \"/.vaultshelf/library.json\"")

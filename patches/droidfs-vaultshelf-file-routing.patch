@@ -763,8 +763,24 @@ rename to app/src/main/vaultshelf-disabled/activity_camera.xml
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
-@@ -16,7 +16,13 @@ class ExplorerRouter(private val context: Context, private val intent: Intent) {
+@@ -7,6 +7,7 @@
+ class ExplorerRouter(private val context: Context, private val intent: Intent) {
+     var pickMode = intent.action == "pick"
+     var dropMode = (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) && intent.extras != null
++    var importTargetMode = intent.action == "vaultshelf_import_to_vault"
+ 
+     fun getExplorerIntent(volumeId: Int, volumeShortName: String): Intent {
+         var explorerIntent: Intent? = null
+@@ -16,9 +17,21 @@
+         } else if (pickMode) {
+             explorerIntent = Intent(context, ExplorerActivityPick::class.java)
              explorerIntent.flags = Intent.FLAG_ACTIVITY_FORWARD_RESULT
++        } else if (importTargetMode) {
++            explorerIntent = Intent().setClassName(
++                context.packageName,
++                "com.arjun.gander.vault.VaultImportTargetActivity",
++            )
++            intent.extras?.let { explorerIntent.putExtras(it) }
          }
          if (explorerIntent == null) {
 -            explorerIntent = Intent(context, ExplorerActivity::class.java) //default opening
@@ -778,3 +794,9 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.k
          }
          explorerIntent.putExtra("volumeId", volumeId)
          explorerIntent.putExtra("volumeName", volumeShortName)
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+@@ -27 +27 @@
+-class ExplorerActivity : BaseExplorerActivity() {
++open class ExplorerActivity : BaseExplorerActivity() {

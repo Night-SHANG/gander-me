@@ -112,6 +112,16 @@
             android:exported="false" />
 
         <activity
+            android:name=".files.ExternalExplorerActivity"
+            android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
+            android:exported="false" />
+
+        <activity
+            android:name=".vault.VaultImportTargetActivity"
+            android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
+            android:exported="false" />
+
+        <activity
             android:name=".vault.VaultContentActivity"
             android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
             android:exported="false"
