@@ -537,6 +537,19 @@ class VaultShelfUxRegressionTest {
 
         assertThat(patch).contains("com.arjun.gander.vault.VaultModeActivity")
         assertThat(mode).contains("VaultModeShell")
+        val files = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/MainActivity.kt",
+        ).readText()
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+        assertThat(files).contains("EXTRA_VAULT_VOLUME_ID")
+        assertThat(files).contains("VaultFileRepository")
+        assertThat(files).contains("VaultShelfFileRouter.openAny")
+        assertThat(shell).contains("onOpenFiles: () -> Unit")
+        assertThat(shell).doesNotContain("private fun VaultFilesScreen")
         assertThat(storage).contains("METADATA_FILE = \"/.vaultshelf/library.json\"")
         assertThat(storage).contains("fun addPath")
         assertThat(storage).contains("fun importExternalLibraryBook")

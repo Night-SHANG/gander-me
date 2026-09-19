@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.lifecycleScope
 import com.arjun.gander.BookReadingPositions
+import com.arjun.gander.MainActivity
 import com.arjun.gander.R
 import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.ui.theme.VaultShelfTheme
@@ -80,6 +81,13 @@ class VaultModeActivity : AppCompatActivity() {
                                 ).show()
                             }
                         },
+                        onOpenFiles = {
+                            startActivity(
+                                Intent(this@VaultModeActivity, MainActivity::class.java)
+                                    .putExtra(MainActivity.EXTRA_VAULT_VOLUME_ID, volumeId)
+                                    .putExtra(MainActivity.EXTRA_VAULT_VOLUME_NAME, volumeName),
+                            )
+                        },
                         onOpenVaultSettings = {
                             startActivity(
                                 Intent(this@VaultModeActivity, DroidFsSettingsActivity::class.java),
@@ -103,6 +111,11 @@ class VaultModeActivity : AppCompatActivity() {
         if (importIds.isNotEmpty()) {
             importExternalLibraryBooks(importIds, fileRepository, libraryStore)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        libraryRevision += 1
     }
 
     private fun importExternalLibraryBooks(

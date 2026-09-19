@@ -64,7 +64,6 @@ import kotlinx.coroutines.withContext
 private enum class VaultModeDestination {
     HOME,
     LIBRARY,
-    FILES,
     SETTINGS,
 }
 
@@ -76,6 +75,7 @@ fun VaultModeShell(
     externalRevision: Int,
     initialLibrary: Boolean,
     onOpenFile: (VaultFileItem) -> Unit,
+    onOpenFiles: () -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
@@ -107,10 +107,10 @@ fun VaultModeShell(
                     R.string.vaultshelf_nav_library,
                 ) { selectedName = VaultModeDestination.LIBRARY.name }
                 VaultNavItem(
-                    selected == VaultModeDestination.FILES,
+                    false,
                     R.drawable.ic_vaultshelf_files,
                     R.string.vaultshelf_nav_files,
-                ) { selectedName = VaultModeDestination.FILES.name }
+                ) { onOpenFiles() }
                 VaultNavItem(
                     selected == VaultModeDestination.SETTINGS,
                     R.drawable.ic_vaultshelf_settings,
@@ -126,7 +126,7 @@ fun VaultModeShell(
                 libraryStore = libraryStore,
                 revision = revision + externalRevision,
                 onOpenLibrary = { selectedName = VaultModeDestination.LIBRARY.name },
-                onOpenFiles = { selectedName = VaultModeDestination.FILES.name },
+                onOpenFiles = onOpenFiles,
                 onOpenBook = { entry ->
                     libraryStore.markOpened(entry.id)
                     val stat = fileRepository.volume.getAttr(entry.path)
@@ -169,16 +169,7 @@ fun VaultModeShell(
                     libraryStore.remove(entry.id)
                     revision += 1
                 },
-                onOpenFiles = { selectedName = VaultModeDestination.FILES.name },
-                modifier = contentModifier,
-            )
-
-            VaultModeDestination.FILES -> VaultFilesScreen(
-                fileRepository = fileRepository,
-                libraryStore = libraryStore,
-                revision = revision + externalRevision,
-                onOpenFile = onOpenFile,
-                onLibraryChanged = { revision += 1 },
+                onOpenFiles = onOpenFiles,
                 modifier = contentModifier,
             )
 
@@ -475,260 +466,6 @@ private fun VaultBookCard(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-    }
-}
-
-@Composable
-private fun VaultFilesScreen(
-    fileRepository: VaultFileRepository,
-    libraryStore: VaultLibraryStore,
-    revision: Int,
-    onOpenFile: (VaultFileItem) -> Unit,
-    onLibraryChanged: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var currentPath by rememberSaveable { mutableStateOf("") }
-    var files by remember { mutableStateOf<List<VaultFileItem>>(emptyList()) }
-    var localRevision by remember { mutableIntStateOf(0) }
-    var deleteTarget by remember { mutableStateOf<VaultFileItem?>(null) }
-    var deleteOriginalUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    var importFailed by remember { mutableStateOf(false) }
-
-    val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
-        scope.launch {
-            var failed = false
-            val imported = withContext(Dispatchers.IO) {
-                uris.filter { uri ->
-                    runCatching { fileRepository.importUri(uri, currentPath) }
-                        .onFailure { failed = true }
-                        .isSuccess
-                }
-            }
-            importFailed = failed
-            if (imported.isNotEmpty()) deleteOriginalUris = imported
-            localRevision += 1
-        }
-    }
-
-    LaunchedEffect(currentPath, revision, localRevision) {
-        files = withContext(Dispatchers.IO) { fileRepository.list(currentPath) }
-    }
-
-    Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (currentPath.isNotBlank()) {
-                TextButton(onClick = { currentPath = parentVaultPath(currentPath) }) {
-                    Text(stringResource(R.string.vault_files_up))
-                }
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.vault_files_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = currentPath.ifBlank { "/" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Button(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
-                Text(stringResource(R.string.vault_files_import))
-            }
-        }
-
-        if (importFailed) {
-            Text(
-                text = stringResource(R.string.vault_files_import_failed),
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-        }
-
-        if (files.isEmpty()) {
-            Text(
-                text = stringResource(R.string.vault_files_empty),
-                modifier = Modifier.padding(20.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                items(files, key = { it.path }) { item ->
-                    VaultFileRow(
-                        item = item,
-                        context = context,
-                        canAddToLibrary = !item.isDirectory && libraryStore.supportsPath(item.path),
-                        onOpen = {
-                            if (item.isDirectory) currentPath = item.path else onOpenFile(item)
-                        },
-                        onAddToLibrary = {
-                            scope.launch {
-                                runCatching {
-                                    withContext(Dispatchers.IO) { libraryStore.addPath(item.path) }
-                                }.onSuccess {
-                                    onLibraryChanged()
-                                }
-                            }
-                        },
-                        onDelete = { deleteTarget = item },
-                    )
-                }
-            }
-        }
-    }
-
-    deleteTarget?.let { item ->
-        AlertDialog(
-            onDismissRequest = { deleteTarget = null },
-            title = { Text(stringResource(R.string.vault_files_delete_title)) },
-            text = { Text(stringResource(R.string.vault_files_delete_message, item.name)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            val deleted = withContext(Dispatchers.IO) {
-                                fileRepository.delete(item.path)
-                            }
-                            if (deleted) {
-                                withContext(Dispatchers.IO) { libraryStore.removePath(item.path) }
-                                onLibraryChanged()
-                                localRevision += 1
-                            }
-                            deleteTarget = null
-                        }
-                    },
-                ) {
-                    Text(
-                        text = stringResource(R.string.vault_files_delete),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) {
-                    Text(stringResource(android.R.string.cancel))
-                }
-            },
-        )
-    }
-
-    if (deleteOriginalUris.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = { deleteOriginalUris = emptyList() },
-            title = { Text(stringResource(R.string.vault_files_delete_source_title)) },
-            text = { Text(stringResource(R.string.vault_files_delete_source_message)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val uris = deleteOriginalUris
-                        deleteOriginalUris = emptyList()
-                        scope.launch(Dispatchers.IO) {
-                            uris.forEach { uri ->
-                                runCatching { context.contentResolver.delete(uri, null, null) }
-                            }
-                        }
-                    },
-                ) {
-                    Text(stringResource(R.string.vault_files_delete_source_confirm))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { deleteOriginalUris = emptyList() }) {
-                    Text(stringResource(R.string.vault_files_keep_source))
-                }
-            },
-        )
-    }
-}
-
-@Composable
-private fun VaultFileRow(
-    item: VaultFileItem,
-    context: Context,
-    canAddToLibrary: Boolean,
-    onOpen: () -> Unit,
-    onAddToLibrary: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    var menuExpanded by remember(item.path) { mutableStateOf(false) }
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpen),
-        shape = RoundedCornerShape(12.dp),
-        tonalElevation = 1.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = if (item.isDirectory) "DIR" else File(item.name).extension
-                    .uppercase()
-                    .ifBlank { "FILE" },
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.name,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (!item.isDirectory) {
-                    Text(
-                        text = Formatter.formatShortFileSize(context, item.sizeBytes),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Box {
-                IconButton(onClick = { menuExpanded = true }) {
-                    Text("⋯")
-                }
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
-                ) {
-                    if (canAddToLibrary) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.vault_files_add_to_library)) },
-                            onClick = {
-                                menuExpanded = false
-                                onAddToLibrary()
-                            },
-                        )
-                    }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.vault_files_delete)) },
-                        onClick = {
-                            menuExpanded = false
-                            onDelete()
-                        },
-                    )
-                }
-            }
-        }
     }
 }
 

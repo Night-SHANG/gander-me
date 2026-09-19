@@ -178,6 +178,7 @@
     <string name="vault_files_empty">This folder is empty.</string>
     <string name="vault_files_import_failed">Some files could not be imported.</string>
     <string name="vault_files_add_to_library">Add to library</string>
+    <string name="vault_files_added_to_library">Added to vault library</string>
     <string name="vault_files_delete">Delete</string>
     <string name="vault_files_delete_title">Delete from vault?</string>
     <string name="vault_files_delete_message">Delete “%1$s” from the encrypted vault?</string>
