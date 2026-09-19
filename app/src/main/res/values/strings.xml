@@ -162,4 +162,40 @@
     <string name="vaultshelf_restore_invalid">This is not a valid VaultShelf encrypted-vault backup.</string>
     <string name="vaultshelf_restore_unsupported">This backup uses a vault format not supported by this build.</string>
 
+
+    <string name="vault_mode_title">Encrypted vault</string>
+    <string name="vault_home_recent">Recently read</string>
+    <string name="vault_home_recent_empty">Books you open from the vault will appear here.</string>
+    <string name="vault_library_title">Vault library</string>
+    <string name="vault_library_count">%1$d books</string>
+    <string name="vault_library_empty">No books in this vault library</string>
+    <string name="vault_library_empty_detail">Files in the vault are not added automatically. Add a supported document from the Files tab.</string>
+    <string name="vault_library_add_from_files">Add from vault files</string>
+    <string name="vault_library_remove">Remove from library</string>
+    <string name="vault_files_title">Vault files</string>
+    <string name="vault_files_up">Up</string>
+    <string name="vault_files_import">Import</string>
+    <string name="vault_files_empty">This folder is empty.</string>
+    <string name="vault_files_import_failed">Some files could not be imported.</string>
+    <string name="vault_files_add_to_library">Add to library</string>
+    <string name="vault_files_delete">Delete</string>
+    <string name="vault_files_delete_title">Delete from vault?</string>
+    <string name="vault_files_delete_message">Delete “%1$s” from the encrypted vault?</string>
+    <string name="vault_files_delete_source_title">Delete original files?</string>
+    <string name="vault_files_delete_source_message">The files were imported into the encrypted vault. Delete the original files now?</string>
+    <string name="vault_files_delete_source_confirm">Delete originals</string>
+    <string name="vault_files_keep_source">Keep originals</string>
+    <string name="vault_settings_title">Vault settings</string>
+    <string name="vault_settings_security">Security and vault behavior</string>
+    <string name="vault_settings_backup">Export / restore backup</string>
+    <string name="vault_settings_lock">Lock vault</string>
+    <string name="vault_open_failed">This file cannot be opened.</string>
+    <string name="vault_external_import_done_title">Imported into vault</string>
+    <string name="vault_external_import_done_message">%1$d library item(s) were encrypted and added to the vault library. Delete the original library copies?</string>
+    <string name="vault_external_import_delete_source">Delete originals</string>
+    <string name="vault_external_import_keep_source">Keep originals</string>
+    <string name="vault_external_import_failed">No selected books could be imported into the vault.</string>
+    <string name="vault_external_import_partial">%1$d item(s) could not be imported.</string>
+    <string name="vaultshelf_library_import_to_vault">Import to vault</string>
+
 </resources>

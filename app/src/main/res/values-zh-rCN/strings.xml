@@ -152,4 +152,54 @@
     <string name="vaultshelf_restore_invalid">这不是有效的 VaultShelf 加密保险库备份。</string>
     <string name="vaultshelf_restore_unsupported">该备份使用当前版本不支持的保险库格式。</string>
 
+
+    <string name="vault_mode_title">加密保险库</string>
+    <string name="vault_home_recent">最近阅读</string>
+    <string name="vault_home_recent_empty">从保险库打开过的书会显示在这里。</string>
+    <string name="vault_library_title">保险库书库</string>
+    <string name="vault_library_count">%1$d 本</string>
+    <string name="vault_library_empty">保险库书库还是空的</string>
+    <string name="vault_library_empty_detail">保险库里的 TXT、PDF 等不会自动进入书库。请从“文件”页手动加入。</string>
+    <string name="vault_library_add_from_files">从保险库文件加入</string>
+    <string name="vault_library_remove">移出书库</string>
+    <string name="vault_files_title">保险库文件</string>
+    <string name="vault_files_up">上一级</string>
+    <string name="vault_files_import">导入</string>
+    <string name="vault_files_empty">这个文件夹是空的。</string>
+    <string name="vault_files_import_failed">部分文件导入失败。</string>
+    <string name="vault_files_add_to_library">加入书库</string>
+    <string name="vault_files_delete">删除</string>
+    <string name="vault_files_delete_title">从保险库删除？</string>
+    <string name="vault_files_delete_message">确定从加密保险库删除“%1$s”吗？</string>
+    <string name="vault_files_delete_source_title">删除原文件？</string>
+    <string name="vault_files_delete_source_message">文件已经成功导入加密保险库。是否删除外部原文件？</string>
+    <string name="vault_files_delete_source_confirm">删除原文件</string>
+    <string name="vault_files_keep_source">保留原文件</string>
+    <string name="vault_settings_title">保险库设置</string>
+    <string name="vault_settings_security">安全与保险库行为</string>
+    <string name="vault_settings_backup">导出 / 恢复备份</string>
+    <string name="vault_settings_lock">锁定保险库</string>
+    <string name="vault_open_failed">暂时无法打开这个文件。</string>
+    <string name="vault_external_import_done_title">已导入保险库</string>
+    <string name="vault_external_import_done_message">已加密导入 %1$d 个书库项目，并直接加入保险库书库。是否删除外部书库中的原文件？</string>
+    <string name="vault_external_import_delete_source">删除外部原文件</string>
+    <string name="vault_external_import_keep_source">保留外部原文件</string>
+    <string name="vault_external_import_failed">选中的书籍都没有成功导入保险库。</string>
+    <string name="vault_external_import_partial">有 %1$d 个项目导入失败。</string>
+    <string name="vaultshelf_library_import_to_vault">导入保险库</string>
+
+    <string name="propose_wipe_imported_files">导入后询问是否删除原文件</string>
+    <string name="propose_wipe_imported_files_summary">文件成功导入保险库后，询问是否从原位置删除</string>
+    <string name="debug">调试</string>
+    <string name="logcat">运行日志</string>
+    <string name="logcat_summary">查看保险库底层运行日志</string>
+    <string name="tangled_summary">DroidFS 在 Tangled 上的源码仓库、文档与问题追踪。</string>
+    <string name="usf_background">关闭保险库自动锁定</string>
+    <string name="usf_background_summary">应用进入后台时不自动锁定已经打开的保险库</string>
+    <string name="lock_on_screen_lock">锁屏时锁定保险库</string>
+    <string name="usf_keep_open">保持保险库持续打开</string>
+    <string name="usf_keep_open_summary">让应用持续在后台运行，以保持保险库处于解锁状态</string>
+    <string name="export_method">临时导出方式</string>
+    <string name="export_method_summary">用于分享、外部打开以及临时访问解密文件时的缓存方式。</string>
+
 </resources>

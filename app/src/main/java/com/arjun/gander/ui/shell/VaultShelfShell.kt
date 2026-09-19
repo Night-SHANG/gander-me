@@ -87,6 +87,7 @@ fun VaultShelfShell(
     onOpenVault: () -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
+    onImportBooksToVault: (List<LibraryBook>) -> Unit,
     onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -125,6 +126,7 @@ fun VaultShelfShell(
 
             VaultShelfDestination.LIBRARY -> LibraryScreen(
                 repository = libraryRepository,
+                onImportToVault = onImportBooksToVault,
                 modifier = Modifier.padding(innerPadding),
             )
 

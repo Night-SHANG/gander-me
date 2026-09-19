@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Intent
 import sushi.hardcore.droidfs.FileShare
 import sushi.hardcore.droidfs.VolumeManagerApp
+import sushi.hardcore.droidfs.file_viewers.AudioPlayer
+import sushi.hardcore.droidfs.file_viewers.VideoPlayer
 import sushi.hardcore.droidfs.content_providers.TemporaryFileProvider
 import java.io.File
 import java.util.UUID
@@ -41,8 +43,36 @@ object VaultShelfFileRouter {
         "txt", "epub", "umd", "mobi", "azw3", "azw",
     )
 
+    private val audioFormats = setOf("mp3", "ogg", "m4a", "wav", "flac", "opus")
+    private val videoFormats = setOf("mp4", "webm", "mkv", "mov", "m4v")
+
     fun supports(path: String): Boolean =
         File(path).extension.lowercase() in extraFormats
+
+    fun openAny(
+        activity: Activity,
+        path: String,
+        size: Long,
+        volumeId: Int,
+    ): Boolean {
+        val extension = File(path).extension.lowercase()
+        val mediaTarget = when (extension) {
+            in audioFormats -> AudioPlayer::class.java
+            in videoFormats -> VideoPlayer::class.java
+            else -> null
+        }
+        if (mediaTarget != null) {
+            return runCatching {
+                activity.startActivity(
+                    Intent(activity, mediaTarget)
+                        .putExtra("path", path)
+                        .putExtra("volumeId", volumeId),
+                )
+                true
+            }.getOrDefault(false)
+        }
+        return open(activity, path, size, volumeId)
+    }
 
     fun open(
         activity: Activity,

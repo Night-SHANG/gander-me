@@ -522,6 +522,41 @@ class VaultShelfUxRegressionTest {
         assertThat(guard).contains("WindowManager.LayoutParams.FLAG_SECURE")
     }
 
+
+    @Test
+    fun unlockedVaultUsesVaultShelfShellInsteadOfDroidFsExplorer() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val mode = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
+        val storage = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultStorage.kt",
+        ).readText()
+
+        assertThat(patch).contains("com.arjun.gander.vault.VaultModeActivity")
+        assertThat(mode).contains("VaultModeShell")
+        assertThat(storage).contains("METADATA_FILE = \"/.vaultshelf/library.json\"")
+        assertThat(storage).contains("fun addPath")
+        assertThat(storage).contains("fun importExternalLibraryBook")
+    }
+
+    @Test
+    fun externalLibraryCanMoveBooksDirectlyIntoVaultLibrary() {
+        val library = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
+        ).readText()
+        val activity = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
+        ).readText()
+
+        assertThat(library).contains("onImportToVault")
+        assertThat(library).contains("vaultshelf_library_import_to_vault")
+        assertThat(activity).contains("VaultModeActivity.EXTRA_IMPORT_BOOK_IDS")
+    }
     @Test
     fun vaultFormatsUseTheMatureViewerForEachDomain() {
         val router = File(

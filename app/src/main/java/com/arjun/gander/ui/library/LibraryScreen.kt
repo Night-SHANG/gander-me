@@ -94,6 +94,7 @@ private enum class ShelfSort(@StringRes val labelRes: Int) {
 @Composable
 fun LibraryScreen(
     repository: LibraryRepository,
+    onImportToVault: ((List<LibraryBook>) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -236,6 +237,13 @@ fun LibraryScreen(
                         selectedIds - visibleBooks.mapTo(mutableSetOf()) { it.id }
                     } else {
                         selectedIds + visibleBooks.map { it.id }
+                    }
+                },
+                onImportToVault = onImportToVault?.let { callback ->
+                    {
+                        val selectedBooks = books.filter { it.id in selectedIds }
+                        if (selectedBooks.isNotEmpty()) callback(selectedBooks)
+                        selectedIds = emptySet()
                     }
                 },
                 onDelete = { confirmBatchDelete = true },
@@ -620,6 +628,7 @@ private fun SelectionHeader(
     allVisibleSelected: Boolean,
     onClose: () -> Unit,
     onSelectAll: () -> Unit,
+    onImportToVault: (() -> Unit)?,
     onDelete: () -> Unit,
 ) {
     Surface(
@@ -655,6 +664,11 @@ private fun SelectionHeader(
                         },
                     ),
                 )
+            }
+            if (onImportToVault != null) {
+                TextButton(onClick = onImportToVault) {
+                    Text(stringResource(R.string.vaultshelf_library_import_to_vault))
+                }
             }
             TextButton(onClick = onDelete) {
                 Text(
