@@ -4331,7 +4331,7 @@ diff --git a/app/src/main/java/io/legado/app/service/BaseReadAloudService.kt b/a
 diff --git a/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt b/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt
 --- a/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt
 +++ b/app/src/main/java/io/legado/app/ui/book/read/ReadBookActivity.kt
-@@ -477,6 +477,14 @@
+@@ -488,6 +488,14 @@
      override fun onPostResume() {
          super.onPostResume()
          showPendingSourceReimport()

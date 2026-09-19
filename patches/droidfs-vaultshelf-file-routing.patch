@@ -597,14 +597,14 @@ rename to app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt.vau
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
-@@ -11,7 +11,6 @@
+@@ -14,6 +14,5 @@
  import com.google.android.material.floatingactionbutton.FloatingActionButton
  import kotlinx.coroutines.launch
 -import sushi.hardcore.droidfs.CameraActivity
  import sushi.hardcore.droidfs.LoadingTask
  import sushi.hardcore.droidfs.MainActivity
  import sushi.hardcore.droidfs.R
-@@ -178,8 +177,7 @@
+@@ -187,8 +186,7 @@
                      listOf("importFiles", R.string.import_files, R.drawable.icon_encrypt),
                      listOf("importFolder", R.string.import_folder, R.drawable.icon_import_folder),
                      listOf("createFile", R.string.new_file, R.drawable.icon_file_unknown),
@@ -614,7 +614,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity
                  )
                  MaterialAlertDialogBuilder(this)
                      .setSingleChoiceItems(adapter, -1){ thisDialog, which ->
-@@ -211,12 +209,6 @@
+@@ -216,12 +214,6 @@
                              "createFolder" -> {
                                  openDialogCreateFolder()
                              }
@@ -630,7 +630,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity
 diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
 --- a/app/src/main/res/xml/root_preferences.xml
 +++ b/app/src/main/res/xml/root_preferences.xml
-@@ -75,31 +75,4 @@
+@@ -103,37 +103,4 @@
  
      </PreferenceCategory>
  
@@ -671,7 +671,7 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 diff --git a/app/src/main/res/xml/unsafe_features_preferences.xml b/app/src/main/res/xml/unsafe_features_preferences.xml
 --- a/app/src/main/res/xml/unsafe_features_preferences.xml
 +++ b/app/src/main/res/xml/unsafe_features_preferences.xml
-@@ -3,17 +3,6 @@
+@@ -3,18 +3,5 @@
      xmlns:android="http://schemas.android.com/apk/res/android">
  
 -    <PreferenceCategory android:title="@string/about">
