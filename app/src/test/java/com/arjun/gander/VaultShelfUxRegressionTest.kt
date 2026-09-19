@@ -551,6 +551,47 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun standaloneAboutDoesNotLeaveTheFileBrowserBehindTheDialog() {
+        val source = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/MainActivity.kt",
+        ).readText()
+
+        assertThat(source).contains("private var standaloneAbout = false")
+        assertThat(source).contains("showAbout(finishOnDismiss = true)")
+        assertThat(source).contains("if (!standaloneAbout) render()")
+        assertThat(source).contains(
+            "if (finishOnDismiss && !openingLicences && !isFinishing) finish()"
+        )
+    }
+
+    @Test
+    fun offlineLegadoReaderNeverRegistersNetworkCallbacks() {
+        val patch = File(
+            repo,
+            "patches/legado-vaultshelf-runtime.patch",
+        ).readText()
+
+        assertThat(patch).contains("-import io.legado.app.receiver.NetworkChangedListener")
+        assertThat(patch).contains("-import io.legado.app.utils.NetworkUtils")
+        assertThat(patch).contains("-        networkChangedListener.register()")
+        assertThat(patch).contains("-        networkChangedListener.unRegister()")
+    }
+
+    @Test
+    fun readerSettingsWaitForLegadoBookInitialization() {
+        val patch = File(
+            repo,
+            "patches/legado-vaultshelf-runtime.patch",
+        ).readText()
+
+        assertThat(patch).contains(
+            "viewModel.initData(intent) { maybeShowVaultShelfReaderSettings() }"
+        )
+        assertThat(patch).contains("private fun maybeShowVaultShelfReaderSettings()")
+    }
+
+    @Test
     fun networkPermissionRemainsStripped() {
         val manifest = File(repo, "app/src/main/AndroidManifest.xml").readText()
         assertThat(manifest).contains("android.permission.INTERNET")

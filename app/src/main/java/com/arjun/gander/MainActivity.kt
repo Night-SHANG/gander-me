@@ -72,6 +72,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var list: RecyclerView
     private lateinit var welcome: View
     private lateinit var fab: ExtendedFloatingActionButton
+    private var standaloneAbout = false
 
     /**
      * The last "Removed" toast, kept only so the next one can cancel it.
@@ -209,9 +210,10 @@ class MainActivity : AppCompatActivity() {
         restoreStack(savedInstanceState)
         onBackPressedDispatcher.addCallback(this, backCallback)
 
-        if (intent.getBooleanExtra(EXTRA_SHOW_ABOUT, false)) {
+        standaloneAbout = intent.getBooleanExtra(EXTRA_SHOW_ABOUT, false)
+        if (standaloneAbout) {
             intent.removeExtra(EXTRA_SHOW_ABOUT)
-            toolbar.post { showAbout() }
+            toolbar.post { showAbout(finishOnDismiss = true) }
         }
     }
 
@@ -253,7 +255,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        render()
+        if (!standaloneAbout) render()
     }
 
     /**
@@ -291,7 +293,7 @@ class MainActivity : AppCompatActivity() {
      * permission list read back out of Android, plus the way in to the licence
      * text the bundled libraries require to travel with the binary.
      */
-    private fun showAbout() {
+    private fun showAbout(finishOnDismiss: Boolean = false) {
         val view = layoutInflater.inflate(R.layout.dialog_about, null)
 
         val version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }
@@ -319,15 +321,21 @@ class MainActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.aboutSource)
             .setOnClickListener { openUrl(getString(R.string.url_source)) }
 
+        var openingLicences = false
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.about_gander)
             .setView(view)
             .setPositiveButton(R.string.about_close, null)
+            .setOnDismissListener {
+                if (finishOnDismiss && !openingLicences && !isFinishing) finish()
+            }
             .show()
 
         view.findViewById<View>(R.id.aboutLicences).setOnClickListener {
+            openingLicences = true
             dialog.dismiss()
             openLicences()
+            if (finishOnDismiss && !isFinishing) finish()
         }
     }
 
