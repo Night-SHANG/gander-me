@@ -442,7 +442,7 @@ class MainActivity : AppCompatActivity() {
         lockup.visibility = if (here == null) View.VISIBLE else View.GONE
         toolbar.navigationIcon =
             if (here == null) null
-            else androidx.appcompat.content.res.AppCompatResources.getDrawable(this, R.drawable.ic_back)
+            else androidx.appcompat.content.res.AppCompatResources.getDrawable(this, R.drawable.gander_ic_back)
         toolbar.navigationContentDescription = getString(R.string.gander_back)
 
         val token = ++renderToken
@@ -562,7 +562,7 @@ class MainActivity : AppCompatActivity() {
                     // to a neutral is what leaves the red meaning one thing.
                     listOf(
                         AlertDialog.BUTTON_POSITIVE to
-                            com.google.android.material.R.attr.colorError,
+                            android.R.attr.colorError,
                         AlertDialog.BUTTON_NEGATIVE to
                             com.google.android.material.R.attr.colorOnSurfaceVariant
                     ).forEach { (which, attr) ->

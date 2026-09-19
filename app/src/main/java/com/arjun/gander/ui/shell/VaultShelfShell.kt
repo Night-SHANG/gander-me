@@ -128,9 +128,12 @@ fun VaultShelfShell(
                 modifier = Modifier.padding(innerPadding),
             )
 
-            VaultShelfDestination.FILES -> FilesScreen(
-                onOpenFiles = onOpenFiles,
+            VaultShelfDestination.FILES -> HomeScreen(
+                libraryRepository = libraryRepository,
                 modifier = Modifier.padding(innerPadding),
+                onOpenFiles = onOpenFiles,
+                onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
+                onOpenVault = onOpenVault,
             )
 
             VaultShelfDestination.VAULT -> HomeScreen(
