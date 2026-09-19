@@ -83,6 +83,34 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/Temporar
              volumeManager = (it.applicationContext as VolumeManagerApp).volumeManager
              usfSafWriteDelegate.init(it)
              encryptedFileProvider = EncryptedFileProvider(it)
+
+@@ -76,12 +76,24 @@
+     override fun query(
+         uri: Uri,
+         projection: Array<String>?,
+         selection: String?,
+         selectionArgs: Array<String>?,
+         sortOrder: String?
+     ): Cursor? {
+         val file = files[uri] ?: return null
+-        return MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), 1).apply {
+-            addRow(arrayOf(File(file.file.path).name, file.size))
++        val columns = projection ?: arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
++        return MatrixCursor(columns, 1).apply {
++            addRow(columns.map { column ->
++                when (column) {
++                    OpenableColumns.DISPLAY_NAME -> File(file.file.path).name
++                    OpenableColumns.SIZE -> file.size
++                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID -> uri.lastPathSegment
++                    android.provider.DocumentsContract.Document.COLUMN_LAST_MODIFIED -> 0L
++                    android.provider.DocumentsContract.Document.COLUMN_FLAGS -> 0
++                    android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE -> getType(uri)
++                    else -> null
++                }
++            }.toTypedArray())
+         }
+     }
+
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt

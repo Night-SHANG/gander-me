@@ -35,11 +35,9 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
     }
 
     override suspend fun importTxt(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
-        attachLegado(
-            importFile(uri, BookFormat.TXT, "txt") { storedFile ->
-                TxtDecoder.decode(storedFile.readBytes()).length
-            },
-        )
+        importFile(uri, BookFormat.TXT, "txt") { storedFile ->
+            TxtDecoder.decode(storedFile.readBytes()).length
+        }
     }
 
     override suspend fun importMarkdown(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {

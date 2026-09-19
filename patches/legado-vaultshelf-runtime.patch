@@ -4449,13 +4449,13 @@ diff --git a/app/src/main/java/io/legado/app/ui/book/read/ReadMenu.kt b/app/src/
 -        //替换
 -        fabReplaceRule.setOnClickListener { callBack.openReplaceRule() }
 +        //书签
-+        fabBookmark.setOnClickListener { callBack.toggleBookmark() }
++        fabBookmark.setOnClickListener { callBack.addBookmark() }
  
          //夜间模式
 @@ -737,5 +737,6 @@
      interface CallBack {
          fun autoPage()
-+        fun toggleBookmark()
++        fun addBookmark()
          fun openReplaceRule()
          fun openChapterList()
          fun openSearchActivity(searchWord: String?)

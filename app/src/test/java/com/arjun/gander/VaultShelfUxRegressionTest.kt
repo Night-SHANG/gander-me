@@ -280,7 +280,8 @@ class VaultShelfUxRegressionTest {
 
         assertThat(patch).contains("android:id=\"@+id/fabBookmark\"")
         assertThat(patch).contains("android:src=\"@drawable/ic_bookmark\"")
-        assertThat(patch).contains("fabBookmark.setOnClickListener { callBack.toggleBookmark() }")
+        assertThat(patch).contains("fabBookmark.setOnClickListener { callBack.addBookmark() }")
+        assertThat(patch).contains("fun addBookmark()")
     }
 
     @Test
@@ -350,6 +351,36 @@ class VaultShelfUxRegressionTest {
         assertThat(library).contains("\"azw\"")
         assertThat(library).contains("\"umd\"")
         assertThat(library).contains("\"pdf\"")
+    }
+
+    @Test
+    fun txtLibraryImportDefersLegadoRegistrationUntilFirstOpen() {
+        val repository = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/library/LocalLibraryRepository.kt",
+        ).readText()
+        val router = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/library/LibraryReaderRouter.kt",
+        ).readText()
+        val txtImport = repository
+            .substringAfter("override suspend fun importTxt")
+            .substringBefore("override suspend fun importMarkdown")
+
+        assertThat(txtImport).contains("importFile(uri, BookFormat.TXT")
+        assertThat(txtImport).doesNotContain("attachLegado")
+        assertThat(router).contains("BookFormat.TXT")
+        assertThat(router).contains("LegadoReaderBridge.ensureLocalBook")
+    }
+
+    @Test
+    fun droidFsTemporaryProviderHonorsProjectionForVaultReaders() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+
+        assertThat(patch).contains("val columns = projection ?: arrayOf(OpenableColumns.DISPLAY_NAME")
+        assertThat(patch).contains("OpenableColumns.SIZE -> file.size")
+        assertThat(patch).contains("COLUMN_DOCUMENT_ID -> uri.lastPathSegment")
+        assertThat(patch).contains("COLUMN_LAST_MODIFIED -> 0L")
     }
 
     @Test
@@ -442,7 +473,10 @@ class VaultShelfUxRegressionTest {
         assertThat(dispatcher).contains("override fun onResume()")
         assertThat(vaultBridge).doesNotContain("StartActivityForResult")
         assertThat(vaultBridge).contains("childActive")
+        assertThat(vaultBridge).contains("bridgeResumed")
+        assertThat(vaultBridge).contains("pendingChildIntent")
         assertThat(vaultBridge).contains("override fun onResume()")
+        assertThat(vaultBridge).contains("override fun onPause()")
     }
 
     @Test

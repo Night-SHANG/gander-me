@@ -35,6 +35,8 @@ class VaultContentActivity : ComponentActivity() {
     private var legacyFileKey: String? = null
     private var transientBookUrl: String? = null
     private var childActive = false
+    private var bridgeResumed = false
+    private var pendingChildIntent: Intent? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,10 +86,21 @@ class VaultContentActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        bridgeResumed = true
         if (childActive && !cleanupStarted.get()) {
             childActive = false
             cleanupAndFinish()
+            return
         }
+        pendingChildIntent?.let { intent ->
+            pendingChildIntent = null
+            startChild(intent)
+        }
+    }
+
+    override fun onPause() {
+        bridgeResumed = false
+        super.onPause()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -144,6 +157,14 @@ class VaultContentActivity : ComponentActivity() {
     }
 
     private fun launchChild(intent: Intent) {
+        if (!bridgeResumed) {
+            pendingChildIntent = intent
+            return
+        }
+        startChild(intent)
+    }
+
+    private fun startChild(intent: Intent) {
         childActive = true
         runCatching { startActivity(intent) }
             .onFailure {
