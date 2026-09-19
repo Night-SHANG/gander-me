@@ -67,72 +67,81 @@ jobs:
           java-version: '21'
 
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          # Same-repository development PRs may refresh Gradle caches. Fork PRs stay
+          # read-only so untrusted code cannot populate caches consumed elsewhere.
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
+
+      # libgocryptfs + OpenSSL are expensive but deterministic for a pinned source
+      # commit, NDK and Go version. Save this cache immediately after building it so
+      # later test/lint failures do not throw away the native work.
+      - name: Restore DroidFS native cache
+        id: droidfs_native_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            third_party/droidfs/app/libgocryptfs/build
+            third_party/droidfs/app/libgocryptfs/lib
+            third_party/droidfs/app/libgocryptfs/include
+          key: droidfs-native-${{ runner.os }}-ndk28.2.13676358-go1.24-libgocryptfs-4cf68bded7cfd6cce646516e059b10561589ad2d
+
+      - name: Ensure Android NDK
+        run: |
+          NDK_DIR="$ANDROID_HOME/ndk/28.2.13676358"
+          if [ ! -d "$NDK_DIR" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358"
+          else
+            echo "Using preinstalled NDK at $NDK_DIR"
+          fi
+          echo "ANDROID_NDK_HOME=$NDK_DIR" >> "$GITHUB_ENV"
 
       - uses: actions/setup-go@v5
+        if: steps.droidfs_native_cache.outputs.cache-hit != 'true'
         with:
           go-version: '1.24.x'
 
-      - name: Install DroidFS native toolchain
+      - name: Install DroidFS native build tools
+        if: steps.droidfs_native_cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config git gnupg2 wget npm perl nasm
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          sudo apt-get install -y --no-install-recommends build-essential perl nasm
 
       - name: Build pinned DroidFS native dependencies
+        if: steps.droidfs_native_cache.outputs.cache-hit != 'true'
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
           (cd third_party/droidfs/app/libgocryptfs && ./build.sh)
 
-      # Validation is deliberately non-fail-fast. Each independent category gets
-      # a chance to run so one CI attempt exposes as many problems as possible.
-      # --continue also tells Gradle to keep running tasks that do not depend on
-      # a failed task. A final summary step turns the job red if anything failed.
-      - name: Unit tests
-        id: unit_tests
-        continue-on-error: true
-        run: ./gradlew testDebugUnitTest --continue
+      - name: Save DroidFS native cache
+        if: steps.droidfs_native_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            third_party/droidfs/app/libgocryptfs/build
+            third_party/droidfs/app/libgocryptfs/lib
+            third_party/droidfs/app/libgocryptfs/include
+          key: droidfs-native-${{ runner.os }}-ndk28.2.13676358-go1.24-libgocryptfs-4cf68bded7cfd6cce646516e059b10561589ad2d
 
-      # Against app/lint-baseline.xml, so existing frozen findings remain visible
-      # while new findings are reported in the same CI attempt as tests/builds.
-      - name: Lint
-        id: lint
-        continue-on-error: true
-        run: ./gradlew lintDebug --continue
+      # One Gradle invocation avoids paying configuration/startup cost four times.
+      # --continue keeps every independent task running after a failure, so tests,
+      # lint, debug and release expose as many problems as possible in one CI run.
+      - name: Android validation
+        id: android_validation
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --continue
 
-      - name: Build debug APK
-        id: debug_apk
-        continue-on-error: true
-        run: ./gradlew assembleDebug --continue
-
-      # Also builds the release merged manifest, which is the one that actually
-      # ships, so checkReleasePermissions guards it too. Unsigned without a keystore.
-      - name: Build release APK
-        id: release_apk
-        continue-on-error: true
-        run: ./gradlew assembleRelease --continue
-
-      # A debug artifact is still useful when another independent gate failed.
+      # A debug APK is still useful when tests/lint/release fail independently.
       - name: Checksum the debug APK
-        if: always() && steps.debug_apk.outcome == 'success'
+        if: always() && hashFiles('app/build/outputs/apk/debug/*.apk') != ''
         run: shasum -a 256 app/build/outputs/apk/debug/*.apk
 
-      - if: always() && steps.debug_apk.outcome == 'success'
+      - if: always() && hashFiles('app/build/outputs/apk/debug/*.apk') != ''
         uses: actions/upload-artifact@v4
         with:
           name: gander-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
-      # Always retain reports if any validation gate failed, even when later gates
-      # kept running and produced additional failures.
-      - if: >-
-          always() &&
-          (steps.unit_tests.outcome == 'failure' ||
-           steps.lint.outcome == 'failure' ||
-           steps.debug_apk.outcome == 'failure' ||
-           steps.release_apk.outcome == 'failure')
+      - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: gander-reports
@@ -141,23 +150,9 @@ jobs:
 
       - name: Summarize validation
         if: always()
-        shell: bash
         run: |
-          echo "Unit tests:  ${{ steps.unit_tests.outcome }}"
-          echo "Lint:        ${{ steps.lint.outcome }}"
-          echo "Debug APK:   ${{ steps.debug_apk.outcome }}"
-          echo "Release APK: ${{ steps.release_apk.outcome }}"
-
-          failed=0
-          for result in \
-            "${{ steps.unit_tests.outcome }}" \
-            "${{ steps.lint.outcome }}" \
-            "${{ steps.debug_apk.outcome }}" \
-            "${{ steps.release_apk.outcome }}"
-          do
-            if [ "$result" != "success" ]; then
-              failed=1
-            fi
+          echo "Android validation: ${{ steps.android_validation.outcome }}"
+          echo "Gradle ran unit tests, lint, debug and release in one task graph with --continue."
           done
 
           if [ "$failed" -ne 0 ]; then
