@@ -580,6 +580,47 @@ class VaultShelfUxRegressionTest {
         assertThat(main).doesNotContain("private fun renderVault()")
     }
 
+
+    @Test
+    fun droidFsExplorerUsesVaultShelfVisualShell() {
+        val patch = File(
+            repo,
+            "patches/droidfs-vaultshelf-file-routing.patch",
+        ).readText()
+        val activity = File(
+            repo,
+            "app/src/main/res/layout/activity_explorer.xml",
+        ).readText()
+        val listItem = File(
+            repo,
+            "app/src/main/res/layout/adapter_explorer_element_list.xml",
+        ).readText()
+        val gridItem = File(
+            repo,
+            "app/src/main/res/layout/adapter_explorer_element_grid.xml",
+        ).readText()
+        val infoBar = File(
+            repo,
+            "app/src/main/res/layout/explorer_info_bar.xml",
+        ).readText()
+        val theme = File(
+            repo,
+            "app/src/main/res/values/themes.xml",
+        ).readText()
+
+        assertThat(patch).contains("applyCustomTheme = false")
+        assertThat(activity).contains("?attr/colorSurface")
+        assertThat(activity).contains("@layout/explorer_info_bar")
+        assertThat(listItem).contains("@drawable/vaultshelf_explorer_item_background")
+        assertThat(gridItem).contains("@drawable/vaultshelf_explorer_item_background")
+        assertThat(listItem).contains("ShapeableImageView")
+        assertThat(gridItem).contains("ShapeableImageView")
+        assertThat(infoBar).contains("@+id/layout_icon")
+        assertThat(infoBar).contains("<ImageButton")
+        assertThat(theme).contains("ShapeAppearance.Gander.ExplorerPreview")
+        assertThat(theme).contains("name=\"menuIconColor\"")
+    }
+
     @Test
     fun fileImportToVaultPreservesExistingLibraryIdentity() {
         val target = File(

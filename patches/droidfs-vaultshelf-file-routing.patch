@@ -800,3 +800,17 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity
 @@ -27 +27 @@
 -class ExplorerActivity : BaseExplorerActivity() {
 +open class ExplorerActivity : BaseExplorerActivity() {
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
+@@ -55,5 +55,9 @@
+ 
+ open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener {
++    init {
++        applyCustomTheme = false
++    }
++
+     private lateinit var sortOrderEntries: Array<String>
+     private lateinit var sortOrderValues: Array<String>
+     private var foldersFirst = true

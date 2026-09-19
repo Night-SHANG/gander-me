@@ -31,6 +31,7 @@ class ExternalExplorerActivity : ExplorerActivity() {
         val result = super.onCreateOptionsMenu(menu)
 
         menu.findItem(DroidFsR.id.lock)?.isVisible = false
+        menu.findItem(DroidFsR.id.close)?.isVisible = false
         menu.findItem(DroidFsR.id.decrypt)?.isVisible = false
         menu.findItem(DroidFsR.id.unsafe_features)?.isVisible = false
 
