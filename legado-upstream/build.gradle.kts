@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         minSdk = 26
-        consumerProguardFiles("consumer-rules.pro")
+        consumerProguardFiles("consumer-rules.pro", "cronet-consumer-rules.pro")
 
         buildConfigField("String", "Cronet_Version", "\"153.0.8010.27\"")
         buildConfigField("String", "Cronet_Main_Version", "\"153.0.0.0\"")

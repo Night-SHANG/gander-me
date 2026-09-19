@@ -66,3 +66,10 @@ org.htmlunit.corejs.javascript.** { *; }
 -dontwarn java.lang.management.RuntimeMXBean
 -dontwarn com.gemalto.jp2.JP2Decoder
 
+
+
+# Markwon HTML treats the CommonMark GFM strikethrough extension as optional.
+# Its StrikeHandler probes the class with Class.forName and falls back to
+# android.text.style.StrikethroughSpan when the extension is absent. This is
+# the same scoped rule used by the pinned Legado release configuration.
+-dontwarn org.commonmark.ext.gfm.**
