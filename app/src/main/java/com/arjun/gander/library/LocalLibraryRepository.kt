@@ -306,7 +306,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
                     ?: return@forEach
                 if (candidateHash == contentSha256) {
                     return if (candidate.contentSha256 == null) {
-                        candidate.copy(contentSha256 = candidateHash).also(::saveBook)
+                        candidate.copy(contentSha256 = candidateHash).also { saveBook(it) }
                     } else {
                         candidate
                     }

@@ -194,8 +194,8 @@ val permissionAllowlist = setOf(
     "android.permission.WAKE_LOCK",
     "android.permission.READ_PHONE_STATE",
 
-    // DroidFS' original vault implementation. Biometric/camera permissions are only
-    // requested at runtime when the corresponding upstream feature is used.
+    // DroidFS' original vault implementation. Biometric unlock stays available.
+    // Its optional encrypted camera/recording stack is deliberately not shipped by VaultShelf.
     "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
     "android.permission.POST_NOTIFICATIONS",
     "android.permission.USE_BIOMETRIC",

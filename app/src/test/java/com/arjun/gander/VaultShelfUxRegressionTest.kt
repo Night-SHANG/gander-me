@@ -127,10 +127,18 @@ class VaultShelfUxRegressionTest {
             "app/src/main/java/com/arjun/gander/FileDispatchActivity.kt",
         ).readText()
 
-        val cleanupBarrier = bridge.indexOf("ensureTransientStartupCleanup(context)")
-        val importPreview = bridge.indexOf("val preview = LocalBook.previewImportFile(uri)", cleanupBarrier)
+        val transientSession = bridge
+            .substringAfter("fun createTransientBookSession(")
+            .substringBefore("fun restoreTransientReadingPosition")
+        val persistentSession = bridge
+            .substringAfter("fun ensurePersistentUriBook(")
+            .substringBefore("fun createTransientBookSession(")
+
+        val cleanupBarrier = transientSession.indexOf("ensureTransientStartupCleanup(context)")
+        val importPreview = transientSession.indexOf("val preview = LocalBook.previewImportFile(uri)")
         assertThat(cleanupBarrier).isAtLeast(0)
         assertThat(importPreview).isGreaterThan(cleanupBarrier)
+        assertThat(persistentSession).doesNotContain("ensureTransientStartupCleanup(context)")
         assertThat(dispatcher).doesNotContain("ensurePersistentUriBook")
         assertThat(dispatcher).contains("createTransientBookSession")
     }

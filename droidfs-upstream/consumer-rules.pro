@@ -13,12 +13,6 @@
     static sushi.hardcore.droidfs.explorers.ExplorerElement new(...);
 }
 
-# Native mux callbacks are looked up from the FFmpeg bridge.
--keepclassmembers class sushi.hardcore.droidfs.video_recording.FFmpegMuxer {
-    void writePacket(byte[]);
-    void seek(long);
-}
-
 # Keep all JNI entry points and their declaring classes addressable by native code.
 -keepclasseswithmembernames class * {
     native <methods>;

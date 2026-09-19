@@ -245,7 +245,6 @@ object LegadoReaderBridge {
         uri: Uri,
     ): LocalBookSnapshot {
         initialize(context)
-        ensureTransientStartupCleanup(context)
         ensureLocalTxtTocRules()
         val preview = LocalBook.previewImportFile(uri)
         val book = appDb.bookDao.getBook(preview.bookUrl)
@@ -264,6 +263,7 @@ object LegadoReaderBridge {
         uri: Uri,
     ): TransientBookSession {
         initialize(context)
+        ensureTransientStartupCleanup(context)
         ensureLocalTxtTocRules()
         val preview = LocalBook.previewImportFile(uri)
         val existing = appDb.bookDao.getBook(preview.bookUrl)
