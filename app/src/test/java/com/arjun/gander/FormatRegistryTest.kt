@@ -222,8 +222,6 @@ class FormatRegistryTest {
             "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
             "android.permission.POST_NOTIFICATIONS",
             "android.permission.USE_BIOMETRIC",
-            "android.permission.CAMERA",
-            "android.permission.RECORD_AUDIO",
             "android.permission.MANAGE_EXTERNAL_STORAGE",
             "android.permission.WRITE_EXTERNAL_STORAGE",
         )
