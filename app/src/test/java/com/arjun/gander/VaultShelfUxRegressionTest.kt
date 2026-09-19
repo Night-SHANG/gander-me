@@ -556,6 +556,13 @@ class VaultShelfUxRegressionTest {
         assertThat(library).contains("onImportToVault")
         assertThat(library).contains("vaultshelf_library_import_to_vault")
         assertThat(activity).contains("VaultModeActivity.EXTRA_IMPORT_BOOK_IDS")
+        val mode = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
+        assertThat(mode).contains("VaultShelfProgressStore.fileKey")
+        assertThat(mode).contains("BookReadingPositions.save")
+        assertThat(mode).contains("LegadoReaderBridge.snapshot")
     }
     @Test
     fun vaultFormatsUseTheMatureViewerForEachDomain() {

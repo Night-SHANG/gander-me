@@ -13,11 +13,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.lifecycleScope
+import com.arjun.gander.BookReadingPositions
 import com.arjun.gander.R
 import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfFileRouter
+import com.vaultshelf.droidfs.VaultShelfProgressStore
+import com.vaultshelf.legado.LegadoReaderBridge
 import java.util.ArrayList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -98,12 +101,13 @@ class VaultModeActivity : AppCompatActivity() {
         setContentView(root)
 
         if (importIds.isNotEmpty()) {
-            importExternalLibraryBooks(importIds, libraryStore)
+            importExternalLibraryBooks(importIds, fileRepository, libraryStore)
         }
     }
 
     private fun importExternalLibraryBooks(
         ids: List<String>,
+        fileRepository: VaultFileRepository,
         libraryStore: VaultLibraryStore,
     ) {
         val localRepository = LocalLibraryRepository(applicationContext)
@@ -123,7 +127,21 @@ class VaultModeActivity : AppCompatActivity() {
                         return@forEach
                     }
                     runCatching {
-                        libraryStore.importExternalLibraryBook(book, source)
+                        val vaultBook = libraryStore.importExternalLibraryBook(book, source)
+                        book.legadoBookUrl?.let { bookUrl ->
+                            LegadoReaderBridge.snapshot(applicationContext, bookUrl)?.let { snapshot ->
+                                BookReadingPositions.save(
+                                    applicationContext,
+                                    VaultShelfProgressStore.fileKey(
+                                        fileRepository.volumeUuid,
+                                        vaultBook.path,
+                                    ),
+                                    snapshot.chapterIndex,
+                                    snapshot.chapterPosition,
+                                )
+                            }
+                        }
+                        vaultBook
                     }.onSuccess {
                         imported += id
                     }.onFailure {
