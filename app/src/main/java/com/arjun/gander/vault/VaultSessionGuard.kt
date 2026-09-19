@@ -2,18 +2,17 @@ package com.arjun.gander.vault
 
 import android.app.Activity
 import android.app.Application
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.WindowManager
+import androidx.core.net.toUri
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import io.legado.app.model.ReadAloud
 import io.legado.app.model.ReadBook
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
 import sushi.hardcore.droidfs.VolumeData
-import sushi.hardcore.droidfs.VolumeManager
 import sushi.hardcore.droidfs.VolumeManagerApp
 
 /**
@@ -36,7 +35,6 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
 
     @Volatile
     private var initialized = false
-    private var volumeManager: VolumeManager? = null
     private var application: VolumeManagerApp? = null
 
     @Synchronized
@@ -44,7 +42,6 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
         if (initialized) return
         initialized = true
         this.application = application
-        volumeManager = application.volumeManager
         application.volumeManager.observe(this)
         application.registerActivityLifecycleCallbacks(this)
     }
@@ -80,7 +77,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
 
     private fun enforce(token: String) {
         val session = sessions[token] ?: return
-        val manager = volumeManager ?: return
+        val manager = application?.volumeManager ?: return
         if (manager.getVolume(session.volumeId) != null) return
 
         stopVaultReadAloudIfNeeded()
@@ -101,7 +98,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
         val context = application ?: return
         val authority = ReadBook.book
             ?.bookUrl
-            ?.let { runCatching { Uri.parse(it).authority }.getOrNull() }
+            ?.let { runCatching { it.toUri().authority }.getOrNull() }
         if (authority?.endsWith(".temporary_provider") == true) {
             ReadAloud.stop(context)
         }

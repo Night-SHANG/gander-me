@@ -82,9 +82,6 @@
     <string name="vaultshelf_vault_card">Private vault</string>
     <string name="vaultshelf_offline_badge">Offline by design</string>
     <string name="vaultshelf_action_browse_files">Browse files</string>
-    <string name="vaultshelf_files_title">Files</string>
-    <string name="vaultshelf_files_detail">Use the mature local file browser and document viewer.</string>
-    <string name="vaultshelf_open_file_browser">Open file browser</string>
 
     <string name="vaultshelf_library_title">Library</string>
     <string name="vaultshelf_library_import_book">Import book</string>
@@ -115,19 +112,7 @@
     <string name="vaultshelf_library_list_meta">%1$s · %2$s · %3$d%%</string>
     <string name="vaultshelf_library_cover_description">Cover for %1$s</string>
     <string name="vaultshelf_untitled_book">Untitled book</string>
-
-    <string name="vaultshelf_reader_title">Reader</string>
-    <string name="vaultshelf_reader_load_failed">This book could not be opened.</string>
     <string name="vaultshelf_reader_progress">%1$d%%</string>
-    <string name="vaultshelf_reader_start">Start</string>
-    <string name="vaultshelf_reader_contents">Contents</string>
-    <string name="vaultshelf_reader_font_smaller" translatable="false">A−</string>
-    <string name="vaultshelf_reader_font_larger" translatable="false">A+</string>
-    <string name="vaultshelf_epub_theme_light">Light</string>
-    <string name="vaultshelf_epub_theme_sepia">Sepia</string>
-    <string name="vaultshelf_epub_theme_dark">Dark</string>
-
-    <string name="vaultshelf_vault_title">Private vault</string>
     <string name="vaultshelf_settings_title">Settings</string>
     <string name="vaultshelf_settings_vault">Vault settings</string>
     <string name="vaultshelf_settings_vault_detail">Open DroidFS security, biometric unlock, auto-lock and vault behavior settings.</string>

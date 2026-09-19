@@ -78,9 +78,6 @@
     <string name="vaultshelf_vault_card">私人保险库</string>
     <string name="vaultshelf_offline_badge">离线优先</string>
     <string name="vaultshelf_action_browse_files">浏览文件</string>
-    <string name="vaultshelf_files_title">文件</string>
-    <string name="vaultshelf_files_detail">使用成熟的本地文件浏览器和文档查看器。</string>
-    <string name="vaultshelf_open_file_browser">打开文件浏览器</string>
 
     <string name="vaultshelf_library_title">书库</string>
     <string name="vaultshelf_library_import_book">导入书籍</string>
@@ -110,17 +107,7 @@
     <string name="vaultshelf_library_list_meta">%1$s · %2$s · %3$d%%</string>
     <string name="vaultshelf_library_cover_description">%1$s 的封面</string>
     <string name="vaultshelf_untitled_book">未命名书籍</string>
-
-    <string name="vaultshelf_reader_title">阅读器</string>
-    <string name="vaultshelf_reader_load_failed">无法打开这本书。</string>
     <string name="vaultshelf_reader_progress">%1$d%%</string>
-    <string name="vaultshelf_reader_start">正文</string>
-    <string name="vaultshelf_reader_contents">目录</string>
-    <string name="vaultshelf_epub_theme_light">浅色</string>
-    <string name="vaultshelf_epub_theme_sepia">护眼</string>
-    <string name="vaultshelf_epub_theme_dark">深色</string>
-
-    <string name="vaultshelf_vault_title">私人保险库</string>
     <string name="vaultshelf_settings_title">设置</string>
     <string name="vaultshelf_settings_vault">保险库设置</string>
     <string name="vaultshelf_settings_vault_detail">直接打开 DroidFS 原安全设置，包括生物识别解锁、自动锁定和保险库行为。</string>
