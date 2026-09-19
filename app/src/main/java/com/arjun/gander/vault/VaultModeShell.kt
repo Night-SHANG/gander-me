@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -29,8 +31,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,10 +46,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -95,27 +97,38 @@ fun VaultModeShell(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar {
-                VaultNavItem(
-                    selected == VaultModeDestination.HOME,
-                    R.drawable.ic_vaultshelf_home,
-                    R.string.vaultshelf_nav_home,
-                ) { selectedName = VaultModeDestination.HOME.name }
-                VaultNavItem(
-                    selected == VaultModeDestination.LIBRARY,
-                    R.drawable.ic_vaultshelf_library,
-                    R.string.vaultshelf_nav_library,
-                ) { selectedName = VaultModeDestination.LIBRARY.name }
-                VaultNavItem(
-                    false,
-                    R.drawable.ic_vaultshelf_files,
-                    R.string.vaultshelf_nav_files,
-                ) { onOpenFiles() }
-                VaultNavItem(
-                    selected == VaultModeDestination.SETTINGS,
-                    R.drawable.ic_vaultshelf_settings,
-                    R.string.vaultshelf_nav_settings,
-                ) { selectedName = VaultModeDestination.SETTINGS.name }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 6.dp,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    VaultNavItem(
+                        selected == VaultModeDestination.HOME,
+                        R.drawable.ic_vaultshelf_home,
+                        R.string.vaultshelf_nav_home,
+                    ) { selectedName = VaultModeDestination.HOME.name }
+                    VaultNavItem(
+                        selected == VaultModeDestination.LIBRARY,
+                        R.drawable.ic_vaultshelf_library,
+                        R.string.vaultshelf_nav_library,
+                    ) { selectedName = VaultModeDestination.LIBRARY.name }
+                    VaultNavItem(
+                        false,
+                        R.drawable.ic_vaultshelf_files,
+                        R.string.vaultshelf_nav_files,
+                    ) { onOpenFiles() }
+                    VaultNavItem(
+                        selected == VaultModeDestination.SETTINGS,
+                        R.drawable.ic_vaultshelf_settings,
+                        R.string.vaultshelf_nav_settings,
+                    ) { selectedName = VaultModeDestination.SETTINGS.name }
+                }
             }
         },
     ) { innerPadding ->
@@ -185,24 +198,47 @@ fun VaultModeShell(
 }
 
 @Composable
-private fun VaultNavItem(
+private fun RowScope.VaultNavItem(
     selected: Boolean,
     iconRes: Int,
     labelRes: Int,
     onClick: () -> Unit,
 ) {
-    NavigationBarItem(
-        selected = selected,
-        onClick = onClick,
-        icon = {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(22.dp),
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                else Color.Transparent,
             )
-        },
-        label = { Text(stringResource(labelRes)) },
-    )
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.Tab,
+            )
+            .padding(horizontal = 3.dp, vertical = 7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = contentColor,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(
+            text = stringResource(labelRes),
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable
