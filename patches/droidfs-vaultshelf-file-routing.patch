@@ -726,8 +726,8 @@ diff --git a/app/src/main/java/androidx/camera/video/internal/encoder/SucklessEn
 similarity index 100%
 rename from app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java
 rename to app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java.vaultshelf-disabled
-diff --git a/app/src/main/res/layout/activity_camera.xml b/app/src/main/res/layout/activity_camera.xml.vaultshelf-disabled
+diff --git a/app/src/main/res/layout/activity_camera.xml b/app/src/main/vaultshelf-disabled/activity_camera.xml
 similarity index 100%
 rename from app/src/main/res/layout/activity_camera.xml
-rename to app/src/main/res/layout/activity_camera.xml.vaultshelf-disabled
+rename to app/src/main/vaultshelf-disabled/activity_camera.xml
 # VaultShelf disables DroidFS camera capture: hidden-volume storage/import/export remain intact.
