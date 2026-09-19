@@ -1,4 +1,5 @@
 import java.io.ByteArrayOutputStream
+import org.gradle.api.tasks.compile.JavaCompile
 
 plugins {
     id("com.android.library")
@@ -53,8 +54,9 @@ android {
             java.srcDir("../third_party/droidfs/app/src/main/java")
             res.srcDir("../third_party/droidfs/app/src/main/res")
             manifest.srcFile("src/main/AndroidManifest.xml")
-            // Unused upstream sources are renamed to non-source suffixes by the reviewed
-            // DroidFS patch. AndroidSourceDirectorySet no longer exposes source excludes.
+            // DroidFS upstream keeps androidx/camera/video/originals/** only as a
+            // reference snapshot of CameraX. The upstream app excludes it from compilation;
+            // VaultShelf mirrors that rule below at the JavaCompile task level.
         }
     }
 
@@ -73,6 +75,14 @@ android {
         abortOnError = false
         disable += setOf("GradleDependency", "NewerVersionAvailable")
     }
+}
+
+// DroidFS upstream excludes this reference snapshot from its own source set. Our Android
+// library source-set API does not expose Groovy's exclude DSL directly, so apply the same
+// exclusion to every Java compile task. This prevents duplicate CameraX classes (for example
+// androidx.camera.video.Recording) from entering the library jar used by release R8.
+tasks.withType<JavaCompile>().configureEach {
+    exclude("androidx/camera/video/originals/**")
 }
 
 dependencies {
