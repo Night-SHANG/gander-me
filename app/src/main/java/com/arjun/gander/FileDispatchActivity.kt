@@ -344,13 +344,13 @@ class FileDispatchActivity : ComponentActivity() {
 }
 
 internal object EbookDispatch {
-    private val extensions = setOf("txt", "epub", "umd", "mobi", "azw3", "azw")
-    private val mimeTypes = setOf(
+    private val EBOOK_EXTENSIONS = setOf("txt", "epub", "umd", "mobi", "azw3", "azw")
+    private val EBOOK_MIME_TYPES = setOf(
         "application/epub+zip",
         "application/x-mobipocket-ebook",
         "application/vnd.amazon.ebook",
     )
 
     fun supports(extension: String, mime: String?): Boolean =
-        extension in extensions || mime in mimeTypes
+        extension in EBOOK_EXTENSIONS || mime in EBOOK_MIME_TYPES
 }
