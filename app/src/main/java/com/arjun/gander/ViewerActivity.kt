@@ -383,6 +383,7 @@ class ViewerActivity : AppCompatActivity() {
      * because it needs a resolver; the rest is provider id string work and
      * lives in StorageUris.kt.
      */
+    @SuppressLint("Recycle")
     private fun containingFolder(uri: Uri): Uri? = parentDocUri(
         uri,
         Environment.getExternalStorageDirectory().absolutePath
@@ -1156,6 +1157,7 @@ class ViewerActivity : AppCompatActivity() {
         }.getOrNull()
     }
 
+    @SuppressLint("Recycle")
     private fun resolveDisplayName(uri: Uri): String {
         if (uri.scheme == "content") {
             runCatching {

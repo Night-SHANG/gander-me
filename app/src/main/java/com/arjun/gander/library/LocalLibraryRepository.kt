@@ -109,6 +109,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         }.getOrNull()
     }
 
+    @android.annotation.SuppressLint("Recycle")
     private fun importFile(
         uri: Uri,
         format: BookFormat,
@@ -252,6 +253,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         if (!exists() && !mkdirs()) throw IOException("Unable to create library directory")
     }
 
+    @android.annotation.SuppressLint("Recycle")
     private fun displayName(uri: Uri): String {
         runCatching {
             appContext.contentResolver.query(

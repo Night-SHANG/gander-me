@@ -576,6 +576,7 @@ class MainActivity : AppCompatActivity() {
         return Screen(rows)
     }
 
+    @android.annotation.SuppressLint("Recycle")
     private fun folderRows(crumb: Crumb): Screen {
         val children = mutableListOf<ChildDoc>()
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(

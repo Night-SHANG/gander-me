@@ -317,6 +317,7 @@ class FileDispatchActivity : ComponentActivity() {
         val mime: String?,
     )
 
+    @android.annotation.SuppressLint("Recycle")
     private fun metadata(uri: Uri): Metadata {
         var name = uri.lastPathSegment.orEmpty()
         var size = -1L

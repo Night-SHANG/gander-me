@@ -152,6 +152,7 @@ class VaultContentActivity : ComponentActivity() {
             }
     }
 
+    @android.annotation.SuppressLint("Recycle")
     private fun displayName(uri: Uri): String {
         return runCatching {
             contentResolver.query(

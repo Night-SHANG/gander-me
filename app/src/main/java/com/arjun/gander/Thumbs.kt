@@ -142,6 +142,7 @@ object Thumbs {
         }
     }
 
+    @android.annotation.SuppressLint("Recycle")
     private fun pdfThumb(ctx: Context, uri: Uri): Bitmap? {
         val pfd = ctx.contentResolver.openFileDescriptor(uri, "r") ?: return null
         pfd.use {
