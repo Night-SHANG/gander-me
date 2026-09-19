@@ -13,6 +13,7 @@ import io.legado.app.model.ReadBook
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
 import sushi.hardcore.droidfs.VolumeData
+import sushi.hardcore.droidfs.VolumeManager
 import sushi.hardcore.droidfs.VolumeManagerApp
 
 /**
