@@ -85,43 +85,82 @@ jobs:
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
           (cd third_party/droidfs/app/libgocryptfs && ./build.sh)
 
-      # Ahead of the builds: a compile error or a broken assertion should be
-      # reported as such, not as a failure somewhere inside assembleRelease.
+      # Validation is deliberately non-fail-fast. Each independent category gets
+      # a chance to run so one CI attempt exposes as many problems as possible.
+      # --continue also tells Gradle to keep running tasks that do not depend on
+      # a failed task. A final summary step turns the job red if anything failed.
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest
+        id: unit_tests
+        continue-on-error: true
+        run: ./gradlew testDebugUnitTest --continue
 
-      # Against app/lint-baseline.xml, so the 39 issues that were already here
-      # stay visible in the report without blocking anything, and a new one
-      # fails the build.
+      # Against app/lint-baseline.xml, so existing frozen findings remain visible
+      # while new findings are reported in the same CI attempt as tests/builds.
       - name: Lint
-        run: ./gradlew lintDebug
+        id: lint
+        continue-on-error: true
+        run: ./gradlew lintDebug --continue
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        id: debug_apk
+        continue-on-error: true
+        run: ./gradlew assembleDebug --continue
 
       # Also builds the release merged manifest, which is the one that actually
       # ships, so checkReleasePermissions guards it too. Unsigned without a keystore.
       - name: Build release APK
-        run: ./gradlew assembleRelease
+        id: release_apk
+        continue-on-error: true
+        run: ./gradlew assembleRelease --continue
 
-      # Printed into the log so a tester handed the artifact link can confirm the
-      # file they unzipped is the one this run produced, rather than taking it on
-      # trust. GitHub rewraps artifacts in its own zip, so the hash is of the APK
-      # inside, not of the download.
+      # A debug artifact is still useful when another independent gate failed.
       - name: Checksum the debug APK
+        if: always() && steps.debug_apk.outcome == 'success'
         run: shasum -a 256 app/build/outputs/apk/debug/*.apk
 
-      - uses: actions/upload-artifact@v4
+      - if: always() && steps.debug_apk.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: gander-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
-      # Only on failure, and only the reports: the HTML test report says which
-      # assertion went and with what, which a log tail does not.
-      - if: failure()
+      # Always retain reports if any validation gate failed, even when later gates
+      # kept running and produced additional failures.
+      - if: >-
+          always() &&
+          (steps.unit_tests.outcome == 'failure' ||
+           steps.lint.outcome == 'failure' ||
+           steps.debug_apk.outcome == 'failure' ||
+           steps.release_apk.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: gander-reports
           path: app/build/reports/
           retention-days: 7
+
+      - name: Summarize validation
+        if: always()
+        shell: bash
+        run: |
+          echo "Unit tests:  ${{ steps.unit_tests.outcome }}"
+          echo "Lint:        ${{ steps.lint.outcome }}"
+          echo "Debug APK:   ${{ steps.debug_apk.outcome }}"
+          echo "Release APK: ${{ steps.release_apk.outcome }}"
+
+          failed=0
+          for result in \
+            "${{ steps.unit_tests.outcome }}" \
+            "${{ steps.lint.outcome }}" \
+            "${{ steps.debug_apk.outcome }}" \
+            "${{ steps.release_apk.outcome }}"
+          do
+            if [ "$result" != "success" ]; then
+              failed=1
+            fi
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            echo "One or more validation gates failed; see all logs above and uploaded reports."
+            exit 1
+          fi
