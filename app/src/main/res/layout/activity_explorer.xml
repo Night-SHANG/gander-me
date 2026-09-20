@@ -44,7 +44,6 @@
         android:layout_height="wrap_content"
         android:background="@color/gander_surface_container_low"
         android:visibility="gone"
-        app:itemActiveIndicatorColor="@color/gander_primary_container"
         app:itemIconTint="@color/vaultshelf_explorer_nav_item_tint"
         app:itemTextColor="@color/vaultshelf_explorer_nav_item_tint"
         app:labelVisibilityMode="labeled"
