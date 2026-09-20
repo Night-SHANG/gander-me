@@ -674,10 +674,11 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.k
          explorerIntent.putExtra("volumeId", volumeId)
          explorerIntent.putExtra("volumeName", volumeShortName)
 
+
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
-@@ -24,3 +24,7 @@
+@@ -24,22 +24,43 @@
      protected lateinit var sharedPrefs: SharedPreferences
      protected var applyCustomTheme: Boolean = true
      lateinit var theme: Theme
@@ -685,10 +686,21 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt b/app/src/
 +        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
 +            if (key == "usf_screenshot") applyScreenshotPolicy()
 +        }
-@@ -40,6 +44,23 @@
+ 
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
+         sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this)
+         theme = Theme.fromSharedPrefs(sharedPrefs)
+         if (applyCustomTheme) {
+             setTheme(theme.toResourceId())
+         }
+         if (applyCustomTheme && theme.color == "dynamic") {
+             enableEdgeToEdge()
+         } else {
+             enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
+         }
 -        if (!sharedPrefs.getBoolean("usf_screenshot", false)) {
 -            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
--        }
 +        applyScreenshotPolicy()
 +    }
 +
@@ -697,9 +709,9 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt b/app/src/
 +            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
 +        } else {
 +            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-+        }
-+    }
-+
+         }
+     }
+ 
 +    override fun onStart() {
 +        super.onStart()
 +        sharedPrefs.registerOnSharedPreferenceChangeListener(screenshotPreferenceListener)
@@ -709,8 +721,8 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt b/app/src/
 +    override fun onStop() {
 +        sharedPrefs.unregisterOnSharedPreferenceChangeListener(screenshotPreferenceListener)
 +        super.onStop()
-     }
- 
++    }
++
      override fun onPostCreate(savedInstanceState: Bundle?) {
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
@@ -802,19 +814,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
      private lateinit var sortOrderEntries: Array<String>
      private lateinit var sortOrderValues: Array<String>
      private var foldersFirst = true
-@@ -115,9 +119,5 @@
-         explorerAdapter = ExplorerElementAdapter(
-             this,
--            if (sharedPrefs.getBoolean("thumbnails", true)) {
--                app.volumeManager.getImageLoader(volumeId)
--            } else {
--                null
--            },
-+            app.volumeManager.getImageLoader(volumeId),
-             this,
--        )
-+        ).apply { loadThumbnails = sharedPrefs.getBoolean("thumbnails", true) }
-@@ -247,7 +247,7 @@
+@@ -247,7 +251,7 @@
                      "image" -> startFileViewer(ImageViewer::class.java, path)
                      "video" -> startFileViewer(VideoPlayer::class.java, path)
                      "audio" -> startFileViewer(AudioPlayer::class.java, path)
@@ -823,7 +823,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                      "text" -> startFileViewer(TextEditor::class.java, path)
                      "external" -> if (usf_open) {
                          openWithExternalApp(path, explorerElement.stat.size)
-@@ -304,6 +304,15 @@
+@@ -304,6 +308,15 @@
                  explorerElements[position].isParentFolder -> {
                      changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
                  }
@@ -839,7 +839,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                  FileTypes.isImage(fullPath) -> {
                      startFileViewer(ImageViewer::class.java, fullPath)
                  }
-@@ -313,9 +322,6 @@
+@@ -313,9 +326,6 @@
                  FileTypes.isText(fullPath) -> {
                      startFileViewer(TextEditor::class.java, fullPath)
                  }
@@ -849,20 +849,27 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                  FileTypes.isAudio(fullPath) -> {
                      startFileViewer(AudioPlayer::class.java, fullPath)
                  }
-@@ -716,5 +722,13 @@
+@@ -716,7 +726,20 @@
      override fun onResume() {
          super.onResume()
++        val thumbnailsEnabled = sharedPrefs.getBoolean("thumbnails", true)
++        if (thumbnailsEnabled != (explorerAdapter.thumbnailsLoader != null)) {
++            recreate()
++            return
++        }
 +        foldersFirst = sharedPrefs.getBoolean("folders_first", true)
 +        mapFolders = sharedPrefs.getBoolean("map_folders", true)
 +        loadUnsafeFeatures()
 +        currentSortOrderIndex = sortOrderValues.indexOf(
 +            sharedPrefs.getString(Constants.SORT_ORDER_KEY, "name"),
 +        ).coerceAtLeast(0)
-+        explorerAdapter.loadThumbnails = sharedPrefs.getBoolean("thumbnails", true)
++        explorerAdapter.loadThumbnails = thumbnailsEnabled
 +        invalidateOptionsMenu()
          if (app.isStartingExternalApp) {
              TemporaryFileProvider.instance.wipe()
          }
+         refreshCurrentDirectory()
+     }
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
@@ -873,14 +880,19 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity
  import sushi.hardcore.droidfs.LoadingTask
  import sushi.hardcore.droidfs.MainActivity
  import sushi.hardcore.droidfs.R
-@@ -27,2 +26,2 @@
+@@ -27,9 +26,10 @@
 -class ExplorerActivity : BaseExplorerActivity() {
 +open class ExplorerActivity : BaseExplorerActivity() {
      companion object {
-@@ -34,1 +33,2 @@
+         private enum class ItemsActions {NONE, COPY, MOVE}
+     }
+ 
+     private var usf_decrypt = false
+     private var usf_share = false
 -    private val proposeWipe by lazy { sharedPrefs.getBoolean("propose_wipe_imported_files", true) }
 +    private val proposeWipe: Boolean
 +        get() = sharedPrefs.getBoolean("propose_wipe_imported_files", true)
+     private var currentItemAction = ItemsActions.NONE
 @@ -187,8 +187,7 @@
                      listOf("importFiles", R.string.import_files, R.drawable.icon_encrypt),
                      listOf("importFolder", R.string.import_folder, R.drawable.icon_import_folder),
