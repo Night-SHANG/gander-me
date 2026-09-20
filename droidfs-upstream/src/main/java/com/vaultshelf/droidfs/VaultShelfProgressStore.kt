@@ -5,6 +5,7 @@ import android.util.AtomicFile
 import java.io.File
 import java.security.MessageDigest
 import sushi.hardcore.droidfs.VolumeManagerApp
+import sushi.hardcore.droidfs.util.PathUtils
 
 /**
  * VaultShelf metadata layered beside DroidFS. No plaintext names or paths are persisted.
@@ -19,14 +20,27 @@ object VaultShelfProgressStore {
         "v1-" + digest(volumeUuid.toByteArray()).copyOfRange(0, 8).toHex()
 
     fun fileKey(volumeUuid: String, path: String): String =
-        volumePrefix(volumeUuid) + ":" + legacyFileKey(volumeUuid, path)
+        volumePrefix(volumeUuid) + ":" + hashedPathKey(volumeUuid, canonicalPath(path))
 
-    fun legacyFileKey(volumeUuid: String, path: String): String {
+    /** Key used by builds before path canonicalization. Kept as a migration alias. */
+    fun previousFileKey(volumeUuid: String, path: String): String =
+        volumePrefix(volumeUuid) + ":" + hashedPathKey(volumeUuid, path)
+
+    /** Oldest unprefixed key, also kept for migration. */
+    fun legacyFileKey(volumeUuid: String, path: String): String =
+        hashedPathKey(volumeUuid, path)
+
+    private fun hashedPathKey(volumeUuid: String, path: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
         digest.update(volumeUuid.toByteArray())
         digest.update(0)
         digest.update(path.toByteArray())
         return digest.digest().copyOfRange(0, 16).toHex()
+    }
+
+    private fun canonicalPath(path: String): String {
+        val absolute = if (path.startsWith('/')) path else "/$path"
+        return PathUtils.normalizePath(absolute).ifBlank { "/" }
     }
 
     fun plainMediaPosition(context: Context, opaqueContentKey: String): Long =
@@ -60,9 +74,10 @@ object VaultShelfProgressStore {
         path: String,
     ): Long {
         val current = fileKey(volumeUuid, path)
+        val previous = previousFileKey(volumeUuid, path)
         val legacy = legacyFileKey(volumeUuid, path)
         return load(context)
-            .firstOrNull { it.key == current || it.key == legacy }
+            .firstOrNull { it.key == current || it.key == previous || it.key == legacy }
             ?.positionMs
             ?: 0L
     }
@@ -86,8 +101,9 @@ object VaultShelfProgressStore {
         durationMs: Long,
     ) {
         val key = fileKey(volumeUuid, path)
+        val previous = previousFileKey(volumeUuid, path)
         val legacy = legacyFileKey(volumeUuid, path)
-        savePosition(context, key, setOf(legacy), positionMs, durationMs)
+        savePosition(context, key, setOf(previous, legacy), positionMs, durationMs)
     }
 
     fun exportOpaque(context: Context, volumeUuid: String? = null): ByteArray {

@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.AtomicFile
 import java.io.File
+import java.io.InputStream
 import java.security.MessageDigest
 
 /**
@@ -55,22 +56,32 @@ object Positions {
      * [length] is its size as the provider reported it, or -1.
      */
     fun keyFor(resolver: ContentResolver, uri: Uri, length: Long): String? = runCatching {
+        val input = resolver.openInputStream(uri) ?: return null
+        input.use { fingerprint(it, length) }
+    }.getOrNull()
+
+    /**
+     * Same identity as [keyFor] for VaultShelf's app-private library copy.
+     * Importing a file into the library must not create a second reading identity.
+     */
+    fun keyFor(file: File): String? = runCatching {
+        file.inputStream().use { fingerprint(it, file.length()) }
+    }.getOrNull()
+
+    private fun fingerprint(input: InputStream, length: Long): String? {
         val head = ByteArray(HEAD_BYTES)
         var filled = 0
-        val input = resolver.openInputStream(uri) ?: return null
-        input.use {
-            while (filled < head.size) {
-                val n = it.read(head, filled, head.size - filled)
-                if (n < 0) break
-                filled += n
-            }
+        while (filled < head.size) {
+            val n = input.read(head, filled, head.size - filled)
+            if (n < 0) break
+            filled += n
         }
         if (filled == 0) return null
         val digest = MessageDigest.getInstance("SHA-256")
         digest.update(head, 0, filled)
         digest.update(length.toString().toByteArray())
-        digest.digest().take(16).joinToString("") { "%02x".format(it) }
-    }.getOrNull()
+        return digest.digest().take(16).joinToString("") { "%02x".format(it) }
+    }
 
     /** The page to open the document under [key] at, or 0 for the top. */
     fun page(context: Context, key: String): Int =

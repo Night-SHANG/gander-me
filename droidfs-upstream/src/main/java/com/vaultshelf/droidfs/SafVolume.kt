@@ -342,6 +342,8 @@ class SafVolume(
         return deleted
     }
 
+    fun uriForPath(path: String): Uri? = resolve(path)?.uri
+
     private fun resolve(path: String): Node? {
         val normalized = normalize(path)
         nodes[normalized]?.let { return it }

@@ -426,6 +426,63 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun normalFilesAndLibraryShareOneReadingIdentity() {
+        val positions = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/Positions.kt",
+        ).readText()
+        val router = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/library/LibraryReaderRouter.kt",
+        ).readText()
+        val safVolume = File(
+            repo,
+            "droidfs-upstream/src/main/java/com/vaultshelf/droidfs/SafVolume.kt",
+        ).readText()
+        val fileRouter = File(
+            repo,
+            "droidfs-upstream/src/main/java/com/vaultshelf/droidfs/VaultShelfFileRouter.kt",
+        ).readText()
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+
+        assertThat(positions).contains("fun keyFor(file: File)")
+        assertThat(router).contains("val readingKey = Positions.keyFor(bookFile)")
+        assertThat(router).contains("BookReadingPositions.get(context, key)")
+        assertThat(router).contains("LegadoReaderBridge.restoreReadingPosition")
+        assertThat(router).contains("BookReadingPositions.save")
+        assertThat(safVolume).contains("fun uriForPath(path: String): Uri?")
+        assertThat(fileRouter).contains("volume is SafVolume")
+        assertThat(fileRouter).contains("com.arjun.gander.FileDispatchActivity")
+        assertThat(bridge).contains("chapterUpdatedAtEpochMillis")
+    }
+
+    @Test
+    fun vaultFileAndLibraryPathsCollapseToOneReadingIdentity() {
+        val progress = File(
+            repo,
+            "droidfs-upstream/src/main/java/com/vaultshelf/droidfs/VaultShelfProgressStore.kt",
+        ).readText()
+        val router = File(
+            repo,
+            "droidfs-upstream/src/main/java/com/vaultshelf/droidfs/VaultShelfFileRouter.kt",
+        ).readText()
+        val bridge = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultContentActivity.kt",
+        ).readText()
+
+        assertThat(progress).contains("canonicalPath(path)")
+        assertThat(progress).contains("PathUtils.normalizePath")
+        assertThat(progress).contains("fun previousFileKey")
+        assertThat(router).contains("EXTRA_PREVIOUS_FILE_KEY")
+        assertThat(bridge).contains("previousFileKey")
+        assertThat(bridge).contains("BookReadingPositions.get(applicationContext, old)")
+    }
+
+    @Test
     fun vaultReadersKeepProgressWithoutPersistingPlaintext() {
         val vaultBridge = File(
             repo,

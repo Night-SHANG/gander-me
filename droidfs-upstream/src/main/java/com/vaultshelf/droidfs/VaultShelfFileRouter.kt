@@ -25,6 +25,7 @@ object VaultShelfFileRouter {
     const val EXTRA_SESSION_TOKEN = "vaultshelf.vault.session_token"
     const val EXTRA_FILE_KEY = "vaultshelf.vault.file_key"
     const val EXTRA_LEGACY_FILE_KEY = "vaultshelf.vault.legacy_file_key"
+    const val EXTRA_PREVIOUS_FILE_KEY = "vaultshelf.vault.previous_file_key"
 
     private val extraFormats = setOf(
         // Gander is the single image viewer for both ordinary Files and vault content:
@@ -82,8 +83,26 @@ object VaultShelfFileRouter {
     ): Boolean {
         if (!supports(path)) return false
 
-        val volumeUuid = (activity.application as VolumeManagerApp)
-            .volumeManager
+        val volumeManager = (activity.application as VolumeManagerApp).volumeManager
+        val volume = volumeManager.getVolume(volumeId) ?: return false
+
+        if (volume is SafVolume) {
+            val uri = volume.uriForPath(path) ?: return false
+            return runCatching {
+                activity.startActivity(
+                    Intent(Intent.ACTION_VIEW)
+                        .setClassName(
+                            activity.packageName,
+                            "com.arjun.gander.FileDispatchActivity",
+                        )
+                        .setData(uri)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                )
+                true
+            }.getOrDefault(false)
+        }
+
+        val volumeUuid = volumeManager
             .listVolumes()
             .firstOrNull { it.first == volumeId }
             ?.second
@@ -109,6 +128,10 @@ object VaultShelfFileRouter {
             putExtra(EXTRA_VOLUME_ID, volumeId)
             putExtra(EXTRA_SESSION_TOKEN, UUID.randomUUID().toString())
             putExtra(EXTRA_FILE_KEY, VaultShelfProgressStore.fileKey(volumeUuid, path))
+            putExtra(
+                EXTRA_PREVIOUS_FILE_KEY,
+                VaultShelfProgressStore.previousFileKey(volumeUuid, path),
+            )
             putExtra(
                 EXTRA_LEGACY_FILE_KEY,
                 VaultShelfProgressStore.legacyFileKey(volumeUuid, path),

@@ -15,6 +15,7 @@ object BookReadingPositions {
     data class Position(
         val chapterIndex: Int,
         val chapterPosition: Int,
+        val updatedAtEpochMillis: Long,
     )
 
     private const val FILE_NAME = "book_reading_positions"
@@ -22,7 +23,7 @@ object BookReadingPositions {
 
     fun get(context: Context, key: String): Position? =
         load(context).firstOrNull { it.key == key }?.let {
-            Position(it.chapterIndex, it.chapterPosition)
+            Position(it.chapterIndex, it.chapterPosition, it.time)
         }
 
     fun save(
@@ -30,6 +31,7 @@ object BookReadingPositions {
         key: String,
         chapterIndex: Int,
         chapterPosition: Int,
+        updatedAtEpochMillis: Long = System.currentTimeMillis(),
     ) {
         val all = load(context)
         val others = all.filter { it.key != key }
@@ -37,7 +39,7 @@ object BookReadingPositions {
             key = key,
             chapterIndex = chapterIndex.coerceAtLeast(0),
             chapterPosition = chapterPosition.coerceAtLeast(0),
-            time = System.currentTimeMillis(),
+            time = updatedAtEpochMillis.takeIf { it > 0L } ?: System.currentTimeMillis(),
         )
         write(context, (others + entry).sortedByDescending { it.time }.take(MAX))
     }

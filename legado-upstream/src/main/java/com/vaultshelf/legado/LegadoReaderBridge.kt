@@ -96,6 +96,7 @@ object LegadoReaderBridge {
     data class TransientReadingPosition(
         val chapterIndex: Int,
         val chapterPosition: Int,
+        val updatedAtEpochMillis: Long,
     )
 
     private data class TransientMetadataSnapshot(
@@ -113,6 +114,7 @@ object LegadoReaderBridge {
         val progress: Float,
         val chapterIndex: Int,
         val chapterPosition: Int,
+        val chapterUpdatedAtEpochMillis: Long,
         val totalChapters: Int,
     )
 
@@ -335,21 +337,29 @@ object LegadoReaderBridge {
      * for a temporary vault book: EPUB chapter cache, cover, TOC rows, highlights,
      * bookmarks, memo, reading history, parser/URI caches and the temporary book row.
      */
-    fun restoreTransientReadingPosition(
+    fun restoreReadingPosition(
         context: Context,
         bookUrl: String,
         chapterIndex: Int,
         chapterPosition: Int,
+        updatedAtEpochMillis: Long = System.currentTimeMillis(),
     ) {
         initialize(context)
         val book = appDb.bookDao.getBook(bookUrl) ?: return
         book.durChapterIndex = chapterIndex.coerceAtLeast(0)
         book.durChapterPos = chapterPosition.coerceAtLeast(0)
-        book.durChapterTime = System.currentTimeMillis()
+        book.durChapterTime = updatedAtEpochMillis.takeIf { it > 0L } ?: System.currentTimeMillis()
         appDb.bookDao.update(book)
     }
 
-    fun transientReadingPosition(
+    fun restoreTransientReadingPosition(
+        context: Context,
+        bookUrl: String,
+        chapterIndex: Int,
+        chapterPosition: Int,
+    ) = restoreReadingPosition(context, bookUrl, chapterIndex, chapterPosition)
+
+    fun readingPosition(
         context: Context,
         bookUrl: String,
     ): TransientReadingPosition? {
@@ -358,8 +368,14 @@ object LegadoReaderBridge {
         return TransientReadingPosition(
             chapterIndex = book.durChapterIndex.coerceAtLeast(0),
             chapterPosition = book.durChapterPos.coerceAtLeast(0),
+            updatedAtEpochMillis = book.durChapterTime,
         )
     }
+
+    fun transientReadingPosition(
+        context: Context,
+        bookUrl: String,
+    ): TransientReadingPosition? = readingPosition(context, bookUrl)
 
     fun cleanupTransientBookSession(
         context: Context,
@@ -646,6 +662,7 @@ object LegadoReaderBridge {
         progress = readProgress() ?: 0f,
         chapterIndex = durChapterIndex,
         chapterPosition = durChapterPos,
+        chapterUpdatedAtEpochMillis = durChapterTime,
         totalChapters = totalChapterNum,
     )
 }
