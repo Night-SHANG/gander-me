@@ -791,7 +791,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt b/app/src/mai
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-@@ -1,723 +1,774 @@
+@@ -1,723 +1,920 @@
 -package sushi.hardcore.droidfs.explorers
 -
 -import android.content.Intent
@@ -1545,6 +1545,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +import kotlinx.coroutines.cancel
 +import kotlinx.coroutines.cancelAndJoin
 +import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
 +import com.vaultshelf.droidfs.SafVolume
 +import com.vaultshelf.droidfs.VaultShelfFileRouter
 +import kotlinx.coroutines.yield
@@ -1571,6 +1572,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +import sushi.hardcore.droidfs.util.PathUtils
 +import sushi.hardcore.droidfs.util.finishOnClose
 +import sushi.hardcore.droidfs.widgets.EditTextDialog
++import java.util.ArrayDeque
 +
 +open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener {
 +    init {
@@ -1595,6 +1597,10 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +    protected lateinit var fileOperationService: FileOperationService
 +    protected val activityScope = MainScope()
 +    private var directoryLoadingTask: Job? = null
++    private var searchJob: Job? = null
++    private var searchRootPath: String? = null
++    private var activeSearchQuery: String = ""
++    private val searchMenuItemId: Int = View.generateViewId()
 +    protected lateinit var explorerElements: MutableList<ExplorerElement>
 +    protected lateinit var explorerAdapter: ExplorerElementAdapter
 +    protected lateinit var app: VolumeManagerApp
@@ -1653,16 +1659,18 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +        layoutIcon = findViewById(R.id.layout_icon)
 +        setRecyclerViewLayout()
 +        onBackPressedDispatcher.addCallback(this) {
-+            if (explorerAdapter.selectedItems.isEmpty()) {
-+                val parentPath = PathUtils.getParentPath(currentDirectoryPath)
-+                if (parentPath == currentDirectoryPath) {
-+                    isEnabled = false
-+                    onBackPressedDispatcher.onBackPressed()
-+                } else {
-+                    changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
++            when {
++                explorerAdapter.selectedItems.isNotEmpty() -> unselectAll()
++                activeSearchQuery.isNotEmpty() -> exitSearch()
++                else -> {
++                    val parentPath = PathUtils.getParentPath(currentDirectoryPath)
++                    if (parentPath == currentDirectoryPath) {
++                        isEnabled = false
++                        onBackPressedDispatcher.onBackPressed()
++                    } else {
++                        changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
++                    }
 +                }
-+            } else {
-+                unselectAll()
 +            }
 +        }
 +        layoutIcon.setOnClickListener {
@@ -1829,12 +1837,12 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +    }
 +
 +    private fun setVolumeNameTitle() {
-+        supportActionBar?.title = getString(R.string.volume, volumeName)
++        setExplorerTitle()
 +    }
 +
 +    override fun onSelectionChanged(size: Int) {
 +        if (size == 0) {
-+            setVolumeNameTitle()
++            setExplorerTitle()
 +        } else {
 +            supportActionBar?.title = getString(R.string.elements_selected, size, explorerElements.count { !it.isParentFolder })
 +        }
@@ -1920,14 +1928,141 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +    }
 +
 +    protected fun changeCurrentDirectory(path: String) {
++        clearSearchState()
 +        currentDirectoryPath = path
 +        refreshCurrentDirectory {
 +            recycler_view_explorer.scrollToPosition(0)
 +        }
 +    }
 +
++    private fun openSearchDialog() {
++        EditTextDialog(this, android.R.string.search_go)
++            .setSelectedText(activeSearchQuery)
++            .onSubmit { query ->
++                val normalized = query.trim()
++                if (normalized.isNotEmpty()) {
++                    startSearch(normalized)
++                }
++            }
++            .show()
++    }
++
++    private fun startSearch(query: String) {
++        searchJob?.cancel()
++        if (searchRootPath == null) {
++            searchRootPath = currentDirectoryPath
++        }
++        activeSearchQuery = query
++        setExplorerTitle()
++        searchJob = refreshCurrentDirectory()
++    }
++
++    private fun exitSearch() {
++        clearSearchState()
++        setExplorerTitle()
++        refreshCurrentDirectory {
++            recycler_view_explorer.scrollToPosition(0)
++        }
++    }
++
++    private fun clearSearchState() {
++        searchJob?.cancel()
++        searchJob = null
++        searchRootPath = null
++        activeSearchQuery = ""
++    }
++
++    private fun setExplorerTitle() {
++        supportActionBar?.title = if (activeSearchQuery.isEmpty()) {
++            getString(R.string.volume, volumeName)
++        } else {
++            "${getString(android.R.string.search_go)}: $activeSearchQuery"
++        }
++    }
++
++    private suspend fun displaySearchResults(
++        matches: List<ExplorerElement>,
++        query: String,
++        rootPath: String,
++        complete: Boolean,
++    ) {
++        explorerElements = matches.toMutableList()
++        ExplorerElement.sortBy(sortOrderValues[currentSortOrderIndex], foldersFirst, explorerElements)
++        unselectAll(false)
++        loader.isVisible = false
++        recycler_view_explorer.isVisible = true
++        explorerAdapter.explorerElements = explorerElements
++        currentPathText.text =
++            "${getString(R.string.location, rootPath)} · ${getString(android.R.string.search_go)}: $query"
++        displayNumberOfElements(
++            numberOfFilesText,
++            R.string.one_file,
++            R.string.multiple_files,
++            explorerElements.count { it.isRegularFile },
++        )
++        displayNumberOfElements(
++            numberOfFoldersText,
++            R.string.one_folder,
++            R.string.multiple_folders,
++            explorerElements.count { it.isDirectory },
++        )
++        totalSizeText.text = getString(
++            R.string.total_size,
++            PathUtils.formatSize(explorerElements.filterNot { it.isDirectory }.sumOf { it.stat.size }),
++        )
++        textDirEmpty.visibility =
++            if (complete && explorerElements.isEmpty()) View.VISIBLE else View.GONE
++    }
++
++    private suspend fun performRecursiveSearch(query: String, rootPath: String) {
++        recycler_view_explorer.isVisible = false
++        loader.isVisible = true
++        textDirEmpty.isVisible = false
++
++        val pending = ArrayDeque<String>()
++        pending.add(rootPath)
++        val visited = HashSet<String>()
++        val matches = mutableListOf<ExplorerElement>()
++        var lastPublishMillis = System.currentTimeMillis()
++
++        while (pending.isNotEmpty()) {
++            yield()
++            val directory = pending.removeFirst()
++            if (!visited.add(directory)) continue
++            val children = withContext(Dispatchers.IO) {
++                encryptedVolume.readDir(directory)?.toList().orEmpty()
++            }
++            for (child in children) {
++                if (encryptedVolume !is SafVolume && child.fullPath == "/.vaultshelf") {
++                    continue
++                }
++                if (child.name.contains(query, ignoreCase = true)) {
++                    matches += child
++                }
++                if (child.isDirectory) {
++                    pending.addLast(child.fullPath)
++                }
++            }
++
++            val now = System.currentTimeMillis()
++            if (matches.isNotEmpty() && now - lastPublishMillis >= 350L) {
++                displaySearchResults(matches, query, rootPath, complete = false)
++                lastPublishMillis = now
++            }
++        }
++
++        displaySearchResults(matches, query, rootPath, complete = true)
++    }
++
 +    protected fun refreshCurrentDirectory(onDisplayed: (() -> Unit)? = null) = lifecycleScope.launch {
 +        directoryLoadingTask?.cancelAndJoin()
++        val searchQuery = activeSearchQuery
++        val searchRoot = searchRootPath
++        if (searchQuery.isNotEmpty() && searchRoot != null) {
++            performRecursiveSearch(searchQuery, searchRoot)
++            onDisplayed?.invoke()
++            return@launch
++        }
 +        recycler_view_explorer.isVisible = false
 +        loader.isVisible = true
 +        explorerElements = encryptedVolume.readDir(currentDirectoryPath) ?: return@launch
@@ -2190,13 +2325,20 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +            menu.findItem(R.id.external_open)?.isVisible = false
 +        }
 +        val noItemSelected = explorerAdapter.selectedItems.isEmpty()
++        val searchActive = activeSearchQuery.isNotEmpty()
++        val searchItem = menu.findItem(searchMenuItemId)
++            ?: menu.add(Menu.NONE, searchMenuItemId, Menu.NONE, android.R.string.search_go).apply {
++                setIcon(R.drawable.icon_folder_search)
++                setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
++            }
++        searchItem.isVisible = noItemSelected
 +        menu.findItem(R.id.sort).isVisible = noItemSelected
 +        menu.findItem(R.id.lock).isVisible = noItemSelected
 +        menu.findItem(R.id.close).isVisible = noItemSelected
 +        supportActionBar?.setDisplayHomeAsUpEnabled(!noItemSelected)
 +        if (!noItemSelected) {
 +            if (explorerAdapter.selectedItems.size == 1) {
-+                menu.findItem(R.id.rename).isVisible = true
++                menu.findItem(R.id.rename).isVisible = !searchActive
 +                if (explorerElements[explorerAdapter.selectedItems.first()].isRegularFile) {
 +                    menu.findItem(R.id.open_as)?.isVisible = true
 +                    if (usf_open) {
@@ -2209,6 +2351,10 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +    }
 +
 +    override fun onOptionsItemSelected(item: MenuItem): Boolean {
++        if (item.itemId == searchMenuItemId) {
++            openSearchDialog()
++            return true
++        }
 +        return when (item.itemId) {
 +            android.R.id.home -> {
 +                unselectAll()

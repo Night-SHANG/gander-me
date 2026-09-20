@@ -1294,4 +1294,24 @@ class VaultShelfUxRegressionTest {
         assertThat(layout).contains("@color/vaultshelf_explorer_nav_item_tint")
     }
 
+    @Test
+    fun droidFsExplorerSearchUsesCancelableRecursiveVolumeTraversal() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val explorerPatch = patch.substringAfter(
+            "diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt",
+        )
+
+        assertThat(explorerPatch).contains("searchMenuItemId")
+        assertThat(explorerPatch).contains("R.drawable.icon_folder_search")
+        assertThat(explorerPatch).contains("ArrayDeque<String>()")
+        assertThat(explorerPatch).contains("encryptedVolume.readDir(directory)")
+        assertThat(explorerPatch).contains("child.name.contains(query, ignoreCase = true)")
+        assertThat(explorerPatch).contains("displaySearchResults(matches, query, rootPath, complete = false)")
+        assertThat(explorerPatch).contains("searchJob?.cancel()")
+        assertThat(explorerPatch).contains("activeSearchQuery.isNotEmpty() -> exitSearch()")
+        assertThat(explorerPatch).contains("val visited = HashSet<String>()")
+        assertThat(explorerPatch).contains("if (!visited.add(directory)) continue")
+        assertThat(explorerPatch).contains("menu.findItem(R.id.rename).isVisible = !searchActive")
+    }
+
 }
