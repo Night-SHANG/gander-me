@@ -1,7 +1,11 @@
 package com.arjun.gander.ui.shell
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
@@ -32,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -83,20 +88,28 @@ private enum class VaultShelfDestination(
 @Composable
 fun VaultShelfShell(
     libraryRepository: LibraryRepository,
-    onOpenFiles: () -> Unit,
+    onOpenExternalFolder: (Uri, String) -> Unit,
     onOpenVault: () -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
-    onImportBooksToVault: (List<LibraryBook>) -> Unit,
+    onImportBooksToVaultFiles: (List<LibraryBook>) -> Unit,
+    onImportBooksToVaultLibrary: (List<LibraryBook>) -> Unit,
     onOpenAbout: () -> Unit,
+    initialDestinationName: String = VaultShelfDestination.HOME.name,
+    returnToFiles: Boolean = false,
+    onReturnToFiles: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var selectedName by rememberSaveable { mutableStateOf(VaultShelfDestination.HOME.name) }
+    var selectedName by rememberSaveable {
+        mutableStateOf(
+            VaultShelfDestination.entries
+                .firstOrNull { it.name == initialDestinationName && it != VaultShelfDestination.VAULT }
+                ?.name
+                ?: VaultShelfDestination.HOME.name,
+        )
+    }
     val selected = VaultShelfDestination.entries
         .firstOrNull { it.name == selectedName }
-        ?.takeUnless {
-            it == VaultShelfDestination.FILES || it == VaultShelfDestination.VAULT
-        }
         ?: VaultShelfDestination.HOME
 
     Scaffold(
@@ -107,7 +120,10 @@ fun VaultShelfShell(
                 selected = selected,
                 onSelected = { destination ->
                     when (destination) {
-                        VaultShelfDestination.FILES -> onOpenFiles()
+                        VaultShelfDestination.FILES -> {
+                            if (returnToFiles) onReturnToFiles()
+                            else selectedName = destination.name
+                        }
                         VaultShelfDestination.VAULT -> onOpenVault()
                         else -> selectedName = destination.name
                     }
@@ -119,32 +135,27 @@ fun VaultShelfShell(
             VaultShelfDestination.HOME -> HomeScreen(
                 libraryRepository = libraryRepository,
                 modifier = Modifier.padding(innerPadding),
-                onOpenFiles = onOpenFiles,
+                onOpenFiles = {
+                    if (returnToFiles) onReturnToFiles()
+                    else selectedName = VaultShelfDestination.FILES.name
+                },
                 onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
                 onOpenVault = onOpenVault,
             )
 
             VaultShelfDestination.LIBRARY -> LibraryScreen(
                 repository = libraryRepository,
-                onImportToVault = onImportBooksToVault,
+                onImportToVaultFiles = onImportBooksToVaultFiles,
+                onImportToVaultLibrary = onImportBooksToVaultLibrary,
                 modifier = Modifier.padding(innerPadding),
             )
 
-            VaultShelfDestination.FILES -> HomeScreen(
-                libraryRepository = libraryRepository,
+            VaultShelfDestination.FILES -> ExternalFilesScreen(
+                onOpenFolder = onOpenExternalFolder,
                 modifier = Modifier.padding(innerPadding),
-                onOpenFiles = onOpenFiles,
-                onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
-                onOpenVault = onOpenVault,
             )
 
-            VaultShelfDestination.VAULT -> HomeScreen(
-                libraryRepository = libraryRepository,
-                modifier = Modifier.padding(innerPadding),
-                onOpenFiles = onOpenFiles,
-                onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
-                onOpenVault = onOpenVault,
-            )
+            VaultShelfDestination.VAULT -> Unit
 
             VaultShelfDestination.SETTINGS -> SettingsScreen(
                 onOpenVaultSettings = onOpenVaultSettings,
@@ -154,6 +165,175 @@ fun VaultShelfShell(
             )
         }
     }
+}
+
+@Composable
+private fun ExternalFilesScreen(
+    onOpenFolder: (Uri, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    var revision by rememberSaveable { mutableStateOf(0) }
+    val roots by produceState<List<Pair<Uri, String>>>(
+        initialValue = emptyList(),
+        revision,
+    ) {
+        value = withContext(Dispatchers.IO) {
+            context.contentResolver.persistedUriPermissions
+                .asSequence()
+                .filter { it.isReadPermission && isTreeUri(it.uri) }
+                .map { permission ->
+                    permission.uri to readTreeLabel(context, permission.uri)
+                }
+                .sortedBy { (_, label) -> label.lowercase() }
+                .toList()
+        }
+    }
+    val openTree = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+            revision += 1
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.vaultshelf_files_title),
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.vaultshelf_files_detail),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (roots.isEmpty()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                tonalElevation = 1.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.vaultshelf_files_empty),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.vaultshelf_files_empty_detail),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else {
+            roots.forEach { (uri, label) ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenFolder(uri, label) },
+                    shape = RoundedCornerShape(14.dp),
+                    tonalElevation = 1.dp,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_vaultshelf_files),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = stringResource(R.string.vaultshelf_files_authorized),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                runCatching {
+                                    context.contentResolver.releasePersistableUriPermission(
+                                        uri,
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                                    )
+                                }.recoverCatching {
+                                    context.contentResolver.releasePersistableUriPermission(
+                                        uri,
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                                    )
+                                }
+                                revision += 1
+                            },
+                        ) {
+                            Text(stringResource(R.string.vaultshelf_files_remove_access))
+                        }
+                    }
+                }
+            }
+        }
+
+        Button(
+            onClick = { openTree.launch(null) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.vaultshelf_files_add_folder))
+        }
+    }
+}
+
+private fun isTreeUri(uri: Uri): Boolean =
+    runCatching { DocumentsContract.getTreeDocumentId(uri) }.isSuccess &&
+        uri.pathSegments.firstOrNull() == "tree"
+
+private fun readTreeLabel(context: Context, uri: Uri): String {
+    val documentId = runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
+        ?: return context.getString(R.string.vaultshelf_files_folder_fallback)
+    return runCatching {
+        context.contentResolver.query(
+            DocumentsContract.buildDocumentUriUsingTree(uri, documentId),
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+        }
+    }.getOrNull()
+        ?.takeIf { it.isNotBlank() }
+        ?: documentId.substringAfterLast(':').ifBlank {
+            context.getString(R.string.vaultshelf_files_folder_fallback)
+        }
 }
 
 @Composable

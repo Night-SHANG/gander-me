@@ -190,4 +190,74 @@
         <item quantity="other">其中 %1$d 个文件原本已经在外部书库中，现已同时加入保险库书库。如果删除外部原文件，对应的外部书库记录也会一并移除。</item>
     </plurals>
 
+    <string name="vaultshelf_files_title">文件</string>
+    <string name="vaultshelf_files_detail">这里显示已通过 Android 系统授权的文件夹。授权一次后即可直接使用完整的 VaultShelf 文件管理器浏览。</string>
+    <string name="vaultshelf_files_empty">还没有授权文件夹</string>
+    <string name="vaultshelf_files_empty_detail">通过 Android 系统文件选择器选择一个文件夹。VaultShelf 只会访问你明确授权的目录。</string>
+    <string name="vaultshelf_files_authorized">已授权文件夹</string>
+    <string name="vaultshelf_files_remove_access">移除授权</string>
+    <string name="vaultshelf_files_add_folder">添加文件夹</string>
+    <string name="vaultshelf_files_folder_fallback">文件夹</string>
+
+    <string name="vault_transfer_to_external_files">导出到外部文件</string>
+    <string name="vault_transfer_to_external_library">加入外部书库</string>
+    <string name="vault_transfer_to_vault_files">导入保险库文件</string>
+    <string name="vault_transfer_to_vault_library">加入保险库书库</string>
+    <string name="vault_transfer_done_title">传输完成</string>
+    <string name="vault_transfer_delete_source">删除来源</string>
+    <string name="vault_transfer_keep_source">保留来源</string>
+    <string name="vault_transfer_failed">传输没有成功完成。</string>
+    <string name="vault_transfer_delete_file_source_question">目标副本已经创建完成，是否删除来源文件？</string>
+    <string name="vault_transfer_linked_library_title">关联的书库副本</string>
+    <string name="vault_transfer_delete_linked_library">同时删除书库副本</string>
+    <string name="vault_transfer_keep_linked_library">保留书库副本</string>
+    <string name="vault_transfer_delete_files_title">删除选中的文件？</string>
+    <string name="vault_transfer_delete_file_and_library">文件和书库副本一起删除</string>
+    <string name="vault_transfer_delete_file_only">仅删除文件</string>
+    <string name="vault_transfer_delete_library_only">仅删除书库副本</string>
+    <string name="vault_transfer_delete_library_and_file">书库副本和关联文件一起删除</string>
+    <string name="vault_transfer_export_to_files">导出到文件</string>
+    <string name="vault_transfer_external_library_to_files">导出到外部文件</string>
+    <string name="vault_transfer_vault_library_to_files">导出到保险库文件</string>
+
+    <plurals name="vault_transfer_external_files_to_library_done">
+        <item quantity="other">%1$d 个文件已经复制进外部书库。是否删除来源文件？</item>
+    </plurals>
+    <plurals name="vault_transfer_vault_files_to_external_library_done">
+        <item quantity="other">%1$d 个保险库文件已经复制进外部书库。是否删除保险库来源？</item>
+    </plurals>
+    <plurals name="vault_transfer_vault_files_to_vault_library_done">
+        <item quantity="other">%1$d 个保险库文件已经复制进保险库书库。是否删除可见的保险库来源文件？</item>
+    </plurals>
+    <plurals name="vault_transfer_vault_library_to_files_done">
+        <item quantity="other">%1$d 本保险库书籍已经复制到保险库文件。是否删除书库来源？</item>
+    </plurals>
+    <plurals name="vault_transfer_external_library_done">
+        <item quantity="other">%1$d 本外部书库书籍已经复制成功。是否删除外部书库来源？</item>
+    </plurals>
+    <plurals name="vault_transfer_linked_external_library_message">
+        <item quantity="other">刚删除的文件还有 %1$d 个独立副本保存在外部书库中。是否同时删除这些书库副本？</item>
+    </plurals>
+    <plurals name="vault_transfer_linked_vault_library_message">
+        <item quantity="other">这些保险库文件还有 %1$d 个独立副本保存在保险库书库中。是否同时删除这些书库副本？</item>
+    </plurals>
+    <plurals name="vault_transfer_delete_files_message">
+        <item quantity="other">确定删除选中的 %1$d 个文件吗？</item>
+    </plurals>
+    <plurals name="vault_transfer_delete_files_linked_library_message">
+        <item quantity="other">%1$d 个选中文件在外部书库中还有独立副本。请选择仅删除文件，还是两边一起删除。</item>
+    </plurals>
+    <plurals name="vault_transfer_delete_files_linked_vault_library_message">
+        <item quantity="other">%1$d 个选中的保险库文件在保险库书库中还有独立副本。请选择仅删除文件，还是两边一起删除。</item>
+    </plurals>
+    <plurals name="vault_transfer_external_library_to_files_done">
+        <item quantity="other">%1$d 本书已经导出到外部文件。是否删除外部书库来源？</item>
+    </plurals>
+    <plurals name="vault_transfer_vault_library_to_external_library_done">
+        <item quantity="other">%1$d 本保险库书籍已经复制到外部书库。是否删除保险库书库来源？</item>
+    </plurals>
+    <plurals name="vault_transfer_vault_library_to_external_files_done">
+        <item quantity="other">%1$d 本保险库书籍已经导出到外部文件。是否删除保险库书库来源？</item>
+    </plurals>
+
 </resources>

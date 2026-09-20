@@ -204,4 +204,87 @@
         <item quantity="other">%1$d selected files were already in the external library and were also added to the vault library. If you delete the originals, those external library entries will also be removed.</item>
     </plurals>
 
+    <string name="vaultshelf_files_title">Files</string>
+    <string name="vaultshelf_files_detail">Authorized Android folders appear here. Add a folder once, then browse it with the full VaultShelf file manager.</string>
+    <string name="vaultshelf_files_empty">No folders authorized yet</string>
+    <string name="vaultshelf_files_empty_detail">Choose a folder with Android’s system picker. VaultShelf will only get access to folders you explicitly grant.</string>
+    <string name="vaultshelf_files_authorized">Authorized folder</string>
+    <string name="vaultshelf_files_remove_access">Remove access</string>
+    <string name="vaultshelf_files_add_folder">Add folder</string>
+    <string name="vaultshelf_files_folder_fallback">Folder</string>
+
+    <string name="vault_transfer_to_external_files">Export to external files</string>
+    <string name="vault_transfer_to_external_library">Add to external library</string>
+    <string name="vault_transfer_to_vault_files">Import to vault files</string>
+    <string name="vault_transfer_to_vault_library">Add to vault library</string>
+    <string name="vault_transfer_done_title">Transfer complete</string>
+    <string name="vault_transfer_delete_source">Delete source</string>
+    <string name="vault_transfer_keep_source">Keep source</string>
+    <string name="vault_transfer_failed">The transfer could not be completed.</string>
+    <string name="vault_transfer_delete_file_source_question">The target copy is complete. Delete the source file now?</string>
+    <string name="vault_transfer_linked_library_title">Linked library copy</string>
+    <string name="vault_transfer_delete_linked_library">Delete linked library copy</string>
+    <string name="vault_transfer_keep_linked_library">Keep linked library copy</string>
+    <string name="vault_transfer_delete_files_title">Delete selected files?</string>
+    <string name="vault_transfer_delete_file_and_library">Delete file and library copy</string>
+    <string name="vault_transfer_delete_file_only">Delete file only</string>
+    <string name="vault_transfer_delete_library_only">Delete library copy only</string>
+    <string name="vault_transfer_delete_library_and_file">Delete library copy and linked file</string>
+    <string name="vault_transfer_export_to_files">Export to files</string>
+    <string name="vault_transfer_external_library_to_files">Export to external files</string>
+    <string name="vault_transfer_vault_library_to_files">Export to vault files</string>
+
+    <plurals name="vault_transfer_external_files_to_library_done">
+        <item quantity="one">%1$d file was copied into the external library. Delete the source file?</item>
+        <item quantity="other">%1$d files were copied into the external library. Delete the source files?</item>
+    </plurals>
+    <plurals name="vault_transfer_vault_files_to_external_library_done">
+        <item quantity="one">%1$d vault file was copied into the external library. Delete the vault source?</item>
+        <item quantity="other">%1$d vault files were copied into the external library. Delete the vault sources?</item>
+    </plurals>
+    <plurals name="vault_transfer_vault_files_to_vault_library_done">
+        <item quantity="one">%1$d vault file was copied into the vault library. Delete the visible vault source?</item>
+        <item quantity="other">%1$d vault files were copied into the vault library. Delete the visible vault sources?</item>
+    </plurals>
+    <plurals name="vault_transfer_vault_library_to_files_done">
+        <item quantity="one">%1$d vault-library book was copied into vault files. Delete the library source?</item>
+        <item quantity="other">%1$d vault-library books were copied into vault files. Delete the library sources?</item>
+    </plurals>
+    <plurals name="vault_transfer_external_library_done">
+        <item quantity="one">%1$d external-library book was copied successfully. Delete the external-library source?</item>
+        <item quantity="other">%1$d external-library books were copied successfully. Delete the external-library sources?</item>
+    </plurals>
+    <plurals name="vault_transfer_linked_external_library_message">
+        <item quantity="one">The deleted file also has %1$d independent copy in the external library. Delete that library copy too?</item>
+        <item quantity="other">The deleted files also have %1$d independent copies in the external library. Delete those library copies too?</item>
+    </plurals>
+    <plurals name="vault_transfer_linked_vault_library_message">
+        <item quantity="one">This vault file has %1$d independent copy in the vault library. Delete that library copy too?</item>
+        <item quantity="other">These vault files have %1$d independent copies in the vault library. Delete those library copies too?</item>
+    </plurals>
+    <plurals name="vault_transfer_delete_files_message">
+        <item quantity="one">Delete %1$d selected file?</item>
+        <item quantity="other">Delete %1$d selected files?</item>
+    </plurals>
+    <plurals name="vault_transfer_delete_files_linked_library_message">
+        <item quantity="one">%1$d selected file has a copy in the external library. Choose whether to delete only the file or both copies.</item>
+        <item quantity="other">%1$d selected files have copies in the external library. Choose whether to delete only the files or both copies.</item>
+    </plurals>
+    <plurals name="vault_transfer_delete_files_linked_vault_library_message">
+        <item quantity="one">%1$d selected vault file has a copy in the vault library. Choose whether to delete only the file or both copies.</item>
+        <item quantity="other">%1$d selected vault files have copies in the vault library. Choose whether to delete only the files or both copies.</item>
+    </plurals>
+    <plurals name="vault_transfer_external_library_to_files_done">
+        <item quantity="one">%1$d library book was exported to external files. Delete the library source?</item>
+        <item quantity="other">%1$d library books were exported to external files. Delete the library sources?</item>
+    </plurals>
+    <plurals name="vault_transfer_vault_library_to_external_library_done">
+        <item quantity="one">%1$d vault-library book was copied into the external library. Delete the vault-library source?</item>
+        <item quantity="other">%1$d vault-library books were copied into the external library. Delete the vault-library sources?</item>
+    </plurals>
+    <plurals name="vault_transfer_vault_library_to_external_files_done">
+        <item quantity="one">%1$d vault-library book was exported to external files. Delete the vault-library source?</item>
+        <item quantity="other">%1$d vault-library books were exported to external files. Delete the vault-library sources?</item>
+    </plurals>
+
 </resources>

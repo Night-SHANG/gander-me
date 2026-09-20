@@ -5,13 +5,16 @@ import android.view.Menu
 import android.view.MenuItem
 import androidx.lifecycle.lifecycleScope
 import com.arjun.gander.BookReadingPositions
+import com.arjun.gander.Positions
 import com.arjun.gander.R
+import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LocalLibraryRepository
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.vaultshelf.droidfs.SafVolume
 import com.vaultshelf.droidfs.VaultShelfProgressStore
-import com.vaultshelf.legado.LegadoReaderBridge
+import java.io.File
 import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,11 +29,11 @@ import sushi.hardcore.droidfs.filesystems.Stat
 import sushi.hardcore.droidfs.util.PathUtils
 
 /**
- * Destination browser for "Files -> Import to vault".
+ * Unified destination browser for transfers into an unlocked vault.
  *
- * Source browsing stays inside the same DroidFS Explorer engine through SafVolume; this
- * screen only chooses the encrypted destination and asks FileOperationService to perform
- * the cross-volume copy. No second file-copy implementation is maintained in VaultShelf.
+ * Sources may be ordinary SAF files, the external VaultShelf library, or the vault library
+ * itself. The target is either the visible vault file tree or the vault's private library.
+ * Source deletion is always offered only after the target copy has completed successfully.
  */
 class VaultImportTargetActivity : BaseExplorerActivity() {
 
@@ -42,6 +45,15 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
     }
     private val sourceTypes: List<Int> by lazy {
         intent.getIntegerArrayListExtra(EXTRA_SOURCE_TYPES).orEmpty()
+    }
+    private val sourceLibraryIds: List<String> by lazy {
+        intent.getStringArrayListExtra(EXTRA_SOURCE_LIBRARY_IDS).orEmpty()
+    }
+    private val sourceVaultLibraryIds: List<String> by lazy {
+        intent.getStringArrayListExtra(EXTRA_SOURCE_VAULT_LIBRARY_IDS).orEmpty()
+    }
+    private val targetLibrary: Boolean by lazy {
+        intent.getBooleanExtra(EXTRA_TARGET_LIBRARY, false)
     }
 
     private lateinit var vaultFiles: VaultFileRepository
@@ -58,25 +70,37 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
         super.onCreate(savedInstanceState)
         vaultFiles = VaultFileRepository(applicationContext, volumeId)
         vaultLibrary = VaultLibraryStore(applicationContext, vaultFiles)
-        if (
-            sourceVolumeId < 0 ||
-            sourcePaths.isEmpty() ||
-            sourcePaths.size != sourceTypes.size ||
-            app.volumeManager.getVolume(sourceVolumeId) == null
-        ) {
+
+        val hasVolumeSource =
+            sourceVolumeId >= 0 &&
+                sourcePaths.isNotEmpty() &&
+                sourcePaths.size == sourceTypes.size &&
+                app.volumeManager.getVolume(sourceVolumeId) != null
+        val hasLibrarySource = sourceLibraryIds.isNotEmpty()
+        val hasVaultLibrarySource = sourceVaultLibraryIds.isNotEmpty()
+
+        if (!hasVolumeSource && !hasLibrarySource && !hasVaultLibrarySource) {
             finish()
+            return
+        }
+
+        if (targetLibrary && savedInstanceState == null) {
+            lifecycleScope.launch {
+                importDirectlyIntoVaultLibrary()
+            }
         }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(DroidFsR.menu.explorer_drop, menu)
         val result = super.onCreateOptionsMenu(menu)
-        menu.findItem(DroidFsR.id.validate).isVisible = explorerAdapter.selectedItems.isEmpty()
+        menu.findItem(DroidFsR.id.validate).isVisible =
+            !targetLibrary && explorerAdapter.selectedItems.isEmpty()
         return result
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return if (item.itemId == DroidFsR.id.validate) {
+        return if (item.itemId == DroidFsR.id.validate && !targetLibrary) {
             importIntoCurrentDirectory()
             true
         } else {
@@ -84,21 +108,156 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
         }
     }
 
-    private fun importIntoCurrentDirectory() {
-        val sourceVolume = app.volumeManager.getVolume(sourceVolumeId) ?: return
-        val topLevel = sourcePaths.indices.map { index ->
-            OperationFile(sourcePaths[index], sourceTypes[index])
+    private suspend fun importDirectlyIntoVaultLibrary() {
+        when {
+            sourceLibraryIds.isNotEmpty() -> {
+                val repository = LocalLibraryRepository(applicationContext)
+                val imported = withContext(Dispatchers.IO) {
+                    sourceLibraryIds.mapNotNull { id ->
+                        val book = repository.getBook(id) ?: return@mapNotNull null
+                        val source = runCatching { repository.bookFile(id) }.getOrNull()
+                            ?: return@mapNotNull null
+                        runCatching {
+                            vaultLibrary.importExternalLibraryBook(book, source)
+                            id
+                        }.getOrNull()
+                    }
+                }
+                if (imported.isEmpty()) {
+                    showTransferFailed()
+                } else {
+                    promptExternalLibrarySourceChoice(imported)
+                }
+            }
+
+            sourceVolumeId >= 0 -> {
+                val sourceVolume = app.volumeManager.getVolume(sourceVolumeId)
+                    ?: return finish()
+                val topLevel = sourceOperations()
+                val mapped = withContext(Dispatchers.IO) {
+                    mapSourceFiles(sourceVolume, topLevel)
+                }
+                val supported = mapped.filter {
+                    !it.isDirectory && VaultLibraryStore.formatForPath(it.srcPath) != null
+                }
+                val matchedBooks = withContext(Dispatchers.IO) {
+                    linkedExternalBooks(sourceVolume, supported)
+                }
+                val importedCount = withContext(Dispatchers.IO) {
+                    supported.count { operation ->
+                        val stat = sourceVolume.getAttr(operation.srcPath) ?: return@count false
+                        val matched = matchedBooks.firstOrNull { book ->
+                            book.format == VaultLibraryStore.formatForPath(operation.srcPath) &&
+                                book.sizeBytes == stat.size &&
+                                book.contentSha256 == sha256(sourceVolume, operation.srcPath)
+                        }
+                        val sourceKey = sourceReadingKey(sourceVolume, operation.srcPath, stat.size)
+                        runCatching {
+                            vaultLibrary.importFromVolume(
+                                sourceVolume = sourceVolume,
+                                sourcePath = operation.srcPath,
+                                titleOverride = matched?.title,
+                                sourceReadingKey = sourceKey,
+                            )
+                        }.isSuccess
+                    }
+                }
+                if (importedCount == 0) {
+                    showTransferFailed()
+                } else {
+                    promptVolumeSourceChoice(topLevel, matchedBooks)
+                }
+            }
+
+            else -> showTransferFailed()
         }
+    }
+
+    private fun importIntoCurrentDirectory() {
+        when {
+            sourceLibraryIds.isNotEmpty() -> importExternalLibraryIntoCurrentDirectory()
+            sourceVaultLibraryIds.isNotEmpty() -> exportVaultLibraryIntoCurrentDirectory()
+            else -> importVolumeIntoCurrentDirectory()
+        }
+    }
+
+    private fun importExternalLibraryIntoCurrentDirectory() {
+        lifecycleScope.launch {
+            val repository = LocalLibraryRepository(applicationContext)
+            val imported = withContext(Dispatchers.IO) {
+                sourceLibraryIds.mapNotNull { id ->
+                    val book = repository.getBook(id) ?: return@mapNotNull null
+                    val source = runCatching { repository.bookFile(id) }.getOrNull()
+                        ?: return@mapNotNull null
+                    val requestedName =
+                        "${VaultFileRepository.sanitizeFileName(book.title).ifBlank { "book" }}." +
+                            BookFormat.extension(book.format)
+                    runCatching {
+                        val destination = vaultFiles.importFile(
+                            source,
+                            requestedName,
+                            currentDirectoryPath,
+                        )
+                        migrateContentProgressToVault(source, destination)
+                        id
+                    }.getOrNull()
+                }
+            }
+            refreshCurrentDirectory()
+            if (imported.isEmpty()) {
+                showTransferFailed()
+            } else {
+                promptExternalLibrarySourceChoice(imported)
+            }
+        }
+    }
+
+    private fun exportVaultLibraryIntoCurrentDirectory() {
+        lifecycleScope.launch {
+            val entries = withContext(Dispatchers.IO) {
+                vaultLibrary.listBooks().filter { it.id in sourceVaultLibraryIds }
+            }
+            val exported = withContext(Dispatchers.IO) {
+                entries.mapNotNull { entry ->
+                    runCatching {
+                        vaultLibrary.exportToVisibleFile(entry, currentDirectoryPath)
+                        entry.id
+                    }.getOrNull()
+                }
+            }
+            refreshCurrentDirectory()
+            if (exported.isEmpty()) {
+                showTransferFailed()
+            } else {
+                MaterialAlertDialogBuilder(this@VaultImportTargetActivity)
+                    .setTitle(R.string.vault_transfer_done_title)
+                    .setMessage(
+                        resources.getQuantityString(
+                            R.plurals.vault_transfer_vault_library_to_files_done,
+                            exported.size,
+                            exported.size,
+                        ),
+                    )
+                    .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            exported.forEach { id -> vaultLibrary.remove(id) }
+                            finish()
+                        }
+                    }
+                    .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ -> finish() }
+                    .setCancelable(false)
+                    .show()
+            }
+        }
+    }
+
+    private fun importVolumeIntoCurrentDirectory() {
+        val sourceVolume = app.volumeManager.getVolume(sourceVolumeId) ?: return
+        val topLevel = sourceOperations()
 
         object : LoadingTask<List<OperationFile>>(this, DroidFsR.string.discovering_files) {
-            override suspend fun doTask(): List<OperationFile> {
-                val mapped = topLevel.toMutableList()
-                topLevel.filter { it.isDirectory }.forEach { directory ->
-                    sourceVolume.recursiveMapFiles(directory.srcPath)
-                        ?.forEach { mapped += OperationFile.fromExplorerElement(it) }
-                }
-                return mapped
-            }
+            override suspend fun doTask(): List<OperationFile> =
+                mapSourceFiles(sourceVolume, topLevel)
         }.startTask(lifecycleScope) { mapped ->
             checkPathOverwrite(mapped, currentDirectoryPath) { checked ->
                 checked ?: return@checkPathOverwrite
@@ -113,11 +272,34 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
                         DroidFsR.string.copy_failed,
                         onSuccess = {
                             refreshCurrentDirectory()
-                            migrateLibraryIdentityAndPromptDelete(
-                                sourceVolume,
-                                checked,
-                                topLevel,
-                            )
+                            lifecycleScope.launch {
+                                val matchedBooks = withContext(Dispatchers.IO) {
+                                    linkedExternalBooks(sourceVolume, checked)
+                                }
+                                withContext(Dispatchers.IO) {
+                                    checked
+                                        .filterNot { it.isDirectory }
+                                        .forEach { operation ->
+                                            val destination = operation.dstPath ?: return@forEach
+                                            val stat = sourceVolume.getAttr(operation.srcPath)
+                                                ?: return@forEach
+                                            sourceReadingKey(
+                                                sourceVolume,
+                                                operation.srcPath,
+                                                stat.size,
+                                            )?.let { sourceKey ->
+                                                migrateReadingPosition(
+                                                    sourceKey,
+                                                    VaultShelfProgressStore.fileKey(
+                                                        vaultFiles.volumeUuid,
+                                                        destination,
+                                                    ),
+                                                )
+                                            }
+                                        }
+                                }
+                                promptVolumeSourceChoice(topLevel, matchedBooks)
+                            }
                         },
                     )
                 }
@@ -125,40 +307,24 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
         }
     }
 
-    private fun migrateLibraryIdentityAndPromptDelete(
-        sourceVolume: EncryptedVolume,
-        copied: List<OperationFile>,
-        topLevel: List<OperationFile>,
-    ) {
-        lifecycleScope.launch {
-            val matchedBooks = withContext(Dispatchers.IO) {
-                migrateLibraryIdentity(sourceVolume, copied)
-            }
-            val message = if (matchedBooks.isEmpty()) {
-                getString(R.string.vault_file_import_done_message)
-            } else {
-                resources.getQuantityString(
-                    R.plurals.vault_file_import_done_with_library,
-                    matchedBooks.size,
-                    matchedBooks.size,
-                )
-            }
-
-            MaterialAlertDialogBuilder(this@VaultImportTargetActivity)
-                .setTitle(R.string.vault_file_import_done_title)
-                .setMessage(message)
-                .setPositiveButton(R.string.vault_external_import_delete_source) { _, _ ->
-                    deleteSourcesAndExternalLibrary(topLevel, matchedBooks)
-                }
-                .setNegativeButton(R.string.vault_external_import_keep_source) { _, _ ->
-                    finish()
-                }
-                .setCancelable(false)
-                .show()
+    private fun sourceOperations(): List<OperationFile> =
+        sourcePaths.indices.map { index ->
+            OperationFile(sourcePaths[index], sourceTypes[index])
         }
+
+    private fun mapSourceFiles(
+        sourceVolume: EncryptedVolume,
+        topLevel: List<OperationFile>,
+    ): List<OperationFile> {
+        val mapped = topLevel.toMutableList()
+        topLevel.filter { it.isDirectory }.forEach { directory ->
+            sourceVolume.recursiveMapFiles(directory.srcPath)
+                ?.forEach { mapped += OperationFile.fromExplorerElement(it) }
+        }
+        return mapped
     }
 
-    private suspend fun migrateLibraryIdentity(
+    private suspend fun linkedExternalBooks(
         sourceVolume: EncryptedVolume,
         copied: List<OperationFile>,
     ): List<LibraryBook> {
@@ -171,48 +337,41 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
         copied.asSequence()
             .filterNot { it.isDirectory }
             .forEach { operation ->
-                val destination = operation.dstPath ?: return@forEach
-                val format = VaultLibraryStore.formatForPath(destination) ?: return@forEach
+                val format = VaultLibraryStore.formatForPath(operation.srcPath)
+                    ?: return@forEach
                 val stat = sourceVolume.getAttr(operation.srcPath) ?: return@forEach
                 val candidates = books.filter {
                     it.format == format && it.sizeBytes == stat.size
                 }
                 if (candidates.isEmpty()) return@forEach
-
                 val digest = sha256(sourceVolume, operation.srcPath) ?: return@forEach
-                val book = candidates.firstOrNull { it.contentSha256 == digest }
-                    ?: return@forEach
-
-                val vaultBook = runCatching {
-                    vaultLibrary.addPath(destination, book.title)
-                }.getOrNull() ?: return@forEach
-
-                book.legadoBookUrl?.let { bookUrl ->
-                    LegadoReaderBridge.snapshot(applicationContext, bookUrl)?.let { snapshot ->
-                        BookReadingPositions.save(
-                            applicationContext,
-                            VaultShelfProgressStore.fileKey(
-                                vaultFiles.volumeUuid,
-                                vaultBook.path,
-                            ),
-                            snapshot.chapterIndex,
-                            snapshot.chapterPosition,
-                        )
-                    }
+                candidates.firstOrNull { it.contentSha256 == digest }?.let { book ->
+                    matched[book.id] = book
                 }
-                matched[book.id] = book
             }
         return matched.values.toList()
     }
 
-    private fun deleteSourcesAndExternalLibrary(
+    private fun promptVolumeSourceChoice(
         topLevel: List<OperationFile>,
         matchedBooks: List<LibraryBook>,
     ) {
-        val sourceVolume = app.volumeManager.getVolume(sourceVolumeId) ?: run {
-            finish()
-            return
-        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.vault_transfer_done_title)
+            .setMessage(R.string.vault_transfer_delete_file_source_question)
+            .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
+                deleteVolumeSources(topLevel, matchedBooks)
+            }
+            .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ -> finish() }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun deleteVolumeSources(
+        topLevel: List<OperationFile>,
+        matchedBooks: List<LibraryBook>,
+    ) {
+        val sourceVolume = app.volumeManager.getVolume(sourceVolumeId) ?: return finish()
         val sourceElements = topLevel.mapNotNull { operation ->
             val stat = sourceVolume.getAttr(operation.srcPath) ?: return@mapNotNull null
             ExplorerElement(
@@ -223,20 +382,99 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
         }
 
         lifecycleScope.launch {
-            val failedItem = fileOperationService.removeElements(
-                sourceVolumeId,
-                sourceElements,
-            )
-            if (failedItem == null) {
-                withContext(Dispatchers.IO) {
-                    val repository = LocalLibraryRepository(applicationContext)
-                    matchedBooks.forEach { book ->
-                        runCatching { repository.deleteBook(book.id) }
+            val failedItem = fileOperationService.removeElements(sourceVolumeId, sourceElements)
+            if (failedItem != null) {
+                finish()
+                return@launch
+            }
+            if (matchedBooks.isEmpty()) {
+                finish()
+            } else {
+                MaterialAlertDialogBuilder(this@VaultImportTargetActivity)
+                    .setTitle(R.string.vault_transfer_linked_library_title)
+                    .setMessage(
+                        resources.getQuantityString(
+                            R.plurals.vault_transfer_linked_external_library_message,
+                            matchedBooks.size,
+                            matchedBooks.size,
+                        ),
+                    )
+                    .setPositiveButton(R.string.vault_transfer_delete_linked_library) { _, _ ->
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val repository = LocalLibraryRepository(applicationContext)
+                            matchedBooks.forEach { book ->
+                                runCatching { repository.deleteBook(book.id) }
+                            }
+                            finish()
+                        }
                     }
+                    .setNegativeButton(R.string.vault_transfer_keep_linked_library) { _, _ ->
+                        finish()
+                    }
+                    .setCancelable(false)
+                    .show()
+            }
+        }
+    }
+
+    private fun promptExternalLibrarySourceChoice(importedIds: List<String>) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.vault_transfer_done_title)
+            .setMessage(
+                resources.getQuantityString(
+                    R.plurals.vault_transfer_external_library_done,
+                    importedIds.size,
+                    importedIds.size,
+                ),
+            )
+            .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val repository = LocalLibraryRepository(applicationContext)
+                    importedIds.forEach { id -> runCatching { repository.deleteBook(id) } }
+                    finish()
                 }
             }
-            finish()
+            .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ -> finish() }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun migrateContentProgressToVault(sourceFile: File, destinationPath: String) {
+        val sourceKey = Positions.keyFor(sourceFile) ?: return
+        migrateReadingPosition(
+            sourceKey,
+            VaultShelfProgressStore.fileKey(vaultFiles.volumeUuid, destinationPath),
+        )
+    }
+
+    private fun sourceReadingKey(
+        sourceVolume: EncryptedVolume,
+        path: String,
+        size: Long,
+    ): String? {
+        val safVolume = sourceVolume as? SafVolume ?: return null
+        val uri = safVolume.uriForPath(path) ?: return null
+        return Positions.keyFor(contentResolver, uri, size)
+    }
+
+    private fun migrateReadingPosition(sourceKey: String, destinationKey: String) {
+        BookReadingPositions.get(applicationContext, sourceKey)?.let { position ->
+            BookReadingPositions.save(
+                applicationContext,
+                destinationKey,
+                position.chapterIndex,
+                position.chapterPosition,
+                position.updatedAtEpochMillis,
+            )
         }
+    }
+
+    private fun showTransferFailed() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.error)
+            .setMessage(R.string.vault_transfer_failed)
+            .setPositiveButton(R.string.ok) { _, _ -> finish() }
+            .show()
     }
 
     private fun sha256(volume: EncryptedVolume, path: String): String? {
@@ -266,8 +504,12 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
 
     companion object {
         const val ACTION_IMPORT_TO_VAULT = "vaultshelf_import_to_vault"
+        const val ACTION_IMPORT_TO_VAULT_LIBRARY = "vaultshelf_import_to_vault_library"
+        const val EXTRA_TARGET_LIBRARY = "vaultshelf.target_library"
         const val EXTRA_SOURCE_VOLUME_ID = "vaultshelf.source_volume_id"
         const val EXTRA_SOURCE_PATHS = "vaultshelf.source_paths"
         const val EXTRA_SOURCE_TYPES = "vaultshelf.source_types"
+        const val EXTRA_SOURCE_LIBRARY_IDS = "vaultshelf.source_library_ids"
+        const val EXTRA_SOURCE_VAULT_LIBRARY_IDS = "vaultshelf.source_vault_library_ids"
     }
 }

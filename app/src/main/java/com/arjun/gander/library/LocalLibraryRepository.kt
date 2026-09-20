@@ -2,12 +2,14 @@ package com.arjun.gander.library
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import com.arjun.gander.R
 import com.vaultshelf.legado.LegadoReaderBridge
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.io.InputStream
 import java.security.MessageDigest
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +37,19 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
 
     override suspend fun getBook(id: String): LibraryBook? = withContext(Dispatchers.IO) {
         preferences.getString(bookKey(id), null)?.let { runCatching { decodeBook(it) }.getOrNull() }
+    }
+
+    suspend fun importBook(uri: Uri): LibraryBook {
+        val format = BookFormat.fromFileName(displayName(uri))
+            ?: throw IOException("Unsupported library format")
+        return when (format) {
+            BookFormat.TXT -> importTxt(uri)
+            BookFormat.EPUB -> importEpub(uri)
+            BookFormat.MARKDOWN -> importMarkdown(uri)
+            BookFormat.PDF -> importPdf(uri)
+            BookFormat.UMD -> importUmd(uri)
+            BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW -> importMobi(uri, format)
+        }
     }
 
     override suspend fun importTxt(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
@@ -77,6 +92,65 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
 
     override suspend fun importEpub(uri: Uri): LibraryBook = withContext(Dispatchers.IO) {
         attachLegado(importFile(uri, BookFormat.EPUB, "epub") { 0 })
+    }
+
+    suspend fun importStream(
+        displayName: String,
+        format: BookFormat,
+        titleOverride: String? = null,
+        sourceUri: String? = null,
+        inputStreamProvider: () -> InputStream,
+    ): LibraryBook = withContext(Dispatchers.IO) {
+        val imported = importStreamInternal(
+            sourceName = displayName,
+            sourceUri = sourceUri,
+            format = format,
+            extension = BookFormat.extension(format),
+            titleOverride = titleOverride,
+            characterCounter = { storedFile ->
+                when (format) {
+                    BookFormat.TXT, BookFormat.MARKDOWN ->
+                        TxtDecoder.decode(storedFile.readBytes()).length
+                    else -> 0
+                }
+            },
+            inputStreamProvider = inputStreamProvider,
+        )
+        when (format) {
+            BookFormat.TXT -> {
+                scheduleLegadoAttachment(imported)
+                imported
+            }
+            BookFormat.EPUB,
+            BookFormat.UMD,
+            BookFormat.MOBI,
+            BookFormat.AZW3,
+            BookFormat.AZW -> attachLegado(imported)
+            BookFormat.MARKDOWN,
+            BookFormat.PDF -> imported
+        }
+    }
+
+    suspend fun findByContentFingerprint(
+        format: BookFormat,
+        sizeBytes: Long,
+        contentSha256: String,
+    ): LibraryBook? = withContext(Dispatchers.IO) {
+        findDuplicate(format, sizeBytes, contentSha256)
+    }
+
+    override suspend fun deleteOriginalSource(id: String): Boolean = withContext(Dispatchers.IO) {
+        val book = getBook(id) ?: return@withContext false
+        val uri = book.sourceUri
+            ?.let(Uri::parse)
+            ?: return@withContext false
+        runCatching {
+            if (DocumentsContract.isDocumentUri(appContext, uri)) {
+                DocumentsContract.deleteDocument(appContext.contentResolver, uri)
+            } else {
+                appContext.contentResolver.delete(uri, null, null) > 0
+            }
+        }.getOrDefault(false)
     }
 
     private fun scheduleLegadoAttachment(book: LibraryBook) {
@@ -177,6 +251,70 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
                 lastOpenedAtEpochMillis = 0L,
                 readingOffset = 0,
                 contentSha256 = contentSha256,
+                sourceUri = uri.toString(),
+            )
+            if (!saveBook(book)) throw IOException("Unable to save library metadata")
+            return book
+        } catch (error: Throwable) {
+            temporaryFile.delete()
+            storedFile.delete()
+            throw error
+        }
+    }
+
+    private fun importStreamInternal(
+        sourceName: String,
+        sourceUri: String?,
+        format: BookFormat,
+        extension: String,
+        titleOverride: String?,
+        characterCounter: (File) -> Int,
+        inputStreamProvider: () -> InputStream,
+    ): LibraryBook {
+        val id = UUID.randomUUID().toString()
+        val directory = libraryDirectory()
+        val temporaryFile = File(directory, ".$id.importing")
+        val storedFileName = "$id.$extension"
+        val storedFile = File(directory, storedFileName)
+
+        try {
+            inputStreamProvider().use { source ->
+                temporaryFile.outputStream().buffered().use { destination ->
+                    source.copyTo(destination)
+                }
+            }
+
+            val contentSha256 = sha256(temporaryFile)
+            findDuplicate(format, temporaryFile.length(), contentSha256)?.let { existing ->
+                temporaryFile.delete()
+                return existing
+            }
+
+            if (!temporaryFile.renameTo(storedFile)) {
+                temporaryFile.copyTo(storedFile, overwrite = true)
+                temporaryFile.delete()
+            }
+
+            val now = System.currentTimeMillis()
+            val title = titleOverride
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: sourceName
+                    .substringBeforeLast('.', missingDelimiterValue = sourceName)
+                    .trim()
+                    .ifEmpty { appContext.getString(R.string.vaultshelf_untitled_book) }
+            val book = LibraryBook(
+                id = id,
+                title = title,
+                storedFileName = storedFileName,
+                format = format,
+                sizeBytes = storedFile.length(),
+                totalCharacters = characterCounter(storedFile),
+                addedAtEpochMillis = now,
+                lastOpenedAtEpochMillis = 0L,
+                readingOffset = 0,
+                contentSha256 = contentSha256,
+                sourceUri = sourceUri,
             )
             if (!saveBook(book)) throw IOException("Unable to save library metadata")
             return book
@@ -271,7 +409,23 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         }
         File(libraryDirectory(), current.storedFileName).delete()
         current.coverFileName?.let { File(libraryDirectory(), it).delete() }
-        preferences.edit().remove(bookKey(id)).commit()
+        val removed = preferences.edit().remove(bookKey(id)).commit()
+        if (removed) {
+            current.sourceUri?.let(Uri::parse)?.let { uri ->
+                val flags =
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                runCatching {
+                    appContext.contentResolver.releasePersistableUriPermission(uri, flags)
+                }.recoverCatching {
+                    appContext.contentResolver.releasePersistableUriPermission(
+                        uri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                }
+            }
+        }
+        removed
     }
 
     private fun libraryDirectory(): File = File(appContext.filesDir, LIBRARY_DIRECTORY).apply {
@@ -371,6 +525,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         .put("coverFileName", book.coverFileName ?: JSONObject.NULL)
         .put("legadoBookUrl", book.legadoBookUrl ?: JSONObject.NULL)
         .put("contentSha256", book.contentSha256 ?: JSONObject.NULL)
+        .put("sourceUri", book.sourceUri ?: JSONObject.NULL)
         .toString()
 
     private fun decodeBook(json: String): LibraryBook {
@@ -388,6 +543,8 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             .takeIf { it.isNotBlank() && it != "null" }
         val contentSha256 = value.optString("contentSha256")
             .takeIf { it.isNotBlank() && it != "null" }
+        val sourceUri = value.optString("sourceUri")
+            .takeIf { it.isNotBlank() && it != "null" }
         return LibraryBook(
             id = value.getString("id"),
             title = value.getString("title"),
@@ -402,6 +559,7 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             coverFileName = coverFileName,
             legadoBookUrl = legadoBookUrl,
             contentSha256 = contentSha256,
+            sourceUri = sourceUri,
         )
     }
 

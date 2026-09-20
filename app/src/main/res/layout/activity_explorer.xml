@@ -38,4 +38,15 @@
             app:tint="?attr/colorOnPrimaryContainer" />
     </FrameLayout>
 
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/vaultshelf_explorer_bottom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurface"
+        android:visibility="gone"
+        app:itemIconTint="?attr/colorOnSurfaceVariant"
+        app:itemTextColor="?attr/colorOnSurfaceVariant"
+        app:labelVisibilityMode="labeled"
+        app:menu="@menu/vaultshelf_explorer_bottom_nav" />
+
 </LinearLayout>

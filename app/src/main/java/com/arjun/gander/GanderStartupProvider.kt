@@ -30,6 +30,11 @@ class GanderStartupProvider : ContentProvider() {
         ) {
             preferences.edit { putBoolean("usf_fingerprint", true) }
         }
+        // VaultShelf deliberately does not request READ_PHONE_STATE. Keep the upstream
+        // call-state feature disabled even for users upgrading from a build that had it on.
+        if (preferences.getBoolean("pauseReadAloudWhilePhoneCalls", false)) {
+            preferences.edit { putBoolean("pauseReadAloudWhilePhoneCalls", false) }
+        }
 
         LegadoReaderBridge.initialize(appContext)
 

@@ -4502,3 +4502,20 @@ diff --git a/app/src/main/java/io/legado/app/ui/book/toc/rule/TxtTocRuleDialog.k
 +                ?: tocRules.firstOrNull()?.name
          }
      }
+
+diff --git a/app/src/main/res/xml/pref_config_aloud.xml b/app/src/main/res/xml/pref_config_aloud.xml
+--- a/app/src/main/res/xml/pref_config_aloud.xml
++++ b/app/src/main/res/xml/pref_config_aloud.xml
+@@ -14,12 +14,6 @@
+             android:summary="@string/ignore_audio_focus_summary"
+             android:title="@string/ignore_audio_focus_title" />
+ 
+-        <io.legado.app.lib.prefs.SwitchPreference
+-            android:defaultValue="false"
+-            android:key="pauseReadAloudWhilePhoneCalls"
+-            android:summary="@string/pause_read_aloud_while_phone_calls_summary"
+-            android:title="@string/pause_read_aloud_while_phone_calls_title" />
+-
+         <io.legado.app.lib.prefs.SwitchPreference
+             android:defaultValue="false"
+             android:title="@string/read_aloud_wake_lock"

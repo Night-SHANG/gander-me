@@ -3,10 +3,15 @@ package com.arjun.gander.vault
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.arjun.gander.BookReadingPositions
+import com.arjun.gander.Positions
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
+import com.arjun.gander.library.LocalLibraryRepository
+import com.vaultshelf.droidfs.VaultShelfProgressStore
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.InputStream
 import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
@@ -32,6 +37,7 @@ data class VaultLibraryEntry(
     val sizeBytes: Long,
     val addedAtEpochMillis: Long,
     val lastOpenedAtEpochMillis: Long,
+    val sourcePath: String? = null,
 )
 
 class VaultFileRepository(
@@ -90,6 +96,62 @@ class VaultFileRepository(
             }
         }
         return destination
+    }
+
+    fun copyWithinVolume(sourcePath: String, destinationPath: String): Boolean =
+        copyBetweenVolumes(volume, sourcePath, volume, destinationPath)
+
+    fun copyFromVolume(
+        sourceVolume: EncryptedVolume,
+        sourcePath: String,
+        destinationPath: String,
+    ): Boolean = copyBetweenVolumes(sourceVolume, sourcePath, volume, destinationPath)
+
+    fun inputStream(path: String): InputStream = EncryptedVolumeInputStream(volume, path)
+
+    private fun copyBetweenVolumes(
+        sourceVolume: EncryptedVolume,
+        sourcePath: String,
+        destinationVolume: EncryptedVolume,
+        destinationPath: String,
+    ): Boolean {
+        val sourceHandle = sourceVolume.openFileReadMode(sourcePath)
+        if (sourceHandle == -1L) return false
+        val destinationHandle = destinationVolume.openFileWriteMode(destinationPath)
+        if (destinationHandle == -1L) {
+            sourceVolume.closeFile(sourceHandle)
+            return false
+        }
+        return try {
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var sourceOffset = 0L
+            var destinationOffset = 0L
+            while (true) {
+                val read = sourceVolume.read(
+                    sourceHandle,
+                    sourceOffset,
+                    buffer,
+                    0,
+                    buffer.size.toLong(),
+                )
+                if (read < 0) return false
+                if (read == 0) break
+                val written = destinationVolume.write(
+                    destinationHandle,
+                    destinationOffset,
+                    buffer,
+                    0,
+                    read.toLong(),
+                )
+                if (written != read) return false
+                sourceOffset += read
+                destinationOffset += written
+            }
+            destinationVolume.truncate(destinationPath, destinationOffset)
+        } finally {
+            sourceVolume.closeFile(sourceHandle)
+            destinationVolume.closeFile(destinationHandle)
+        }
     }
 
     fun createFolder(parentPath: String, name: String): Boolean {
@@ -169,11 +231,13 @@ class VaultLibraryStore(
     context: Context,
     private val fileRepository: VaultFileRepository,
 ) {
+    private val appContext = context.applicationContext
     private val volume = fileRepository.volume
 
     @Synchronized
     fun listBooks(): List<VaultLibraryEntry> {
-        return readEntries()
+        val entries = migrateLegacyEntries(readEntries())
+        return entries
             .filter { entry -> volume.getAttr(entry.path)?.type == Stat.S_IFREG }
             .sortedWith(
                 compareByDescending<VaultLibraryEntry> {
@@ -190,8 +254,18 @@ class VaultLibraryStore(
         val stat = volume.getAttr(path)
         require(stat?.type == Stat.S_IFREG) { "Vault book is not a regular file" }
 
-        val entries = readEntries().toMutableList()
-        entries.firstOrNull { it.path == path }?.let { return it }
+        val entries = migrateLegacyEntries(readEntries()).toMutableList()
+        entries.firstOrNull { it.sourcePath == path }?.let { existing ->
+            if (volume.getAttr(existing.path)?.type == Stat.S_IFREG) return existing
+        }
+
+        val id = UUID.randomUUID().toString()
+        val privatePath = privateBookPath(id, format)
+        fileRepository.ensureDirectory(LIBRARY_FILES_DIRECTORY)
+        check(fileRepository.copyWithinVolume(path, privatePath)) {
+            "Unable to create private vault-library copy"
+        }
+        migrateVaultReadingPosition(path, privatePath)
 
         val fileName = File(path).name
         val title = titleOverride
@@ -201,13 +275,14 @@ class VaultLibraryStore(
                 .ifBlank { fileName }
 
         val entry = VaultLibraryEntry(
-            id = UUID.randomUUID().toString(),
-            path = path,
+            id = id,
+            path = privatePath,
             title = title,
             format = format,
             sizeBytes = stat.size.coerceAtLeast(0L),
             addedAtEpochMillis = System.currentTimeMillis(),
             lastOpenedAtEpochMillis = 0L,
+            sourcePath = path,
         )
         entries += entry
         writeEntries(entries)
@@ -215,8 +290,20 @@ class VaultLibraryStore(
     }
 
     @Synchronized
-    fun remove(id: String): Boolean {
-        val entries = readEntries().toMutableList()
+    fun remove(id: String, deleteLinkedSource: Boolean = false): Boolean {
+        val entries = migrateLegacyEntries(readEntries()).toMutableList()
+        val target = entries.firstOrNull { it.id == id } ?: return false
+        val libraryDeleted = !volume.pathExists(target.path) || volume.deleteFile(target.path)
+        if (!libraryDeleted) return false
+        if (deleteLinkedSource) {
+            target.sourcePath?.let { linked ->
+                if (volume.pathExists(linked)) fileRepository.delete(linked)
+            }
+        }
+        BookReadingPositions.clear(
+            appContext,
+            VaultShelfProgressStore.fileKey(fileRepository.volumeUuid, target.path),
+        )
         val changed = entries.removeAll { it.id == id }
         if (changed) writeEntries(entries)
         return changed
@@ -224,9 +311,27 @@ class VaultLibraryStore(
 
     @Synchronized
     fun removePath(path: String) {
-        val entries = readEntries().toMutableList()
-        if (entries.removeAll { it.path == path || it.path.startsWith(path.trimEnd('/') + "/") }) {
-            writeEntries(entries)
+        val prefix = path.trimEnd('/') + "/"
+        val entries = migrateLegacyEntries(readEntries())
+        var changed = false
+        val updated = entries.map { entry ->
+            val linked = entry.sourcePath == path ||
+                entry.sourcePath?.startsWith(prefix) == true
+            if (linked) {
+                changed = true
+                entry.copy(sourcePath = null)
+            } else {
+                entry
+            }
+        }
+        if (changed) writeEntries(updated)
+    }
+
+    @Synchronized
+    fun linkedToSourcePath(path: String): List<VaultLibraryEntry> {
+        val prefix = path.trimEnd('/') + "/"
+        return migrateLegacyEntries(readEntries()).filter {
+            it.sourcePath == path || it.sourcePath?.startsWith(prefix) == true
         }
     }
 
@@ -240,18 +345,123 @@ class VaultLibraryStore(
     }
 
     fun importExternalLibraryBook(book: LibraryBook, sourceFile: File): VaultLibraryEntry {
-        fileRepository.ensureDirectory(VaultFileRepository.BOOKS_DIRECTORY)
-        val extension = sourceFile.extension.takeIf { it.isNotBlank() } ?: formatExtension(book.format)
-        val requestedName = buildString {
-            append(VaultFileRepository.sanitizeFileName(book.title).ifBlank { "book" })
-            if (extension.isNotBlank()) append('.').append(extension)
+        require(sourceFile.isFile)
+        val entries = migrateLegacyEntries(readEntries()).toMutableList()
+        entries.firstOrNull {
+            it.title == book.title &&
+                it.format == book.format &&
+                it.sizeBytes == book.sizeBytes &&
+                volume.getAttr(it.path)?.type == Stat.S_IFREG
+        }?.let { existing -> return existing }
+
+        val id = UUID.randomUUID().toString()
+        val privatePath = privateBookPath(id, book.format)
+        fileRepository.ensureDirectory(LIBRARY_FILES_DIRECTORY)
+        sourceFile.inputStream().buffered().use { input ->
+            check(volume.importFile(input, privatePath)) {
+                "Unable to import external library book into vault library"
+            }
         }
-        val path = fileRepository.importFile(
-            sourceFile,
-            requestedName,
-            VaultFileRepository.BOOKS_DIRECTORY,
+        val entry = VaultLibraryEntry(
+            id = id,
+            path = privatePath,
+            title = book.title,
+            format = book.format,
+            sizeBytes = sourceFile.length(),
+            addedAtEpochMillis = System.currentTimeMillis(),
+            lastOpenedAtEpochMillis = 0L,
+            sourcePath = null,
         )
-        return addPath(path, book.title)
+        entries += entry
+        writeEntries(entries)
+        Positions.keyFor(sourceFile)?.let { sourceKey ->
+            migrateReadingPosition(
+                sourceKey,
+                VaultShelfProgressStore.fileKey(fileRepository.volumeUuid, privatePath),
+            )
+        }
+        return entry
+    }
+
+    fun importFromVolume(
+        sourceVolume: EncryptedVolume,
+        sourcePath: String,
+        titleOverride: String? = null,
+        sourceReadingKey: String? = null,
+    ): VaultLibraryEntry {
+        val format = requireNotNull(formatForPath(sourcePath)) { "Unsupported library format" }
+        val stat = requireNotNull(sourceVolume.getAttr(sourcePath)) { "Source file is missing" }
+        require(stat.type == Stat.S_IFREG) { "Source is not a regular file" }
+
+        val id = UUID.randomUUID().toString()
+        val privatePath = privateBookPath(id, format)
+        fileRepository.ensureDirectory(LIBRARY_FILES_DIRECTORY)
+        check(fileRepository.copyFromVolume(sourceVolume, sourcePath, privatePath)) {
+            "Unable to import file into vault library"
+        }
+        val sourceName = File(sourcePath).name
+        val entry = VaultLibraryEntry(
+            id = id,
+            path = privatePath,
+            title = titleOverride
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: sourceName.substringBeforeLast('.', missingDelimiterValue = sourceName),
+            format = format,
+            sizeBytes = stat.size.coerceAtLeast(0L),
+            addedAtEpochMillis = System.currentTimeMillis(),
+            lastOpenedAtEpochMillis = 0L,
+            sourcePath = null,
+        )
+        val entries = migrateLegacyEntries(readEntries()).toMutableList()
+        entries += entry
+        writeEntries(entries)
+        sourceReadingKey?.let { key ->
+            migrateReadingPosition(
+                key,
+                VaultShelfProgressStore.fileKey(fileRepository.volumeUuid, privatePath),
+            )
+        }
+        return entry
+    }
+
+    fun exportToVisibleFile(
+        entry: VaultLibraryEntry,
+        parentPath: String,
+    ): String {
+        val requestedName = buildString {
+            append(VaultFileRepository.sanitizeFileName(entry.title).ifBlank { "book" })
+            append('.')
+            append(formatExtension(entry.format))
+        }
+        val destination = fileRepository.uniquePath(parentPath, requestedName)
+        check(fileRepository.copyWithinVolume(entry.path, destination)) {
+            "Unable to export vault-library book to vault files"
+        }
+        migrateVaultReadingPosition(entry.path, destination)
+        return destination
+    }
+
+    suspend fun exportToExternalLibrary(
+        entry: VaultLibraryEntry,
+        repository: LocalLibraryRepository,
+    ): LibraryBook {
+        val imported = repository.importStream(
+            displayName = "${entry.title}.${formatExtension(entry.format)}",
+            format = entry.format,
+            titleOverride = entry.title,
+            sourceUri = null,
+        ) {
+            fileRepository.inputStream(entry.path)
+        }
+        val targetFile = repository.bookFile(imported.id)
+        Positions.keyFor(targetFile)?.let { targetKey ->
+            migrateReadingPosition(
+                VaultShelfProgressStore.fileKey(fileRepository.volumeUuid, entry.path),
+                targetKey,
+            )
+        }
+        return imported
     }
 
     private fun readEntries(): List<VaultLibraryEntry> {
@@ -278,6 +488,8 @@ class VaultLibraryStore(
                             sizeBytes = value.optLong("sizeBytes", 0L),
                             addedAtEpochMillis = value.optLong("addedAtEpochMillis", 0L),
                             lastOpenedAtEpochMillis = value.optLong("lastOpenedAtEpochMillis", 0L),
+                            sourcePath = value.optString("sourcePath")
+                                .takeIf { it.isNotBlank() && it != "null" },
                         ),
                     )
                 }
@@ -297,7 +509,8 @@ class VaultLibraryStore(
                     .put("format", entry.format.name)
                     .put("sizeBytes", entry.sizeBytes)
                     .put("addedAtEpochMillis", entry.addedAtEpochMillis)
-                    .put("lastOpenedAtEpochMillis", entry.lastOpenedAtEpochMillis),
+                    .put("lastOpenedAtEpochMillis", entry.lastOpenedAtEpochMillis)
+                    .put("sourcePath", entry.sourcePath ?: JSONObject.NULL),
             )
         }
         val bytes = array.toString().toByteArray(Charsets.UTF_8)
@@ -324,35 +537,96 @@ class VaultLibraryStore(
         if (volume.pathExists(METADATA_BACKUP)) volume.deleteFile(METADATA_BACKUP)
     }
 
+    private fun privateBookPath(id: String, format: BookFormat): String =
+        PathUtils.pathJoin(LIBRARY_FILES_DIRECTORY, "$id.${formatExtension(format)}")
+
+    private fun migrateLegacyEntries(entries: List<VaultLibraryEntry>): List<VaultLibraryEntry> {
+        var changed = false
+        val migrated = entries.map { entry ->
+            if (
+                entry.path.startsWith("$LIBRARY_FILES_DIRECTORY/") ||
+                volume.getAttr(entry.path)?.type != Stat.S_IFREG
+            ) {
+                entry
+            } else {
+                val privatePath = privateBookPath(entry.id, entry.format)
+                fileRepository.ensureDirectory(LIBRARY_FILES_DIRECTORY)
+                if (fileRepository.copyWithinVolume(entry.path, privatePath)) {
+                    migrateVaultReadingPosition(entry.path, privatePath)
+                    changed = true
+                    entry.copy(path = privatePath, sourcePath = entry.sourcePath ?: entry.path)
+                } else {
+                    entry
+                }
+            }
+        }
+        if (changed) writeEntries(migrated)
+        return migrated
+    }
+
+    private fun migrateVaultReadingPosition(sourcePath: String, destinationPath: String) {
+        migrateReadingPosition(
+            VaultShelfProgressStore.fileKey(fileRepository.volumeUuid, sourcePath),
+            VaultShelfProgressStore.fileKey(fileRepository.volumeUuid, destinationPath),
+        )
+    }
+
+    private fun migrateReadingPosition(sourceKey: String, destinationKey: String) {
+        BookReadingPositions.get(appContext, sourceKey)?.let { position ->
+            BookReadingPositions.save(
+                appContext,
+                destinationKey,
+                position.chapterIndex,
+                position.chapterPosition,
+                position.updatedAtEpochMillis,
+            )
+        }
+    }
+
     companion object {
+        const val LIBRARY_FILES_DIRECTORY = "/.vaultshelf/library-files"
         private const val METADATA_FILE = "/.vaultshelf/library.json"
         private const val METADATA_NEW = "/.vaultshelf/library.json.new"
         private const val METADATA_BACKUP = "/.vaultshelf/library.json.bak"
         private const val MAX_METADATA_BYTES = 2L * 1024L * 1024L
 
-        fun formatForPath(path: String): BookFormat? =
-            when (File(path).extension.lowercase()) {
-                "txt" -> BookFormat.TXT
-                "epub" -> BookFormat.EPUB
-                "md", "markdown" -> BookFormat.MARKDOWN
-                "pdf" -> BookFormat.PDF
-                "umd" -> BookFormat.UMD
-                "mobi" -> BookFormat.MOBI
-                "azw3" -> BookFormat.AZW3
-                "azw" -> BookFormat.AZW
-                else -> null
-            }
+        fun formatForPath(path: String): BookFormat? = BookFormat.fromFileName(path)
 
-        private fun formatExtension(format: BookFormat): String =
-            when (format) {
-                BookFormat.TXT -> "txt"
-                BookFormat.EPUB -> "epub"
-                BookFormat.MARKDOWN -> "md"
-                BookFormat.PDF -> "pdf"
-                BookFormat.UMD -> "umd"
-                BookFormat.MOBI -> "mobi"
-                BookFormat.AZW3 -> "azw3"
-                BookFormat.AZW -> "azw"
-            }
+        private fun formatExtension(format: BookFormat): String = BookFormat.extension(format)
+    }
+}
+
+internal class EncryptedVolumeInputStream(
+    private val volume: EncryptedVolume,
+    path: String,
+) : InputStream() {
+    private val handle = volume.openFileReadMode(path)
+    private var offset = 0L
+    private var closed = false
+
+    init {
+        require(handle != -1L) { "Unable to open encrypted file" }
+    }
+
+    override fun read(): Int {
+        val one = ByteArray(1)
+        return if (read(one, 0, 1) == 1) one[0].toInt() and 0xff else -1
+    }
+
+    override fun read(buffer: ByteArray, off: Int, len: Int): Int {
+        if (closed) return -1
+        if (len == 0) return 0
+        val read = volume.read(handle, offset, buffer, off.toLong(), len.toLong())
+        if (read <= 0) return -1
+        offset += read
+        return read
+    }
+
+    override fun close() {
+        if (!closed) {
+            closed = true
+            volume.closeFile(handle)
+        }
+        super.close()
     }
 }

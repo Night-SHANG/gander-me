@@ -187,12 +187,12 @@ android {
 val permissionAllowlist = setOf(
     // Legado's original local TTS reader runs as a media foreground service.
     // WAKE_LOCK is only used when the reader's optional "read aloud wake lock" setting is on.
-    // READ_PHONE_STATE is requested at runtime only if the user enables both "ignore audio
-    // focus" and "pause read aloud during phone calls"; both settings default to off.
+    // Phone-state access is deliberately stripped: VaultShelf keeps local TTS without
+    // asking to inspect calls. The optional upstream "pause during calls" feature is not
+    // part of VaultShelf's permission surface.
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
     "android.permission.WAKE_LOCK",
-    "android.permission.READ_PHONE_STATE",
 
     // DroidFS' original vault implementation. Biometric unlock stays available.
     // Its optional encrypted camera/recording stack is deliberately not shipped by VaultShelf.
@@ -273,6 +273,7 @@ dependencies {
     implementation("com.google.android.material:material:1.14.0")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")
+    implementation("androidx.documentfile:documentfile:1.1.0")
     implementation("androidx.webkit:webkit:1.16.0")
     // Zoomable image view that tiles huge bitmaps
     implementation("com.davemorrissey.labs:subsampling-scale-image-view-androidx:3.10.0")

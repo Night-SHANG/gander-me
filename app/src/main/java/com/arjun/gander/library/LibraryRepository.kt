@@ -42,4 +42,6 @@ interface LibraryRepository {
     ): LibraryBook? = getBook(id)
 
     suspend fun deleteBook(id: String): Boolean
+
+    suspend fun deleteOriginalSource(id: String): Boolean = false
 }

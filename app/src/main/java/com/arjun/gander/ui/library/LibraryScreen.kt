@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
+import androidx.documentfile.provider.DocumentFile
 import com.arjun.gander.R
 import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
@@ -77,6 +78,7 @@ import com.arjun.gander.library.syncLegadoReaderProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.ArrayList
 
 private enum class ShelfViewMode { GRID, LIST }
 
@@ -95,7 +97,8 @@ private enum class ShelfSort(@StringRes val labelRes: Int) {
 fun LibraryScreen(
     repository: LibraryRepository,
     modifier: Modifier = Modifier,
-    onImportToVault: ((List<LibraryBook>) -> Unit)? = null,
+    onImportToVaultFiles: ((List<LibraryBook>) -> Unit)? = null,
+    onImportToVaultLibrary: ((List<LibraryBook>) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -115,6 +118,8 @@ fun LibraryScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var confirmBatchDelete by remember { mutableStateOf(false) }
+    var exportBookIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var exportedSourceIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var bookToRename by remember { mutableStateOf<LibraryBook?>(null) }
     var bookToDelete by remember { mutableStateOf<LibraryBook?>(null) }
     var bookToInspect by remember { mutableStateOf<LibraryBook?>(null) }
@@ -139,6 +144,27 @@ fun LibraryScreen(
     fun toggleSelection(book: LibraryBook) {
         selectedIds = selectedIds.toMutableSet().apply {
             if (!add(book.id)) remove(book.id)
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { rootUri ->
+        val ids = exportBookIds
+        exportBookIds = emptyList()
+        if (rootUri != null && ids.isNotEmpty()) {
+            scope.launch {
+                val selectedBooks = books.filter { it.id in ids }
+                val exported = withContext(Dispatchers.IO) {
+                    exportLibraryBooksToTree(context, repository, selectedBooks, rootUri)
+                }
+                if (exported.isEmpty()) {
+                    importFailed = true
+                } else {
+                    exportedSourceIds = exported
+                    if (exported.size != selectedBooks.size) importFailed = true
+                }
+            }
         }
     }
 
@@ -179,6 +205,20 @@ fun LibraryScreen(
                 var failed = false
                 uris.forEach { uri ->
                     runCatching {
+                        val persistFlags =
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        runCatching {
+                            context.contentResolver.takePersistableUriPermission(
+                                uri,
+                                persistFlags,
+                            )
+                        }.recoverCatching {
+                            context.contentResolver.takePersistableUriPermission(
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                            )
+                        }
                         when (val format = detectBookFormat(context, uri)) {
                             BookFormat.TXT -> repository.importTxt(uri)
                             BookFormat.EPUB -> repository.importEpub(uri)
@@ -239,7 +279,18 @@ fun LibraryScreen(
                         selectedIds + visibleBooks.map { it.id }
                     }
                 },
-                onImportToVault = onImportToVault?.let { callback ->
+                onExportToFiles = {
+                    exportBookIds = selectedIds.toList()
+                    exportLauncher.launch(null)
+                },
+                onImportToVaultFiles = onImportToVaultFiles?.let { callback ->
+                    {
+                        val selectedBooks = books.filter { it.id in selectedIds }
+                        if (selectedBooks.isNotEmpty()) callback(selectedBooks)
+                        selectedIds = emptySet()
+                    }
+                },
+                onImportToVaultLibrary = onImportToVaultLibrary?.let { callback ->
                     {
                         val selectedBooks = books.filter { it.id in selectedIds }
                         if (selectedBooks.isNotEmpty()) callback(selectedBooks)
@@ -361,17 +412,34 @@ fun LibraryScreen(
                 Text(stringResource(R.string.vaultshelf_library_delete_message, book.title))
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            repository.deleteBook(book.id)
-                            books = repository.listBooks()
-                            selectedIds = selectedIds - book.id
-                            bookToDelete = null
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                repository.deleteBook(book.id)
+                                books = repository.listBooks()
+                                selectedIds = selectedIds - book.id
+                                bookToDelete = null
+                            }
+                        },
+                    ) {
+                        Text(stringResource(R.string.vault_transfer_delete_library_only))
+                    }
+                    if (book.sourceUri != null) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    val sourceDeleted = repository.deleteOriginalSource(book.id)
+                                    if (sourceDeleted) repository.deleteBook(book.id)
+                                    books = repository.listBooks()
+                                    selectedIds = selectedIds - book.id
+                                    bookToDelete = null
+                                }
+                            },
+                        ) {
+                            Text(stringResource(R.string.vault_transfer_delete_library_and_file))
                         }
-                    },
-                ) {
-                    Text(stringResource(R.string.vaultshelf_library_delete_confirm))
+                    }
                 }
             },
             dismissButton = {
@@ -383,6 +451,8 @@ fun LibraryScreen(
     }
 
     if (confirmBatchDelete) {
+        val selectedBooks = books.filter { it.id in selectedIds }
+        val hasLinkedSources = selectedBooks.any { it.sourceUri != null }
         AlertDialog(
             onDismissRequest = { confirmBatchDelete = false },
             title = { Text(stringResource(R.string.vaultshelf_library_batch_delete_title)) },
@@ -396,22 +466,83 @@ fun LibraryScreen(
                 )
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            selectedIds.forEach { repository.deleteBook(it) }
-                            selectedIds = emptySet()
-                            books = repository.listBooks()
-                            confirmBatchDelete = false
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                selectedIds.forEach { repository.deleteBook(it) }
+                                selectedIds = emptySet()
+                                books = repository.listBooks()
+                                confirmBatchDelete = false
+                            }
+                        },
+                    ) {
+                        Text(stringResource(R.string.vault_transfer_delete_library_only))
+                    }
+                    if (hasLinkedSources) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    selectedBooks.forEach { book ->
+                                        if (book.sourceUri == null || repository.deleteOriginalSource(book.id)) {
+                                            repository.deleteBook(book.id)
+                                        }
+                                    }
+                                    selectedIds = emptySet()
+                                    books = repository.listBooks()
+                                    confirmBatchDelete = false
+                                }
+                            },
+                        ) {
+                            Text(stringResource(R.string.vault_transfer_delete_library_and_file))
                         }
-                    },
-                ) {
-                    Text(stringResource(R.string.vaultshelf_library_delete_confirm))
+                    }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { confirmBatchDelete = false }) {
                     Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (exportedSourceIds.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { exportedSourceIds = emptyList() },
+            title = { Text(stringResource(R.string.vault_transfer_done_title)) },
+            text = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.vault_transfer_external_library_to_files_done,
+                        exportedSourceIds.size,
+                        exportedSourceIds.size,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val ids = exportedSourceIds
+                        exportedSourceIds = emptyList()
+                        scope.launch {
+                            ids.forEach { repository.deleteBook(it) }
+                            selectedIds = emptySet()
+                            books = repository.listBooks()
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.vault_transfer_delete_source))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        exportedSourceIds = emptyList()
+                        selectedIds = emptySet()
+                    },
+                ) {
+                    Text(stringResource(R.string.vault_transfer_keep_source))
                 }
             },
         )
@@ -628,7 +759,9 @@ private fun SelectionHeader(
     allVisibleSelected: Boolean,
     onClose: () -> Unit,
     onSelectAll: () -> Unit,
-    onImportToVault: (() -> Unit)?,
+    onExportToFiles: () -> Unit,
+    onImportToVaultFiles: (() -> Unit)?,
+    onImportToVaultLibrary: (() -> Unit)?,
     onDelete: () -> Unit,
 ) {
     Surface(
@@ -636,47 +769,95 @@ private fun SelectionHeader(
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 2.dp,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            TextButton(onClick = onClose) {
-                Text(stringResource(R.string.vaultshelf_library_manage_done))
-            }
-            Text(
-                text = pluralStringResource(
-                    R.plurals.vaultshelf_library_selected_count,
-                    selectedCount,
-                    selectedCount,
-                ),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = onSelectAll) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onClose) {
+                    Text(stringResource(R.string.vaultshelf_library_manage_done))
+                }
                 Text(
-                    stringResource(
-                        if (allVisibleSelected) {
-                            R.string.vaultshelf_library_unselect_all
-                        } else {
-                            R.string.vaultshelf_library_select_all
-                        },
+                    text = pluralStringResource(
+                        R.plurals.vaultshelf_library_selected_count,
+                        selectedCount,
+                        selectedCount,
                     ),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f),
                 )
-            }
-            if (onImportToVault != null) {
-                TextButton(onClick = onImportToVault) {
-                    Text(stringResource(R.string.vaultshelf_library_import_to_vault))
+                TextButton(onClick = onSelectAll) {
+                    Text(
+                        stringResource(
+                            if (allVisibleSelected) {
+                                R.string.vaultshelf_library_unselect_all
+                            } else {
+                                R.string.vaultshelf_library_select_all
+                            },
+                        ),
+                        maxLines = 1,
+                    )
                 }
             }
-            TextButton(onClick = onDelete) {
-                Text(
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SelectionAction(
+                    text = stringResource(R.string.vault_transfer_external_library_to_files),
+                    onClick = onExportToFiles,
+                    modifier = Modifier.weight(1f),
+                )
+                if (onImportToVaultFiles != null) {
+                    SelectionAction(
+                        text = stringResource(R.string.vault_transfer_to_vault_files),
+                        onClick = onImportToVaultFiles,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (onImportToVaultLibrary != null) {
+                    SelectionAction(
+                        text = stringResource(R.string.vault_transfer_to_vault_library),
+                        onClick = onImportToVaultLibrary,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                SelectionAction(
                     text = stringResource(R.string.vaultshelf_library_delete),
-                    color = MaterialTheme.colorScheme.error,
+                    onClick = onDelete,
+                    modifier = Modifier.weight(1f),
+                    error = true,
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SelectionAction(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    error: Boolean = false,
+) {
+    TextButton(
+        onClick = onClick,
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 3.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -1094,6 +1275,39 @@ private fun RenameBookDialog(
             }
         },
     )
+}
+
+private suspend fun exportLibraryBooksToTree(
+    context: Context,
+    repository: LibraryRepository,
+    books: List<LibraryBook>,
+    rootUri: Uri,
+): List<String> {
+    val root = DocumentFile.fromTreeUri(context, rootUri) ?: return emptyList()
+    val exported = ArrayList<String>()
+    books.forEach { book ->
+        val source = runCatching { repository.bookFile(book.id) }
+            .getOrNull()
+            ?: return@forEach
+        val extension = BookFormat.extension(book.format)
+        val baseName = book.title
+            .replace(Regex("""[\\/:*?"<>|]"""), "_")
+            .ifBlank { "book" }
+        var fileName = "$baseName.$extension"
+        var index = 2
+        while (root.findFile(fileName) != null) {
+            fileName = "$baseName ($index).$extension"
+            index += 1
+        }
+        val target = root.createFile("application/octet-stream", fileName) ?: return@forEach
+        val copied = runCatching {
+            context.contentResolver.openOutputStream(target.uri)?.use { output ->
+                source.inputStream().buffered().use { input -> input.copyTo(output) }
+            } ?: error("Unable to open export destination")
+        }.isSuccess
+        if (copied) exported += book.id else runCatching { target.delete() }
+    }
+    return exported
 }
 
 private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {

@@ -22,16 +22,23 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun filesBottomDestinationOpensTheExistingBrowserDirectly() {
-        val source = File(
+    fun filesBottomDestinationIsARealShellTabWithPersistedSafRoots() {
+        val shell = File(
             repo,
             "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
         ).readText()
+        val activity = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
+        ).readText()
 
-        assertThat(source).contains("VaultShelfDestination.FILES -> onOpenFiles()")
-        assertThat(source).contains("onOpenFiles()")
+        assertThat(shell).contains("VaultShelfDestination.FILES -> ExternalFilesScreen(")
+        assertThat(shell).contains("contentResolver.persistedUriPermissions")
+        assertThat(shell).contains("ActivityResultContracts.OpenDocumentTree()")
+        assertThat(shell).contains("takePersistableUriPermission")
+        assertThat(activity).contains("ExternalExplorerActivity")
+        assertThat(activity).contains("SafVolume(applicationContext, treeUri)")
     }
-
     @Test
     fun transientLegadoSessionsUseDatabaseMarkerInsteadOfPlainUriRegistry() {
         val bridge = File(
@@ -714,7 +721,7 @@ class VaultShelfUxRegressionTest {
         assertThat(main).contains("SafVolume(applicationContext, treeUri)")
         assertThat(externalExplorer).contains("class ExternalExplorerActivity : ExplorerActivity()")
         assertThat(externalExplorer).contains("action_import_to_vault")
-        assertThat(vaultMode).contains("Intent(this@VaultModeActivity, ExplorerActivity::class.java)")
+        assertThat(vaultMode).contains("VaultExplorerActivity::class.java")
         assertThat(patch).contains("open class ExplorerActivity : BaseExplorerActivity()")
         assertThat(patch).contains("VaultImportTargetActivity")
         assertThat(main).doesNotContain("private fun renderVault()")
@@ -787,26 +794,40 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun fileImportToVaultPreservesExistingLibraryIdentity() {
+    fun fileAndLibraryTransfersStayIndependentAndAskBeforeDeletingSources() {
         val target = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultImportTargetActivity.kt",
         ).readText()
+        val external = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
+        ).readText()
+        val vault = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
+        ).readText()
 
-        assertThat(target).contains("fileOperationService.copyElements")
-        assertThat(target).contains("VaultLibraryStore.formatForPath")
-        assertThat(target).contains("contentSha256")
-        assertThat(target).contains("vaultLibrary.addPath")
-        assertThat(target).contains("BookReadingPositions.save")
-        assertThat(target).contains("repository.deleteBook(book.id)")
+        assertThat(target).contains("EXTRA_TARGET_LIBRARY")
+        assertThat(target).contains("importDirectlyIntoVaultLibrary")
+        assertThat(target).contains("promptVolumeSourceChoice")
+        assertThat(target).contains("vault_transfer_delete_source")
+        assertThat(target).doesNotContain("migrateLibraryIdentityAndPromptDelete")
+        assertThat(external).contains("confirmDeleteSelected")
+        assertThat(vault).contains("confirmDeleteSelected")
+        assertThat(external).contains("vault_transfer_delete_file_and_library")
+        assertThat(vault).contains("vault_transfer_delete_file_and_library")
     }
-
     @Test
-    fun unlockedVaultUsesVaultShelfShellInsteadOfDroidFsExplorer() {
+    fun unlockedVaultUsesVaultShelfShellAndVaultExplorerKeepsBottomNavigation() {
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
         val mode = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
+        val explorer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
         ).readText()
         val storage = File(
             repo,
@@ -815,25 +836,16 @@ class VaultShelfUxRegressionTest {
 
         assertThat(patch).contains("com.arjun.gander.vault.VaultModeActivity")
         assertThat(mode).contains("VaultModeShell")
-        val files = File(
-            repo,
-            "app/src/main/java/com/arjun/gander/MainActivity.kt",
-        ).readText()
-        val shell = File(
-            repo,
-            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
-        ).readText()
-        assertThat(files).contains("ExternalExplorerActivity")
-        assertThat(files).contains("SafVolume")
-        assertThat(shell).contains("onOpenFiles: () -> Unit")
-        assertThat(shell).doesNotContain("private fun VaultFilesScreen")
+        assertThat(mode).contains("VaultExplorerActivity::class.java")
+        assertThat(explorer).contains("vaultshelf_explorer_bottom_nav")
+        assertThat(explorer).contains("EXTRA_RETURN_TO_FILES")
         assertThat(storage).contains("METADATA_FILE = \"/.vaultshelf/library.json\"")
+        assertThat(storage).contains("LIBRARY_FILES_DIRECTORY = \"/.vaultshelf/library-files\"")
         assertThat(storage).contains("fun addPath")
         assertThat(storage).contains("fun importExternalLibraryBook")
     }
-
     @Test
-    fun externalLibraryCanMoveBooksDirectlyIntoVaultLibrary() {
+    fun externalLibraryCanTransferToFilesAndBothVaultDestinations() {
         val library = File(
             repo,
             "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
@@ -842,17 +854,19 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
         ).readText()
-
-        assertThat(library).contains("onImportToVault")
-        assertThat(library).contains("vaultshelf_library_import_to_vault")
-        assertThat(activity).contains("VaultModeActivity.EXTRA_IMPORT_BOOK_IDS")
-        val mode = File(
+        val target = File(
             repo,
-            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+            "app/src/main/java/com/arjun/gander/vault/VaultImportTargetActivity.kt",
         ).readText()
-        assertThat(mode).contains("VaultShelfProgressStore.fileKey")
-        assertThat(mode).contains("BookReadingPositions.save")
-        assertThat(mode).contains("LegadoReaderBridge.snapshot")
+
+        assertThat(library).contains("onExportToFiles")
+        assertThat(library).contains("onImportToVaultFiles")
+        assertThat(library).contains("onImportToVaultLibrary")
+        assertThat(activity).contains("ACTION_IMPORT_TO_VAULT")
+        assertThat(activity).contains("ACTION_IMPORT_TO_VAULT_LIBRARY")
+        assertThat(target).contains("EXTRA_SOURCE_LIBRARY_IDS")
+        assertThat(target).contains("importExternalLibraryIntoCurrentDirectory")
+        assertThat(target).contains("importDirectlyIntoVaultLibrary")
     }
     @Test
     fun vaultFormatsUseTheMatureViewerForEachDomain() {
@@ -1081,4 +1095,106 @@ class VaultShelfUxRegressionTest {
         assertThat(manifest).doesNotContain(".UmdReaderActivity")
         assertThat(manifest).doesNotContain(".MobiReaderActivity")
     }
+    @Test
+    fun fourStorageZonesExposeAllTwelveDirectedTransfers() {
+        val externalFiles = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
+        ).readText()
+        val externalLibrary = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
+        ).readText()
+        val vaultFiles = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
+        ).readText()
+        val vaultLibrary = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+
+        // EF -> EL, VF, VL
+        assertThat(externalFiles).contains("importSelectedIntoExternalLibrary")
+        assertThat(externalFiles).contains("targetLibrary = false")
+        assertThat(externalFiles).contains("targetLibrary = true")
+
+        // EL -> EF, VF, VL
+        assertThat(externalLibrary).contains("vault_transfer_external_library_to_files")
+        assertThat(externalLibrary).contains("onImportToVaultFiles")
+        assertThat(externalLibrary).contains("onImportToVaultLibrary")
+
+        // VF -> EF, EL, VL
+        assertThat(vaultFiles).contains("action_export_external")
+        assertThat(vaultFiles).contains("importSelectedIntoExternalLibrary")
+        assertThat(vaultFiles).contains("importSelectedIntoVaultLibrary")
+
+        // VL -> EF, EL, VF
+        assertThat(vaultLibrary).contains("onExportExternalFiles")
+        assertThat(vaultLibrary).contains("onExportExternalLibrary")
+        assertThat(vaultLibrary).contains("onExportVaultFiles")
+    }
+
+    @Test
+    fun vaultLibraryOwnsIndependentEncryptedCopies() {
+        val storage = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultStorage.kt",
+        ).readText()
+
+        assertThat(storage).contains("LIBRARY_FILES_DIRECTORY = \"/.vaultshelf/library-files\"")
+        assertThat(storage).contains("copyWithinVolume(path, privatePath)")
+        assertThat(storage).contains("sourcePath = path")
+        assertThat(storage).contains("migrateLegacyEntries")
+        assertThat(storage).contains("deleteLinkedSource: Boolean = false")
+    }
+
+    @Test
+    fun phoneStatePermissionIsNotShippedForLocalTts() {
+        val legadoManifest = File(
+            repo,
+            "legado-upstream/src/main/AndroidManifest.xml",
+        ).readText()
+        val build = File(repo, "app/build.gradle.kts").readText()
+        val startup = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/GanderStartupProvider.kt",
+        ).readText()
+        val patch = File(
+            repo,
+            "patches/legado-vaultshelf-runtime.patch",
+        ).readText()
+
+        assertThat(legadoManifest).doesNotContain("android.permission.READ_PHONE_STATE")
+        assertThat(build).doesNotContain("\"android.permission.READ_PHONE_STATE\",")
+        assertThat(startup).contains("putBoolean(\"pauseReadAloudWhilePhoneCalls\", false)")
+        assertThat(patch).contains("-            android:key=\"pauseReadAloudWhilePhoneCalls\"")
+        assertThat(legadoManifest).contains("android.permission.WAKE_LOCK")
+        assertThat(legadoManifest).contains("android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK")
+    }
+
+    @Test
+    fun explorerShellHandlesInsetsAndSimplifiedChineseOverflowLabel() {
+        val patch = File(
+            repo,
+            "patches/droidfs-vaultshelf-file-routing.patch",
+        ).readText()
+        val chinese = File(
+            repo,
+            "app/src/main/res/values-zh-rCN/upstream_shared_strings.xml",
+        ).readText()
+        val layout = File(
+            repo,
+            "app/src/main/res/layout/activity_explorer.xml",
+        ).readText()
+
+        assertThat(patch).contains("WindowInsetsCompat.Type.systemBars()")
+        assertThat(patch).contains("WindowInsetsCompat.Type.displayCutout()")
+        assertThat(patch).contains("encryptedVolume !is SafVolume")
+        assertThat(patch).contains("removeAll { it.name == \".vaultshelf\" }")
+        assertThat(chinese).contains("<string name=\"more_options\">更多选项</string>")
+        assertThat(layout).contains("vaultshelf_explorer_bottom_nav")
+    }
+
+
 }
