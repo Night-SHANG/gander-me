@@ -16,8 +16,12 @@ import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
+import com.arjun.gander.transfer.TransferBehaviorPreferences
+import com.arjun.gander.transfer.TransferRoute
+import com.arjun.gander.transfer.TransferSourceDecision
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.VaultImportTargetActivity
+import com.arjun.gander.vault.VaultVolumeActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.SafVolume
 import java.security.MessageDigest
@@ -25,7 +29,6 @@ import java.util.ArrayList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import sushi.hardcore.droidfs.MainActivity as DroidFsMainActivity
 import sushi.hardcore.droidfs.R as DroidFsR
 import sushi.hardcore.droidfs.explorers.ExplorerActivity
 import sushi.hardcore.droidfs.explorers.ExplorerElement
@@ -59,6 +62,10 @@ class ExternalExplorerActivity : ExplorerActivity() {
         val allBooks = anySelected && selected.all {
             !it.isDirectory && BookFormat.fromFileName(it.name) != null
         }
+        // Plain external files are already outside the vault, so sharing them is not
+        // governed by the vault-only unsafe sharing switch.
+        menu.findItem(DroidFsR.id.share)?.isVisible =
+            anySelected && selected.none { it.isDirectory }
 
         menuAction(
             menu,
@@ -141,31 +148,51 @@ class ExternalExplorerActivity : ExplorerActivity() {
                 showTransferFailed()
                 return@launch
             }
-            MaterialAlertDialogBuilder(this@ExternalExplorerActivity)
-                .setTitle(R.string.vault_transfer_done_title)
-                .setMessage(
-                    resources.getQuantityString(
-                        R.plurals.vault_transfer_external_files_to_library_done,
-                        imported.size,
-                        imported.size,
-                    ),
+            when (
+                TransferBehaviorPreferences.automaticDecision(
+                    this@ExternalExplorerActivity,
+                    TransferRoute.EXTERNAL_FILES_TO_EXTERNAL_LIBRARY,
                 )
-                .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
-                    lifecycleScope.launch {
-                        if (deleteElements(selected)) {
-                            withContext(Dispatchers.IO) {
-                                imported.forEach { book ->
-                                    repository.detachOriginalSource(book.id)
-                                }
+            ) {
+                TransferSourceDecision.KEEP -> {
+                    unselectAll()
+                    invalidateOptionsMenu()
+                }
+                TransferSourceDecision.DELETE -> {
+                    if (deleteElements(selected)) {
+                        withContext(Dispatchers.IO) {
+                            imported.forEach { book ->
+                                repository.detachOriginalSource(book.id)
                             }
                         }
                     }
                 }
-                .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
-                    unselectAll()
-                    invalidateOptionsMenu()
-                }
-                .show()
+                null -> MaterialAlertDialogBuilder(this@ExternalExplorerActivity)
+                    .setTitle(R.string.vault_transfer_done_title)
+                    .setMessage(
+                        resources.getQuantityString(
+                            R.plurals.vault_transfer_external_files_to_library_done,
+                            imported.size,
+                            imported.size,
+                        ),
+                    )
+                    .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
+                        lifecycleScope.launch {
+                            if (deleteElements(selected)) {
+                                withContext(Dispatchers.IO) {
+                                    imported.forEach { book ->
+                                        repository.detachOriginalSource(book.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
+                        unselectAll()
+                        invalidateOptionsMenu()
+                    }
+                    .show()
+            }
         }
     }
 
@@ -174,7 +201,7 @@ class ExternalExplorerActivity : ExplorerActivity() {
         if (selected.isEmpty()) return
 
         startActivity(
-            Intent(this, DroidFsMainActivity::class.java)
+            Intent(this, VaultVolumeActivity::class.java)
                 .setAction(
                     if (targetLibrary) {
                         VaultImportTargetActivity.ACTION_IMPORT_TO_VAULT_LIBRARY
@@ -197,6 +224,10 @@ class ExternalExplorerActivity : ExplorerActivity() {
                 .putExtra(
                     VaultImportTargetActivity.EXTRA_TARGET_LIBRARY,
                     targetLibrary,
+                )
+                .putExtra(
+                    VaultImportTargetActivity.EXTRA_SOURCE_VOLUME_NAME,
+                    intent.getStringExtra("volumeName").orEmpty(),
                 ),
         )
         unselectAll()
@@ -357,7 +388,7 @@ class ExternalExplorerActivity : ExplorerActivity() {
                             VaultShelfDestination.FILES -> Unit
                             VaultShelfDestination.VAULT -> {
                                 startActivity(
-                                    Intent(this@ExternalExplorerActivity, DroidFsMainActivity::class.java)
+                                    Intent(this@ExternalExplorerActivity, VaultVolumeActivity::class.java)
                                         .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
                                 )
                                 overridePendingTransition(0, 0)
@@ -378,6 +409,11 @@ class ExternalExplorerActivity : ExplorerActivity() {
                 .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
         )
         overridePendingTransition(0, 0)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshCurrentDirectory()
     }
 
     override fun onDestroy() {

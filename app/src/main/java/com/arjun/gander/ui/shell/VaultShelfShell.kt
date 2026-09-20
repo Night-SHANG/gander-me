@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -81,6 +82,7 @@ fun VaultShelfShell(
     onOpenVault: () -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
+    onOpenTransferSettings: () -> Unit,
     onImportBooksToVaultFiles: (List<LibraryBook>) -> Unit,
     onImportBooksToVaultLibrary: (List<LibraryBook>) -> Unit,
     onOpenAbout: () -> Unit,
@@ -151,6 +153,7 @@ fun VaultShelfShell(
             VaultShelfDestination.SETTINGS -> SettingsScreen(
                 onOpenVaultSettings = onOpenVaultSettings,
                 onOpenVaultBackup = onOpenVaultBackup,
+                onOpenTransferSettings = onOpenTransferSettings,
                 onOpenAbout = onOpenAbout,
                 modifier = Modifier.padding(innerPadding),
             )
@@ -165,6 +168,7 @@ private fun ExternalFilesScreen(
 ) {
     val context = LocalContext.current
     var revision by rememberSaveable { mutableIntStateOf(0) }
+    var pendingRemoveRoot by remember { mutableStateOf<Pair<Uri, String>?>(null) }
     val roots by produceState<List<Pair<Uri, String>>>(
         initialValue = emptyList(),
         revision,
@@ -270,21 +274,7 @@ private fun ExternalFilesScreen(
                             )
                         }
                         TextButton(
-                            onClick = {
-                                runCatching {
-                                    context.contentResolver.releasePersistableUriPermission(
-                                        uri,
-                                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                                    )
-                                }.recoverCatching {
-                                    context.contentResolver.releasePersistableUriPermission(
-                                        uri,
-                                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                                    )
-                                }
-                                revision += 1
-                            },
+                            onClick = { pendingRemoveRoot = uri to label },
                         ) {
                             Text(stringResource(R.string.vaultshelf_files_remove_access))
                         }
@@ -299,6 +289,48 @@ private fun ExternalFilesScreen(
         ) {
             Text(stringResource(R.string.vaultshelf_files_add_folder))
         }
+    }
+
+    pendingRemoveRoot?.let { (uri, label) ->
+        AlertDialog(
+            onDismissRequest = { pendingRemoveRoot = null },
+            title = { Text(stringResource(R.string.vaultshelf_files_remove_access_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.vaultshelf_files_remove_access_message,
+                        label,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.contentResolver.releasePersistableUriPermission(
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                            )
+                        }.recoverCatching {
+                            context.contentResolver.releasePersistableUriPermission(
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                            )
+                        }
+                        pendingRemoveRoot = null
+                        revision += 1
+                    },
+                ) {
+                    Text(stringResource(R.string.vaultshelf_files_remove_access))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemoveRoot = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
     }
 }
 
@@ -640,6 +672,7 @@ private fun QuickActionTile(
 private fun SettingsScreen(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
+    onOpenTransferSettings: () -> Unit,
     onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -669,6 +702,13 @@ private fun SettingsScreen(
             detailRes = R.string.vaultshelf_settings_backup_detail,
             iconRes = R.drawable.ic_vaultshelf_vault,
             onClick = onOpenVaultBackup,
+        )
+
+        SettingsEntry(
+            titleRes = R.string.transfer_settings_title,
+            detailRes = R.string.transfer_settings_entry_detail,
+            iconRes = R.drawable.ic_vaultshelf_files,
+            onClick = onOpenTransferSettings,
         )
 
         SettingsEntry(

@@ -118,15 +118,16 @@ class VaultModeActivity : AppCompatActivity() {
                         onLockVault = {
                             volumeManager.closeVolume(volumeId)
                         },
-                        onExitVault = {
+                        onOpenExternalDestination = { destination ->
                             startActivity(
                                 Intent(this@VaultModeActivity, VaultShelfActivity::class.java)
                                     .putExtra(
                                         VaultShelfActivity.EXTRA_INITIAL_DESTINATION,
-                                        "HOME",
+                                        destination,
                                     )
                                     .addFlags(
                                         Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
                                             Intent.FLAG_ACTIVITY_NO_ANIMATION,
                                     ),
                             )

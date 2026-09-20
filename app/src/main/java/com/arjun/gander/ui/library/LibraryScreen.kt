@@ -75,6 +75,9 @@ import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
 import com.arjun.gander.library.createReaderLaunchPlan
 import com.arjun.gander.library.syncLegadoReaderProgress
+import com.arjun.gander.transfer.TransferBehaviorPreferences
+import com.arjun.gander.transfer.TransferRoute
+import com.arjun.gander.transfer.TransferSourceDecision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -162,7 +165,22 @@ fun LibraryScreen(
                 if (exported.isEmpty()) {
                     importFailed = true
                 } else {
-                    exportedSourceIds = exported
+                    when (
+                        TransferBehaviorPreferences.automaticDecision(
+                            context,
+                            TransferRoute.EXTERNAL_LIBRARY_TO_EXTERNAL_FILES,
+                        )
+                    ) {
+                        TransferSourceDecision.KEEP -> selectedIds = emptySet()
+                        TransferSourceDecision.DELETE -> {
+                            withContext(Dispatchers.IO) {
+                                exported.forEach { repository.deleteBook(it) }
+                            }
+                            selectedIds = emptySet()
+                            books = repository.listBooks()
+                        }
+                        null -> exportedSourceIds = exported
+                    }
                     if (exported.size != selectedBooks.size) importFailed = true
                 }
             }

@@ -265,4 +265,20 @@
         <item quantity="other">%1$d vault-library books were exported to external files. Delete the vault-library sources?</item>
     </plurals>
 
+    <string name="transfer_settings_title">Transfer and source handling</string>
+    <string name="transfer_settings_entry_detail">Choose whether each successful transfer keeps or deletes its source.</string>
+    <string name="transfer_settings_auto_title">Automatically handle sources after transfer</string>
+    <string name="transfer_settings_auto_summary">Off by default. When enabled, successful transfers use the rules below instead of asking each time.</string>
+    <string name="transfer_settings_routes_title">Per-route defaults</string>
+    <string name="transfer_source_keep">Keep source</string>
+    <string name="transfer_source_delete">Delete source</string>
+    <string name="transfer_route_label">%1$s → %2$s</string>
+    <string name="transfer_zone_external_files">External files</string>
+    <string name="transfer_zone_external_library">External library</string>
+    <string name="transfer_zone_vault_files">Vault files</string>
+    <string name="transfer_zone_vault_library">Vault library</string>
+    <string name="vault_export_blocked">Vault plaintext export is disabled. Enable “Allow exporting files” in Vault security settings first.</string>
+    <string name="vaultshelf_files_remove_access_title">Remove folder access?</string>
+    <string name="vaultshelf_files_remove_access_message">VaultShelf will stop showing the authorized folder “%1$s”. The files themselves will not be deleted.</string>
+
 </resources>

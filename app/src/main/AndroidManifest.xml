@@ -107,6 +107,14 @@
             android:exported="false" />
 
         <activity
+            android:name=".transfer.TransferBehaviorSettingsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".vault.VaultVolumeActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".vault.VaultModeActivity"
             android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
             android:exported="false" />

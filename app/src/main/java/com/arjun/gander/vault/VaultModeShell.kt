@@ -4,6 +4,7 @@ package com.arjun.gander.vault
 
 import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -60,14 +61,23 @@ import com.arjun.gander.R
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.transfer.TransferBehaviorPreferences
+import com.arjun.gander.transfer.TransferRoute
+import com.arjun.gander.transfer.TransferSourceDecision
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
-import com.arjun.gander.ui.shell.VaultShelfVaultDestinations
+import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.ArrayList
+
+private enum class VaultModeDestination {
+    HOME,
+    LIBRARY,
+    SETTINGS,
+}
 
 private enum class VaultLibraryCompletedTransfer {
     EXTERNAL_FILES,
@@ -86,41 +96,33 @@ fun VaultModeShell(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
-    onExitVault: () -> Unit,
+    onOpenExternalDestination: (String) -> Unit,
     modifier: Modifier = Modifier,
-    initialDestinationName: String = VaultShelfDestination.HOME.name,
+    initialDestinationName: String = VaultModeDestination.HOME.name,
 ) {
     var selectedName by rememberSaveable {
         mutableStateOf(
-            VaultShelfVaultDestinations
-                .firstOrNull {
-                    it.name == initialDestinationName &&
-                        it != VaultShelfDestination.FILES
-                }
+            VaultModeDestination.entries
+                .firstOrNull { it.name == initialDestinationName }
                 ?.name
-                ?: VaultShelfDestination.HOME.name,
+                ?: VaultModeDestination.HOME.name,
         )
     }
     var revision by remember { mutableIntStateOf(0) }
-    val selected = VaultShelfVaultDestinations
-        .firstOrNull {
-            it.name == selectedName &&
-                it != VaultShelfDestination.FILES
-        }
-        ?: VaultShelfDestination.HOME
+    val selected = VaultModeDestination.entries
+        .firstOrNull { it.name == selectedName }
+        ?: VaultModeDestination.HOME
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             VaultShelfBottomBar(
-                destinations = VaultShelfVaultDestinations,
-                selected = selected,
+                destinations = VaultShelfExternalDestinations,
+                selected = VaultShelfDestination.VAULT,
                 onSelected = { destination ->
-                    when (destination) {
-                        VaultShelfDestination.FILES -> onOpenFiles()
-                        VaultShelfDestination.VAULT -> Unit
-                        else -> selectedName = destination.name
+                    if (destination != VaultShelfDestination.VAULT) {
+                        onOpenExternalDestination(destination.name)
                     }
                 },
             )
@@ -128,13 +130,13 @@ fun VaultModeShell(
     ) { innerPadding ->
         val contentModifier = Modifier.padding(innerPadding)
         when (selected) {
-            VaultShelfDestination.HOME -> VaultHomeScreen(
+            VaultModeDestination.HOME -> VaultHomeScreen(
                 volumeName = volumeName,
                 libraryStore = libraryStore,
                 revision = revision + externalRevision,
-                onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
+                onOpenLibrary = { selectedName = VaultModeDestination.LIBRARY.name },
                 onOpenFiles = onOpenFiles,
-                onExitVault = onExitVault,
+                onOpenExternalDestination = onOpenExternalDestination,
                 onOpenBook = { entry ->
                     libraryStore.markOpened(entry.id)
                     fileRepository.volume.getAttr(entry.path)?.let { stat ->
@@ -153,7 +155,7 @@ fun VaultModeShell(
                 modifier = contentModifier,
             )
 
-            VaultShelfDestination.LIBRARY -> VaultLibraryScreen(
+            VaultModeDestination.LIBRARY -> VaultLibraryScreen(
                 fileRepository = fileRepository,
                 libraryStore = libraryStore,
                 revision = revision + externalRevision,
@@ -178,15 +180,12 @@ fun VaultModeShell(
                 modifier = contentModifier,
             )
 
-            VaultShelfDestination.FILES,
-            VaultShelfDestination.VAULT -> Unit
-
-            VaultShelfDestination.SETTINGS -> VaultSettingsScreen(
+            VaultModeDestination.SETTINGS -> VaultSettingsScreen(
                 volumeName = volumeName,
                 onOpenVaultSettings = onOpenVaultSettings,
                 onOpenVaultBackup = onOpenVaultBackup,
                 onLockVault = onLockVault,
-                onExitVault = onExitVault,
+                onOpenExternalDestination = onOpenExternalDestination,
                 modifier = contentModifier,
             )
         }
@@ -200,7 +199,7 @@ private fun VaultHomeScreen(
     revision: Int,
     onOpenLibrary: () -> Unit,
     onOpenFiles: () -> Unit,
-    onExitVault: () -> Unit,
+    onOpenExternalDestination: (String) -> Unit,
     onOpenBook: (VaultLibraryEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -245,7 +244,7 @@ private fun VaultHomeScreen(
             }
         }
         TextButton(
-            onClick = onExitVault,
+            onClick = { onOpenExternalDestination("HOME") },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
@@ -337,6 +336,29 @@ private fun VaultLibraryScreen(
         }
     }
 
+    fun completeExternalTransfer(
+        route: TransferRoute,
+        transfer: VaultLibraryCompletedTransfer,
+        ids: List<String>,
+    ) {
+        when (TransferBehaviorPreferences.automaticDecision(context, route)) {
+            TransferSourceDecision.KEEP -> selectedIds = emptySet()
+            TransferSourceDecision.DELETE -> {
+                scope.launch(Dispatchers.IO) {
+                    ids.forEach { libraryStore.remove(it) }
+                    withContext(Dispatchers.Main) {
+                        selectedIds = emptySet()
+                        refresh()
+                    }
+                }
+            }
+            null -> {
+                completedTransfer = transfer
+                completedSourceIds = ids
+            }
+        }
+    }
+
     val exportExternal = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { rootUri ->
@@ -354,8 +376,11 @@ private fun VaultLibraryScreen(
                     )
                 }
                 if (exported.isNotEmpty()) {
-                    completedTransfer = VaultLibraryCompletedTransfer.EXTERNAL_FILES
-                    completedSourceIds = exported
+                    completeExternalTransfer(
+                        TransferRoute.VAULT_LIBRARY_TO_EXTERNAL_FILES,
+                        VaultLibraryCompletedTransfer.EXTERNAL_FILES,
+                        exported,
+                    )
                 }
             }
         }
@@ -379,10 +404,17 @@ private fun VaultLibraryScreen(
                     }
                 },
                 onExportExternalFiles = {
-                    exportToExternalIds = selectedIds.toList()
-                    exportExternal.launch(null)
+                    if (!VaultSecurityPolicy.allowPlaintextExport(context)) {
+                        Toast.makeText(context, R.string.vault_export_blocked, Toast.LENGTH_SHORT).show()
+                    } else {
+                        exportToExternalIds = selectedIds.toList()
+                        exportExternal.launch(null)
+                    }
                 },
                 onExportExternalLibrary = {
+                    if (!VaultSecurityPolicy.allowPlaintextExport(context)) {
+                        Toast.makeText(context, R.string.vault_export_blocked, Toast.LENGTH_SHORT).show()
+                    } else {
                     val selected = books.filter { it.id in selectedIds }
                     scope.launch {
                         val exported = withContext(Dispatchers.IO) {
@@ -394,9 +426,13 @@ private fun VaultLibraryScreen(
                             }
                         }
                         if (exported.isNotEmpty()) {
-                            completedTransfer = VaultLibraryCompletedTransfer.EXTERNAL_LIBRARY
-                            completedSourceIds = exported
+                            completeExternalTransfer(
+                                TransferRoute.VAULT_LIBRARY_TO_EXTERNAL_LIBRARY,
+                                VaultLibraryCompletedTransfer.EXTERNAL_LIBRARY,
+                                exported,
+                            )
                         }
+                    }
                     }
                 },
                 onExportVaultFiles = {
@@ -900,7 +936,7 @@ private fun VaultSettingsScreen(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
-    onExitVault: () -> Unit,
+    onOpenExternalDestination: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -924,7 +960,7 @@ private fun VaultSettingsScreen(
         Button(onClick = onOpenVaultBackup, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.vault_settings_backup))
         }
-        TextButton(onClick = onExitVault, modifier = Modifier.fillMaxWidth()) {
+        TextButton(onClick = { onOpenExternalDestination("HOME") }, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.vault_return_external_home))
         }
         TextButton(onClick = onLockVault, modifier = Modifier.fillMaxWidth()) {

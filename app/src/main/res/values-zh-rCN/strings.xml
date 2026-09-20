@@ -241,4 +241,20 @@
         <item quantity="other">%1$d 本保险库书籍已经导出到外部文件。是否删除保险库书库来源？</item>
     </plurals>
 
+    <string name="transfer_settings_title">传输与来源处理</string>
+    <string name="transfer_settings_entry_detail">为四个区域之间的每条传输路径预设完成后保留还是删除来源。</string>
+    <string name="transfer_settings_auto_title">自动处理传输后的来源</string>
+    <string name="transfer_settings_auto_summary">默认关闭。开启后，传输成功将按下方规则自动处理来源，不再每次询问。</string>
+    <string name="transfer_settings_routes_title">各传输路径默认行为</string>
+    <string name="transfer_source_keep">传输完成后：保留来源</string>
+    <string name="transfer_source_delete">传输完成后：删除来源</string>
+    <string name="transfer_route_label">%1$s → %2$s</string>
+    <string name="transfer_zone_external_files">外部文件</string>
+    <string name="transfer_zone_external_library">外部书库</string>
+    <string name="transfer_zone_vault_files">保险库文件</string>
+    <string name="transfer_zone_vault_library">保险库书库</string>
+    <string name="vault_export_blocked">当前禁止将保险库明文导出。请先在“保险库安全设置”中开启“允许导出文件”。</string>
+    <string name="vaultshelf_files_remove_access_title">移除文件夹授权？</string>
+    <string name="vaultshelf_files_remove_access_message">VaultShelf 将不再显示已授权文件夹“%1$s”，但不会删除文件夹中的任何文件。</string>
+
 </resources>

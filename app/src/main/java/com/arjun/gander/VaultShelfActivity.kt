@@ -19,17 +19,20 @@ import androidx.core.net.toUri
 import com.arjun.gander.files.ExternalExplorerActivity
 import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.ui.shell.VaultShelfShell
+import com.arjun.gander.transfer.TransferBehaviorSettingsActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.VaultBackupActivity
 import com.arjun.gander.vault.VaultImportTargetActivity
+import com.arjun.gander.vault.VaultVolumeActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.SafVolume
 import java.io.File
 import java.util.ArrayList
 import java.util.UUID
-import sushi.hardcore.droidfs.MainActivity as DroidFsMainActivity
+import sushi.hardcore.droidfs.Constants as DroidFsConstants
 import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 import sushi.hardcore.droidfs.VolumeData
+import sushi.hardcore.droidfs.VolumeDatabase
 import sushi.hardcore.droidfs.VolumeManagerApp
 import sushi.hardcore.droidfs.filesystems.EncryptedVolume
 
@@ -59,11 +62,7 @@ class VaultShelfActivity : AppCompatActivity() {
                         libraryRepository = libraryRepository,
                         externalRevision = libraryRevision,
                         onOpenExternalFolder = ::openExternalFolder,
-                        onOpenVault = {
-                            startActivity(
-                                Intent(this@VaultShelfActivity, DroidFsMainActivity::class.java),
-                            )
-                        },
+                        onOpenVault = ::openVault,
                         onOpenVaultSettings = {
                             startActivity(
                                 Intent(this@VaultShelfActivity, DroidFsSettingsActivity::class.java),
@@ -74,9 +73,17 @@ class VaultShelfActivity : AppCompatActivity() {
                                 Intent(this@VaultShelfActivity, VaultBackupActivity::class.java),
                             )
                         },
+                        onOpenTransferSettings = {
+                            startActivity(
+                                Intent(
+                                    this@VaultShelfActivity,
+                                    TransferBehaviorSettingsActivity::class.java,
+                                ),
+                            )
+                        },
                         onImportBooksToVaultFiles = { books ->
                             startActivity(
-                                Intent(this@VaultShelfActivity, DroidFsMainActivity::class.java)
+                                Intent(this@VaultShelfActivity, VaultVolumeActivity::class.java)
                                     .setAction(VaultImportTargetActivity.ACTION_IMPORT_TO_VAULT)
                                     .putStringArrayListExtra(
                                         VaultImportTargetActivity.EXTRA_SOURCE_LIBRARY_IDS,
@@ -90,7 +97,7 @@ class VaultShelfActivity : AppCompatActivity() {
                         },
                         onImportBooksToVaultLibrary = { books ->
                             startActivity(
-                                Intent(this@VaultShelfActivity, DroidFsMainActivity::class.java)
+                                Intent(this@VaultShelfActivity, VaultVolumeActivity::class.java)
                                     .setAction(
                                         VaultImportTargetActivity.ACTION_IMPORT_TO_VAULT_LIBRARY,
                                     )
@@ -122,6 +129,43 @@ class VaultShelfActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         libraryRevision += 1
+    }
+
+    private fun openVault() {
+        val app = application as VolumeManagerApp
+        val defaultName = getSharedPreferences(
+            packageName + "_preferences",
+            MODE_PRIVATE,
+        ).getString(DroidFsConstants.DEFAULT_VOLUME_KEY, null)
+        if (!defaultName.isNullOrBlank()) {
+            val defaultVolume = VolumeDatabase(this).use { database ->
+                database.getVolumes().firstOrNull { it.name == defaultName }
+            }
+            val openId = defaultVolume?.let { app.volumeManager.getVolumeId(it) }
+            if (defaultVolume != null && openId != null) {
+                startActivity(
+                    Intent(this, com.arjun.gander.vault.VaultModeActivity::class.java)
+                        .putExtra(
+                            com.arjun.gander.vault.VaultModeActivity.EXTRA_VOLUME_ID,
+                            openId,
+                        )
+                        .putExtra(
+                            com.arjun.gander.vault.VaultModeActivity.EXTRA_VOLUME_NAME,
+                            defaultVolume.shortName,
+                        )
+                        .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                )
+                overridePendingTransition(0, 0)
+                return
+            }
+        }
+
+        startActivity(
+            Intent(this, VaultVolumeActivity::class.java)
+                .putExtra(EXTRA_VAULT_SHELL_ENTRY, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+        )
+        overridePendingTransition(0, 0)
     }
 
     private fun openExternalFolder(treeUri: Uri, label: String) {
@@ -221,6 +265,7 @@ class VaultShelfActivity : AppCompatActivity() {
         const val EXTRA_INITIAL_DESTINATION = "vaultshelf.initial_destination"
         const val EXTRA_RETURN_TO_FILES = "vaultshelf.return_to_files"
         const val EXTRA_PLAIN_VOLUME = "vaultshelf.plain_volume"
+        const val EXTRA_VAULT_SHELL_ENTRY = "vaultshelf.shell_entry"
         private const val LICENCES_ASSET = "licences.md"
     }
 }

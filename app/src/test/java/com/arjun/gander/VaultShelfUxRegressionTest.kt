@@ -1303,8 +1303,10 @@ class VaultShelfUxRegressionTest {
         }
         listOf(external, vault).forEach { source ->
             assertThat(source).contains("ComposeView")
-            assertThat(source).contains("selected = VaultShelfDestination.FILES")
         }
+        assertThat(external).contains("selected = VaultShelfDestination.FILES")
+        assertThat(vault).contains("selected = VaultShelfDestination.VAULT")
+        assertThat(vaultShell).contains("selected = VaultShelfDestination.VAULT")
         assertThat(layout).contains("androidx.compose.ui.platform.ComposeView")
         assertThat(layout).doesNotContain("BottomNavigationView")
         assertThat(layout).doesNotContain("vaultshelf_explorer_nav_item_tint")
@@ -1360,6 +1362,184 @@ class VaultShelfUxRegressionTest {
         assertThat(shell.split("vault_return_external_home").size - 1).isAtLeast(2)
         assertThat(activity).contains("VaultShelfActivity.EXTRA_INITIAL_DESTINATION")
         assertThat(activity).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
+    }
+
+    @Test
+    fun transferSourceHandlingCoversAllTwelveRoutesAndDefaultsToPrompting() {
+        val prefs = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/transfer/TransferBehaviorPreferences.kt",
+        ).readText()
+        val settings = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/transfer/TransferBehaviorSettingsActivity.kt",
+        ).readText()
+
+        listOf(
+            "EXTERNAL_FILES_TO_EXTERNAL_LIBRARY",
+            "EXTERNAL_FILES_TO_VAULT_FILES",
+            "EXTERNAL_FILES_TO_VAULT_LIBRARY",
+            "EXTERNAL_LIBRARY_TO_EXTERNAL_FILES",
+            "EXTERNAL_LIBRARY_TO_VAULT_FILES",
+            "EXTERNAL_LIBRARY_TO_VAULT_LIBRARY",
+            "VAULT_FILES_TO_EXTERNAL_FILES",
+            "VAULT_FILES_TO_EXTERNAL_LIBRARY",
+            "VAULT_FILES_TO_VAULT_LIBRARY",
+            "VAULT_LIBRARY_TO_EXTERNAL_FILES",
+            "VAULT_LIBRARY_TO_EXTERNAL_LIBRARY",
+            "VAULT_LIBRARY_TO_VAULT_FILES",
+        ).forEach { route ->
+            assertThat(prefs).contains(route)
+            assertThat(settings).contains("TransferRoute.$route")
+        }
+        assertThat(prefs).contains("getBoolean(KEY_AUTOMATIC, false)")
+        assertThat(prefs).contains("TransferSourceDecision.KEEP.name")
+        assertThat(prefs).contains("if (isAutomatic(context)) decision(context, route) else null")
+        assertThat(settings).contains("enabled = automatic")
+    }
+
+    @Test
+    fun customVaultPlaintextRoutesRespectTheDroidFsExportSecuritySwitch() {
+        val policy = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultSecurityPolicy.kt",
+        ).readText()
+        val vaultFiles = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
+        ).readText()
+        val vaultLibrary = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+
+        assertThat(policy).contains("getBoolean(\"usf_decrypt\", false)")
+        assertThat(policy).contains("getBoolean(\"usf_share\", false)")
+        assertThat(vaultFiles).contains("VaultSecurityPolicy.allowPlaintextExport")
+        assertThat(vaultLibrary).contains("VaultSecurityPolicy.allowPlaintextExport")
+        assertThat(patch).contains("usf_decrypt = sharedPrefs.getBoolean(\"usf_decrypt\", false)")
+        assertThat(patch).contains("usf_share = sharedPrefs.getBoolean(\"usf_share\", false)")
+    }
+
+    @Test
+    fun retainedDroidFsSettingsStillHaveRuntimeConsumers() {
+        val rootPreferences = File(
+            repo,
+            "third_party/droidfs/app/src/main/res/xml/root_preferences.xml",
+        ).readText()
+        val unsafePreferences = File(
+            repo,
+            "third_party/droidfs/app/src/main/res/xml/unsafe_features_preferences.xml",
+        ).readText()
+        val baseExplorer = File(
+            repo,
+            "third_party/droidfs/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt",
+        ).readText()
+        val explorer = File(
+            repo,
+            "third_party/droidfs/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt",
+        ).readText()
+        val volumeApp = File(
+            repo,
+            "third_party/droidfs/app/src/main/java/sushi/hardcore/droidfs/VolumeManagerApp.kt",
+        ).readText()
+        val settings = File(
+            repo,
+            "third_party/droidfs/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt",
+        ).readText()
+
+        listOf("sort_order", "folders_first", "thumbnails", "map_folders").forEach {
+            assertThat(rootPreferences).contains("key=\"$it\"")
+            assertThat(baseExplorer).contains("\"$it\"")
+        }
+        listOf("usf_decrypt", "usf_share").forEach {
+            assertThat(unsafePreferences).contains("android:key=\"$it\"")
+            assertThat(explorer).contains("\"$it\"")
+        }
+        listOf("usf_background", "usf_keep_open", "lock_on_screen_lock").forEach {
+            assertThat(unsafePreferences).contains("android:key=\"$it\"")
+            assertThat(volumeApp).contains("\"$it\"")
+        }
+        listOf("usf_fingerprint", "usf_open", "usf_expose", "usf_saf_write", "export_method").forEach {
+            assertThat(unsafePreferences).contains("android:key=\"$it\"")
+        }
+        assertThat(settings).contains("findPreference<SwitchPreferenceCompat>(\"usf_fingerprint\")")
+        assertThat(settings).contains("findPreference<ListPreference>(\"export_method\")")
+    }
+
+    @Test
+    fun vaultEntryAndVolumeChooserDoNotTrapNavigation() {
+        val activity = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
+        ).readText()
+        val chooser = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
+        ).readText()
+        val vaultShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+
+        assertThat(activity).contains("app.volumeManager.getVolumeId")
+        assertThat(activity).contains("VaultVolumeActivity::class.java")
+        assertThat(chooser).contains("VaultShelfBottomBar(")
+        assertThat(chooser).contains("selected = VaultShelfDestination.VAULT")
+        assertThat(vaultShell).contains("destinations = VaultShelfExternalDestinations")
+        assertThat(vaultShell).contains("selected = VaultShelfDestination.VAULT")
+        assertThat(patch).contains("volumeManager.getVolumeId(volumeData)?.let")
+        assertThat(patch).contains("explorerRouter.importTargetMode")
+        assertThat(patch).contains("intent.getBooleanExtra(\"vaultshelf.shell_entry\", false)")
+    }
+
+    @Test
+    fun volumeChooserAndExplorerExposePhysicalBackButtons() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val mainPatch = patch.substringAfter(
+            "diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt",
+        ).substringBefore("diff --git ")
+        val explorerPatch = patch.substringAfter(
+            "diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt",
+        )
+
+        assertThat(mainPatch).contains("supportActionBar?.setDisplayHomeAsUpEnabled(true)")
+        assertThat(mainPatch).contains("onBackPressedDispatcher.onBackPressed()")
+        assertThat(explorerPatch).contains("supportActionBar?.setDisplayHomeAsUpEnabled(true)")
+        assertThat(explorerPatch).contains("onBackPressedDispatcher.onBackPressed()")
+    }
+
+    @Test
+    fun externalFolderAuthorizationRemovalRequiresConfirmation() {
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+
+        assertThat(shell).contains("pendingRemoveRoot")
+        assertThat(shell).contains("vaultshelf_files_remove_access_title")
+        assertThat(shell).contains("releasePersistableUriPermission")
+    }
+
+    @Test
+    fun transferDestinationFlowReturnsToItsSourceSurface() {
+        val target = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultImportTargetActivity.kt",
+        ).readText()
+        val external = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
+        ).readText()
+
+        assertThat(target).contains("private fun finishToSource()")
+        assertThat(target).contains("VaultShelfActivity.EXTRA_INITIAL_DESTINATION, \"LIBRARY\"")
+        assertThat(target).contains("ExternalExplorerActivity::class.java")
+        assertThat(target).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
+        assertThat(external).contains("override fun onResume()")
+        assertThat(external).contains("refreshCurrentDirectory()")
     }
 
 }
