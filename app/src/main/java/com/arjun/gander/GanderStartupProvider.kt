@@ -4,6 +4,7 @@ import android.content.ContentProvider
 import android.content.ContentValues
 import android.database.Cursor
 import android.net.Uri
+import androidx.core.content.edit
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewOutcomeReceiver
 import androidx.webkit.WebViewStartUpConfig
@@ -27,7 +28,7 @@ class GanderStartupProvider : ContentProvider() {
         if (!preferences.contains("usf_fingerprint") &&
             FingerprintProtector.canAuthenticate(appContext) == 0
         ) {
-            preferences.edit().putBoolean("usf_fingerprint", true).apply()
+            preferences.edit { putBoolean("usf_fingerprint", true) }
         }
 
         LegadoReaderBridge.initialize(appContext)
