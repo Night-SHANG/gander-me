@@ -642,11 +642,13 @@ rename to app/src/main/vaultshelf-disabled/activity_camera.xml
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
-@@ -7,6 +7,7 @@
+@@ -7,6 +7,9 @@
  class ExplorerRouter(private val context: Context, private val intent: Intent) {
      var pickMode = intent.action == "pick"
      var dropMode = (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) && intent.extras != null
-+    var importTargetMode =\n+        intent.action == "vaultshelf_import_to_vault" ||\n+            intent.action == "vaultshelf_import_to_vault_library"
++    var importTargetMode =
++        intent.action == "vaultshelf_import_to_vault" ||
++            intent.action == "vaultshelf_import_to_vault_library"
  
      fun getExplorerIntent(volumeId: Int, volumeShortName: String): Intent {
          var explorerIntent: Intent? = null
@@ -786,7 +788,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt b/app/src/mai
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-@@ -1,723 +1,755 @@
+@@ -1,723 +1,759 @@
 -package sushi.hardcore.droidfs.explorers
 -
 -import android.content.Intent
