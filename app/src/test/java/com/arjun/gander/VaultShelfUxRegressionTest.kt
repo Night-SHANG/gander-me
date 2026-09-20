@@ -670,6 +670,22 @@ class VaultShelfUxRegressionTest {
 
 
     @Test
+    fun droidFsPatchDoesNotSplitOneSourceFileAcrossMultipleDiffBlocks() {
+        val patch = File(
+            repo,
+            "patches/droidfs-vaultshelf-file-routing.patch",
+        ).readLines()
+
+        val headers = patch.filter { it.startsWith("diff --git a/") }
+        val duplicates = headers
+            .groupingBy { it }
+            .eachCount()
+            .filterValues { it > 1 }
+
+        assertThat(duplicates).isEmpty()
+    }
+
+    @Test
     fun plainAndVaultFilesReuseDroidFsExplorerCore() {
         val main = File(
             repo,

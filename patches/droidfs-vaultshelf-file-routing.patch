@@ -1,57 +1,4 @@
-diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
---- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-+++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-@@ -26,6 +26,7 @@
- import kotlinx.coroutines.cancel
- import kotlinx.coroutines.cancelAndJoin
- import kotlinx.coroutines.launch
-+import com.vaultshelf.droidfs.VaultShelfFileRouter
- import kotlinx.coroutines.yield
- import sushi.hardcore.droidfs.BaseActivity
- import sushi.hardcore.droidfs.Constants
-@@ -43,7 +44,6 @@
- import sushi.hardcore.droidfs.file_operations.TaskResult
- import sushi.hardcore.droidfs.file_viewers.AudioPlayer
- import sushi.hardcore.droidfs.file_viewers.ImageViewer
--import sushi.hardcore.droidfs.file_viewers.PdfViewer
- import sushi.hardcore.droidfs.file_viewers.TextEditor
- import sushi.hardcore.droidfs.file_viewers.VideoPlayer
- import sushi.hardcore.droidfs.filesystems.EncryptedVolume
-@@ -247,7 +247,7 @@
-                     "image" -> startFileViewer(ImageViewer::class.java, path)
-                     "video" -> startFileViewer(VideoPlayer::class.java, path)
-                     "audio" -> startFileViewer(AudioPlayer::class.java, path)
-+                    "pdf" -> VaultShelfFileRouter.open(this, path, explorerElement.stat.size, volumeId)
--                    "pdf" -> startFileViewer(PdfViewer::class.java, path)
-                     "text" -> startFileViewer(TextEditor::class.java, path)
-                     "external" -> if (usf_open) {
-                         openWithExternalApp(path, explorerElement.stat.size)
-@@ -304,6 +304,15 @@
-                 explorerElements[position].isParentFolder -> {
-                     changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
-                 }
-+                VaultShelfFileRouter.supports(fullPath) -> {
-+                    val element = explorerElements[position]
-+                    if (!VaultShelfFileRouter.open(
-+                            this, fullPath, element.stat.size, volumeId
-+                        )
-+                    ) {
-+                        showOpenAsDialog(element)
-+                    }
-+                }
-                 FileTypes.isImage(fullPath) -> {
-                     startFileViewer(ImageViewer::class.java, fullPath)
-                 }
-@@ -313,9 +322,6 @@
-                 FileTypes.isText(fullPath) -> {
-                     startFileViewer(TextEditor::class.java, fullPath)
-                 }
--                FileTypes.isPDF(fullPath) -> {
--                    startFileViewer(PdfViewer::class.java, fullPath)
--                }
-                 FileTypes.isAudio(fullPath) -> {
-                     startFileViewer(AudioPlayer::class.java, fullPath)
-                 }
+
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
@@ -432,7 +379,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumePr
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
-@@ -18,46 +18,46 @@
+@@ -18,46 +18,50 @@
  import sushi.hardcore.droidfs.adapters.VolumeAdapter
  import sushi.hardcore.droidfs.add_volume.AddVolumeActivity
  import sushi.hardcore.droidfs.content_providers.VolumeProvider
@@ -487,6 +434,10 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +import java.io.File
 +
 +class MainActivity : BaseActivity(), VolumeAdapter.Listener {
++    init {
++        applyCustomTheme = false
++    }
++
 +    companion object {
 +        private const val OPEN_DEFAULT_VOLUME = "openDefault"
 +    }
@@ -622,84 +573,8 @@ similarity index 100%
 rename from app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt
 rename to app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt.vaultshelf-disabled
 
-diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
---- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
-+++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
-@@ -14,6 +14,5 @@
- import com.google.android.material.floatingactionbutton.FloatingActionButton
- import kotlinx.coroutines.launch
--import sushi.hardcore.droidfs.CameraActivity
- import sushi.hardcore.droidfs.LoadingTask
- import sushi.hardcore.droidfs.MainActivity
- import sushi.hardcore.droidfs.R
-@@ -27,2 +26,2 @@
--class ExplorerActivity : BaseExplorerActivity() {
-+open class ExplorerActivity : BaseExplorerActivity() {
-     companion object {
-@@ -187,8 +186,7 @@
-                     listOf("importFiles", R.string.import_files, R.drawable.icon_encrypt),
-                     listOf("importFolder", R.string.import_folder, R.drawable.icon_import_folder),
-                     listOf("createFile", R.string.new_file, R.drawable.icon_file_unknown),
--                    listOf("createFolder", R.string.mkdir, R.drawable.icon_create_new_folder),
--                    listOf("camera", R.string.camera, R.drawable.icon_photo)
-+                    listOf("createFolder", R.string.mkdir, R.drawable.icon_create_new_folder)
-                 )
-                 MaterialAlertDialogBuilder(this)
-                     .setSingleChoiceItems(adapter, -1){ thisDialog, which ->
-@@ -216,12 +214,6 @@
-                             "createFolder" -> {
-                                 openDialogCreateFolder()
-                             }
--                            "camera" -> {
--                                val intent = Intent(this, CameraActivity::class.java)
--                                intent.putExtra("path", currentDirectoryPath)
--                                intent.putExtra("volumeId", volumeId)
--                                startActivity(intent)
--                            }
-                         }
-                         thisDialog.dismiss()
-                     }
-diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
---- a/app/src/main/res/xml/root_preferences.xml
-+++ b/app/src/main/res/xml/root_preferences.xml
-@@ -103,37 +103,4 @@
- 
-     </PreferenceCategory>
- 
--    <PreferenceCategory android:title="@string/debug">
--
--        <Preference
--            android:key="logcat"
--            android:title="@string/logcat"
--            android:summary="@string/logcat_summary"
--            android:icon="@drawable/icon_debug"/>
--
--    </PreferenceCategory>
--
--    <PreferenceCategory android:title="@string/about">
--
--        <Preference
--            android:title="@string/github"
--            android:summary="@string/github_summary"
--            android:icon="@drawable/icon_github">
--            <intent android:action="android.intent.action.VIEW" android:data="https://github.com/hardcore-sushi/DroidFS"/>
--        </Preference>
--
--        <Preference
--            android:title="@string/tangled"
--            android:summary="@string/tangled_summary"
--            android:icon="@drawable/icon_tangled">
--            <intent android:action="android.intent.action.VIEW" android:data="https://tangled.org/cipherd.arkensys.dedyn.io/DroidFS"/>
--        </Preference>
--
--        <Preference
--            android:icon="@drawable/icon_info"
--            android:title="@string/version"
--            android:summary="@string/versionName"/> <!--added by gradle at build time-->
--
--    </PreferenceCategory>
--
- </PreferenceScreen>
+
+
 diff --git a/app/src/main/res/xml/unsafe_features_preferences.xml b/app/src/main/res/xml/unsafe_features_preferences.xml
 --- a/app/src/main/res/xml/unsafe_features_preferences.xml
 +++ b/app/src/main/res/xml/unsafe_features_preferences.xml
@@ -798,26 +673,11 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.k
          }
          explorerIntent.putExtra("volumeId", volumeId)
          explorerIntent.putExtra("volumeName", volumeShortName)
-diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
---- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-+++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-@@ -55,5 +55,9 @@
- 
- open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener {
-+    init {
-+        applyCustomTheme = false
-+    }
-+
-     private lateinit var sortOrderEntries: Array<String>
-     private lateinit var sortOrderValues: Array<String>
-     private var foldersFirst = true
 
-
-# /* VaultShelf live security preferences */
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
-@@ -25,3 +25,7 @@
+@@ -24,3 +24,7 @@
      protected lateinit var sharedPrefs: SharedPreferences
      protected var applyCustomTheme: Boolean = true
      lateinit var theme: Theme
@@ -862,21 +722,13 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt b/app/
 +    }
 +
      override val contentAreaId = R.id.settings
-diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
---- a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
-+++ b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
-@@ -31,2 +31,6 @@
- class MainActivity : BaseActivity(), VolumeAdapter.Listener {
-+    init {
-+        applyCustomTheme = false
-+    }
-+
-     companion object {
+
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
-@@ -10,2 +10,6 @@
+@@ -10,3 +10,7 @@
  class AddVolumeActivity: BaseActivity() {
+ 
 +    init {
 +        applyCustomTheme = false
 +    }
@@ -885,51 +737,16 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivi
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt
-@@ -22,2 +22,6 @@
+@@ -23,3 +23,7 @@
  class ChangePasswordActivity: BaseActivity() {
+ 
 +    init {
 +        applyCustomTheme = false
 +    }
 +
      private lateinit var binding: ActivityChangePasswordBinding
-diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
---- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-+++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-@@ -115,9 +115,5 @@
-         explorerAdapter = ExplorerElementAdapter(
-             this,
--            if (sharedPrefs.getBoolean("thumbnails", true)) {
--                app.volumeManager.getImageLoader(volumeId)
--            } else {
--                null
--            },
-+            app.volumeManager.getImageLoader(volumeId),
-             this,
--        )
-+        ).apply { loadThumbnails = sharedPrefs.getBoolean("thumbnails", true) }
-@@ -716,5 +712,13 @@
-     override fun onResume() {
-         super.onResume()
-+        foldersFirst = sharedPrefs.getBoolean("folders_first", true)
-+        mapFolders = sharedPrefs.getBoolean("map_folders", true)
-+        loadUnsafeFeatures()
-+        currentSortOrderIndex = sortOrderValues.indexOf(
-+            sharedPrefs.getString(Constants.SORT_ORDER_KEY, "name"),
-+        ).coerceAtLeast(0)
-+        explorerAdapter.loadThumbnails = sharedPrefs.getBoolean("thumbnails", true)
-+        invalidateOptionsMenu()
-         if (app.isStartingExternalApp) {
-             TemporaryFileProvider.instance.wipe()
-         }
-diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
---- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
-+++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
-@@ -34 +34,2 @@
--    private val proposeWipe by lazy { sharedPrefs.getBoolean("propose_wipe_imported_files", true) }
-+    private val proposeWipe: Boolean
-+        get() = sharedPrefs.getBoolean("propose_wipe_imported_files", true)
 
-# /* VaultShelf file-operation notifications are optional */
+
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt b/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt
@@ -955,6 +772,138 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt b/app/src/mai
      private fun exportFile(exportedFile: EncryptedFileProvider.ExportedFile, size: Long, volumeId: Int, previousContentType: String? = null): Pair<Uri, String>? {
 
 # /* VaultShelf removes obsolete DroidFS theme controls */
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
+@@ -26,6 +26,7 @@
+ import kotlinx.coroutines.cancel
+ import kotlinx.coroutines.cancelAndJoin
+ import kotlinx.coroutines.launch
++import com.vaultshelf.droidfs.VaultShelfFileRouter
+ import kotlinx.coroutines.yield
+ import sushi.hardcore.droidfs.BaseActivity
+ import sushi.hardcore.droidfs.Constants
+@@ -43,7 +44,6 @@
+ import sushi.hardcore.droidfs.file_operations.TaskResult
+ import sushi.hardcore.droidfs.file_viewers.AudioPlayer
+ import sushi.hardcore.droidfs.file_viewers.ImageViewer
+-import sushi.hardcore.droidfs.file_viewers.PdfViewer
+ import sushi.hardcore.droidfs.file_viewers.TextEditor
+ import sushi.hardcore.droidfs.file_viewers.VideoPlayer
+ import sushi.hardcore.droidfs.filesystems.EncryptedVolume
+@@ -55,5 +55,9 @@
+ 
+ open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener {
++    init {
++        applyCustomTheme = false
++    }
++
+     private lateinit var sortOrderEntries: Array<String>
+     private lateinit var sortOrderValues: Array<String>
+     private var foldersFirst = true
+@@ -115,9 +119,5 @@
+         explorerAdapter = ExplorerElementAdapter(
+             this,
+-            if (sharedPrefs.getBoolean("thumbnails", true)) {
+-                app.volumeManager.getImageLoader(volumeId)
+-            } else {
+-                null
+-            },
++            app.volumeManager.getImageLoader(volumeId),
+             this,
+-        )
++        ).apply { loadThumbnails = sharedPrefs.getBoolean("thumbnails", true) }
+@@ -247,7 +247,7 @@
+                     "image" -> startFileViewer(ImageViewer::class.java, path)
+                     "video" -> startFileViewer(VideoPlayer::class.java, path)
+                     "audio" -> startFileViewer(AudioPlayer::class.java, path)
++                    "pdf" -> VaultShelfFileRouter.open(this, path, explorerElement.stat.size, volumeId)
+-                    "pdf" -> startFileViewer(PdfViewer::class.java, path)
+                     "text" -> startFileViewer(TextEditor::class.java, path)
+                     "external" -> if (usf_open) {
+                         openWithExternalApp(path, explorerElement.stat.size)
+@@ -304,6 +304,15 @@
+                 explorerElements[position].isParentFolder -> {
+                     changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
+                 }
++                VaultShelfFileRouter.supports(fullPath) -> {
++                    val element = explorerElements[position]
++                    if (!VaultShelfFileRouter.open(
++                            this, fullPath, element.stat.size, volumeId
++                        )
++                    ) {
++                        showOpenAsDialog(element)
++                    }
++                }
+                 FileTypes.isImage(fullPath) -> {
+                     startFileViewer(ImageViewer::class.java, fullPath)
+                 }
+@@ -313,9 +322,6 @@
+                 FileTypes.isText(fullPath) -> {
+                     startFileViewer(TextEditor::class.java, fullPath)
+                 }
+-                FileTypes.isPDF(fullPath) -> {
+-                    startFileViewer(PdfViewer::class.java, fullPath)
+-                }
+                 FileTypes.isAudio(fullPath) -> {
+                     startFileViewer(AudioPlayer::class.java, fullPath)
+                 }
+@@ -716,5 +722,13 @@
+     override fun onResume() {
+         super.onResume()
++        foldersFirst = sharedPrefs.getBoolean("folders_first", true)
++        mapFolders = sharedPrefs.getBoolean("map_folders", true)
++        loadUnsafeFeatures()
++        currentSortOrderIndex = sortOrderValues.indexOf(
++            sharedPrefs.getString(Constants.SORT_ORDER_KEY, "name"),
++        ).coerceAtLeast(0)
++        explorerAdapter.loadThumbnails = sharedPrefs.getBoolean("thumbnails", true)
++        invalidateOptionsMenu()
+         if (app.isStartingExternalApp) {
+             TemporaryFileProvider.instance.wipe()
+         }
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+@@ -14,6 +14,5 @@
+ import com.google.android.material.floatingactionbutton.FloatingActionButton
+ import kotlinx.coroutines.launch
+-import sushi.hardcore.droidfs.CameraActivity
+ import sushi.hardcore.droidfs.LoadingTask
+ import sushi.hardcore.droidfs.MainActivity
+ import sushi.hardcore.droidfs.R
+@@ -27,2 +26,2 @@
+-class ExplorerActivity : BaseExplorerActivity() {
++open class ExplorerActivity : BaseExplorerActivity() {
+     companion object {
+@@ -34,1 +33,2 @@
+-    private val proposeWipe by lazy { sharedPrefs.getBoolean("propose_wipe_imported_files", true) }
++    private val proposeWipe: Boolean
++        get() = sharedPrefs.getBoolean("propose_wipe_imported_files", true)
+@@ -187,8 +187,7 @@
+                     listOf("importFiles", R.string.import_files, R.drawable.icon_encrypt),
+                     listOf("importFolder", R.string.import_folder, R.drawable.icon_import_folder),
+                     listOf("createFile", R.string.new_file, R.drawable.icon_file_unknown),
+-                    listOf("createFolder", R.string.mkdir, R.drawable.icon_create_new_folder),
+-                    listOf("camera", R.string.camera, R.drawable.icon_photo)
++                    listOf("createFolder", R.string.mkdir, R.drawable.icon_create_new_folder)
+                 )
+                 MaterialAlertDialogBuilder(this)
+                     .setSingleChoiceItems(adapter, -1){ thisDialog, which ->
+@@ -216,12 +215,6 @@
+                             "createFolder" -> {
+                                 openDialogCreateFolder()
+                             }
+-                            "camera" -> {
+-                                val intent = Intent(this, CameraActivity::class.java)
+-                                intent.putExtra("path", currentDirectoryPath)
+-                                intent.putExtra("volumeId", volumeId)
+-                                startActivity(intent)
+-                            }
+                         }
+                         thisDialog.dismiss()
+                     }
 diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
 --- a/app/src/main/res/xml/root_preferences.xml
 +++ b/app/src/main/res/xml/root_preferences.xml
@@ -981,3 +930,41 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 -    </PreferenceCategory>
 -
      <PreferenceCategory android:title="@string/explorer">
+@@ -103,37 +83,4 @@
+ 
+     </PreferenceCategory>
+ 
+-    <PreferenceCategory android:title="@string/debug">
+-
+-        <Preference
+-            android:key="logcat"
+-            android:title="@string/logcat"
+-            android:summary="@string/logcat_summary"
+-            android:icon="@drawable/icon_debug"/>
+-
+-    </PreferenceCategory>
+-
+-    <PreferenceCategory android:title="@string/about">
+-
+-        <Preference
+-            android:title="@string/github"
+-            android:summary="@string/github_summary"
+-            android:icon="@drawable/icon_github">
+-            <intent android:action="android.intent.action.VIEW" android:data="https://github.com/hardcore-sushi/DroidFS"/>
+-        </Preference>
+-
+-        <Preference
+-            android:title="@string/tangled"
+-            android:summary="@string/tangled_summary"
+-            android:icon="@drawable/icon_tangled">
+-            <intent android:action="android.intent.action.VIEW" android:data="https://tangled.org/cipherd.arkensys.dedyn.io/DroidFS"/>
+-        </Preference>
+-
+-        <Preference
+-            android:icon="@drawable/icon_info"
+-            android:title="@string/version"
+-            android:summary="@string/versionName"/> <!--added by gradle at build time-->
+-
+-    </PreferenceCategory>
+-
+ </PreferenceScreen>
