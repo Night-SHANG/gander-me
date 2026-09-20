@@ -1224,4 +1224,74 @@ class VaultShelfUxRegressionTest {
     }
 
 
+    @Test
+    fun crossZoneDeletionRefreshesTheSourceZoneWhenItBecomesVisibleAgain() {
+        val activity = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
+        ).readText()
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+        val library = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
+        ).readText()
+
+        assertThat(activity).contains("libraryRevision by mutableIntStateOf(0)")
+        assertThat(activity).contains("libraryRevision += 1")
+        assertThat(activity).contains("externalRevision = libraryRevision")
+        assertThat(shell).contains("externalRevision = externalRevision")
+        assertThat(library).contains("LaunchedEffect(repository, externalRevision)")
+        assertThat(library).doesNotContain("onFailure {\n                importFailed = true")
+    }
+
+    @Test
+    fun plainExternalFilesDoNotInheritVaultScreenshotProtection() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+
+        assertThat(patch).contains("intent.getBooleanExtra(\"vaultshelf.plain_volume\", false)")
+        assertThat(patch).contains("intent.getBooleanExtra(\"vaultshelf.plain_surface\", false)")
+        assertThat(patch).contains("putExtra(\"vaultshelf.plain_surface\", true)")
+    }
+
+    @Test
+    fun explorerTopInsetIsInstalledAfterDroidFsBasePostCreate() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val explorerPatch = patch.substringAfter(
+            "diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt",
+        )
+
+        val postCreate = explorerPatch.indexOf("override fun onPostCreate(savedInstanceState: Bundle?)")
+        val superPostCreate = explorerPatch.indexOf("super.onPostCreate(savedInstanceState)", postCreate)
+        val topInset = explorerPatch.indexOf("bars.top", superPostCreate)
+
+        assertThat(postCreate).isAtLeast(0)
+        assertThat(superPostCreate).isGreaterThan(postCreate)
+        assertThat(topInset).isGreaterThan(superPostCreate)
+        assertThat(explorerPatch).contains("ViewCompat.requestApplyInsets(root)")
+    }
+
+    @Test
+    fun explorerBottomNavigationReturnsToFilesState() {
+        val external = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
+        ).readText()
+        val vault = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
+        ).readText()
+        val layout = File(repo, "app/src/main/res/layout/activity_explorer.xml").readText()
+
+        listOf(external, vault).forEach { source ->
+            assertThat(source).contains("bottomNavigation?.menu")
+            assertThat(source).contains("vaultshelf_nav_files_item")
+            assertThat(source).contains("?.isChecked = true")
+        }
+        assertThat(layout).contains("@color/gander_surface_container_low")
+        assertThat(layout).contains("@color/vaultshelf_explorer_nav_item_tint")
+    }
+
 }

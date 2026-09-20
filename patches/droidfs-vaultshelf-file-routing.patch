@@ -678,7 +678,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.k
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
-@@ -24,22 +24,43 @@
+@@ -24,22 +24,46 @@
      protected lateinit var sharedPrefs: SharedPreferences
      protected var applyCustomTheme: Boolean = true
      lateinit var theme: Theme
@@ -705,7 +705,10 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt b/app/src/
 +    }
 +
 +    private fun applyScreenshotPolicy() {
-+        if (sharedPrefs.getBoolean("usf_screenshot", false)) {
++        val plainSurface =
++            intent.getBooleanExtra("vaultshelf.plain_volume", false) ||
++                intent.getBooleanExtra("vaultshelf.plain_surface", false)
++        if (plainSurface || sharedPrefs.getBoolean("usf_screenshot", false)) {
 +            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
 +        } else {
 +            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -788,7 +791,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt b/app/src/mai
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
-@@ -1,723 +1,759 @@
+@@ -1,723 +1,774 @@
 -package sushi.hardcore.droidfs.explorers
 -
 -import android.content.Intent
@@ -1622,13 +1625,6 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +        loadUnsafeFeatures()
 +        currentSortOrderIndex = resources.getStringArray(R.array.sort_orders_values).indexOf(sharedPrefs.getString(Constants.SORT_ORDER_KEY, "name"))
 +        init()
-+        ViewCompat.setOnApplyWindowInsetsListener(findViewById<View>(android.R.id.content)) { view, insets ->
-+            val bars = insets.getInsets(
-+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-+            )
-+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-+            WindowInsetsCompat.CONSUMED
-+        }
 +        recycler_view_explorer = findViewById(R.id.recycler_view_explorer)
 +        refresher = findViewById(R.id.refresher)
 +        loader = findViewById(R.id.loader)
@@ -1690,6 +1686,25 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +        }
 +    }
 +
++    override fun onPostCreate(savedInstanceState: Bundle?) {
++        super.onPostCreate(savedInstanceState)
++        val root = findViewById<View>(android.R.id.content)
++        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
++            val bars = insets.getInsets(
++                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
++            )
++            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
++            view.setPadding(
++                bars.left,
++                bars.top,
++                bars.right,
++                if (ime.bottom > 0) ime.bottom else bars.bottom,
++            )
++            insets
++        }
++        ViewCompat.requestApplyInsets(root)
++    }
++
 +    class ExplorerViewModel: ViewModel() {
 +        var currentDirectoryPath = "/"
 +    }
@@ -1727,6 +1742,9 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +            putExtra("path", filePath)
 +            putExtra("volumeId", volumeId)
 +            putExtra("sortOrder", sortOrderValues[currentSortOrderIndex])
++            if (this@BaseExplorerActivity.intent.getBooleanExtra("vaultshelf.plain_volume", false)) {
++                putExtra("vaultshelf.plain_surface", true)
++            }
 +        }
 +        startActivity(intent)
 +    }

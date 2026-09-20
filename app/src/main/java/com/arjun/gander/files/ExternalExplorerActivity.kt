@@ -33,6 +33,8 @@ import sushi.hardcore.droidfs.explorers.ExplorerElement
  */
 class ExternalExplorerActivity : ExplorerActivity() {
 
+    private var bottomNavigation: BottomNavigationView? = null
+
     private var volumeClosed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -336,24 +338,34 @@ class ExternalExplorerActivity : ExplorerActivity() {
 
     private fun configureBottomNavigation() {
         val nav = findViewById<BottomNavigationView>(R.id.vaultshelf_explorer_bottom_nav)
+        bottomNavigation = nav
         nav.isVisible = true
         nav.selectedItemId = R.id.vaultshelf_nav_files_item
         nav.setOnItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.vaultshelf_nav_home_item -> openShell("HOME")
-                R.id.vaultshelf_nav_library_item -> openShell("LIBRARY")
-                R.id.vaultshelf_nav_files_item -> Unit
+                R.id.vaultshelf_nav_files_item -> true
+                R.id.vaultshelf_nav_home_item -> {
+                    openShell("HOME")
+                    false
+                }
+                R.id.vaultshelf_nav_library_item -> {
+                    openShell("LIBRARY")
+                    false
+                }
                 R.id.vaultshelf_nav_vault_item -> {
                     startActivity(
                         Intent(this, DroidFsMainActivity::class.java)
                             .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
                     )
                     overridePendingTransition(0, 0)
+                    false
                 }
-                R.id.vaultshelf_nav_settings_item -> openShell("SETTINGS")
-                else -> return@setOnItemSelectedListener false
+                R.id.vaultshelf_nav_settings_item -> {
+                    openShell("SETTINGS")
+                    false
+                }
+                else -> false
             }
-            true
         }
     }
 
@@ -365,6 +377,13 @@ class ExternalExplorerActivity : ExplorerActivity() {
                 .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
         )
         overridePendingTransition(0, 0)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        bottomNavigation?.menu
+            ?.findItem(R.id.vaultshelf_nav_files_item)
+            ?.isChecked = true
     }
 
     override fun onDestroy() {

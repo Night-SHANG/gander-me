@@ -9,6 +9,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -39,6 +42,8 @@ import sushi.hardcore.droidfs.filesystems.EncryptedVolume
  */
 class VaultShelfActivity : AppCompatActivity() {
 
+    private var libraryRevision by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val libraryRepository = LocalLibraryRepository(applicationContext)
@@ -52,6 +57,7 @@ class VaultShelfActivity : AppCompatActivity() {
                 VaultShelfTheme {
                     VaultShelfShell(
                         libraryRepository = libraryRepository,
+                        externalRevision = libraryRevision,
                         onOpenExternalFolder = ::openExternalFolder,
                         onOpenVault = {
                             startActivity(
@@ -111,6 +117,11 @@ class VaultShelfActivity : AppCompatActivity() {
             }
         }
         setContentView(root)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        libraryRevision += 1
     }
 
     private fun openExternalFolder(treeUri: Uri, label: String) {

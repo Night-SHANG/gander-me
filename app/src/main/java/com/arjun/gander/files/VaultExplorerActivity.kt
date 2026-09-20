@@ -36,6 +36,8 @@ import sushi.hardcore.droidfs.file_operations.TaskResult
  */
 class VaultExplorerActivity : ExplorerActivity() {
 
+    private var bottomNavigation: BottomNavigationView? = null
+
     private lateinit var vaultFiles: VaultFileRepository
     private lateinit var vaultLibrary: VaultLibraryStore
     private var pendingExport: List<ExplorerElement> = emptyList()
@@ -385,19 +387,35 @@ class VaultExplorerActivity : ExplorerActivity() {
 
     private fun configureBottomNavigation() {
         val nav = findViewById<BottomNavigationView>(R.id.vaultshelf_explorer_bottom_nav)
+        bottomNavigation = nav
         nav.isVisible = true
         nav.menu.findItem(R.id.vaultshelf_nav_vault_item)?.isVisible = false
         nav.selectedItemId = R.id.vaultshelf_nav_files_item
         nav.setOnItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.vaultshelf_nav_home_item -> openVaultShell("HOME")
-                R.id.vaultshelf_nav_library_item -> openVaultShell("LIBRARY")
-                R.id.vaultshelf_nav_files_item -> Unit
-                R.id.vaultshelf_nav_settings_item -> openVaultShell("SETTINGS")
-                else -> return@setOnItemSelectedListener false
+                R.id.vaultshelf_nav_files_item -> true
+                R.id.vaultshelf_nav_home_item -> {
+                    openVaultShell("HOME")
+                    false
+                }
+                R.id.vaultshelf_nav_library_item -> {
+                    openVaultShell("LIBRARY")
+                    false
+                }
+                R.id.vaultshelf_nav_settings_item -> {
+                    openVaultShell("SETTINGS")
+                    false
+                }
+                else -> false
             }
-            true
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        bottomNavigation?.menu
+            ?.findItem(R.id.vaultshelf_nav_files_item)
+            ?.isChecked = true
     }
 
     private fun openVaultShell(destination: String) {

@@ -89,6 +89,7 @@ private enum class VaultShelfDestination(
 @Composable
 fun VaultShelfShell(
     libraryRepository: LibraryRepository,
+    externalRevision: Int,
     onOpenExternalFolder: (Uri, String) -> Unit,
     onOpenVault: () -> Unit,
     onOpenVaultSettings: () -> Unit,
@@ -146,6 +147,7 @@ fun VaultShelfShell(
 
             VaultShelfDestination.LIBRARY -> LibraryScreen(
                 repository = libraryRepository,
+                externalRevision = externalRevision,
                 onImportToVaultFiles = onImportBooksToVaultFiles,
                 onImportToVaultLibrary = onImportBooksToVaultLibrary,
                 modifier = Modifier.padding(innerPadding),

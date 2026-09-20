@@ -42,10 +42,11 @@
         android:id="@+id/vaultshelf_explorer_bottom_nav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/colorSurface"
+        android:background="@color/gander_surface_container_low"
         android:visibility="gone"
-        app:itemIconTint="?attr/colorOnSurfaceVariant"
-        app:itemTextColor="?attr/colorOnSurfaceVariant"
+        app:itemActiveIndicatorColor="@color/gander_primary_container"
+        app:itemIconTint="@color/vaultshelf_explorer_nav_item_tint"
+        app:itemTextColor="@color/vaultshelf_explorer_nav_item_tint"
         app:labelVisibilityMode="labeled"
         app:menu="@menu/vaultshelf_explorer_bottom_nav" />
 

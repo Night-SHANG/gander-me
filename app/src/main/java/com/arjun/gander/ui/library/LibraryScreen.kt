@@ -96,6 +96,7 @@ private enum class ShelfSort(@StringRes val labelRes: Int) {
 @Composable
 fun LibraryScreen(
     repository: LibraryRepository,
+    externalRevision: Int = 0,
     modifier: Modifier = Modifier,
     onImportToVaultFiles: ((List<LibraryBook>) -> Unit)? = null,
     onImportToVaultLibrary: ((List<LibraryBook>) -> Unit)? = null,
@@ -248,7 +249,10 @@ fun LibraryScreen(
                 }
                 readerLauncher.launch(plan.intent)
             }.onFailure {
-                importFailed = true
+                // Cross-zone transfers can delete this shelf item while this Activity is
+                // underneath the destination flow. Refresh instead of misreporting it as
+                // an unsupported import when the user taps a stale in-memory card.
+                refresh()
             }
         }
     }
@@ -261,8 +265,9 @@ fun LibraryScreen(
         }
     }
 
-    LaunchedEffect(repository) {
+    LaunchedEffect(repository, externalRevision) {
         books = repository.listBooks()
+        selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
         loading = false
     }
 
