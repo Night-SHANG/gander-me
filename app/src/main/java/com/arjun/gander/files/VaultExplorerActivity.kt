@@ -363,6 +363,13 @@ class VaultExplorerActivity : ExplorerActivity() {
 
     private suspend fun deleteElements(elements: List<ExplorerElement>): Boolean {
         val failed = fileOperationService.removeElements(volumeId, elements)
+        if (failed == null) {
+            withContext(Dispatchers.IO) {
+                elements.forEach { element ->
+                    vaultLibrary.removePath(element.fullPath)
+                }
+            }
+        }
         refreshCurrentDirectory()
         unselectAll()
         return failed == null

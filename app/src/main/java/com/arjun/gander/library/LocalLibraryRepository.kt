@@ -153,6 +153,25 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         }.getOrDefault(false)
     }
 
+    suspend fun detachOriginalSource(id: String): Boolean = withContext(Dispatchers.IO) {
+        val book = getBook(id) ?: return@withContext false
+        val uri = book.sourceUri?.let(Uri::parse)
+        if (uri != null) {
+            val flags =
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            runCatching {
+                appContext.contentResolver.releasePersistableUriPermission(uri, flags)
+            }.recoverCatching {
+                appContext.contentResolver.releasePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+        }
+        saveBook(book.copy(sourceUri = null))
+    }
+
     private fun scheduleLegadoAttachment(book: LibraryBook) {
         legadoAttachmentScope.launch {
             attachLegado(book)

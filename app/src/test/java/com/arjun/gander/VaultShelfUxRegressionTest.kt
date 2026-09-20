@@ -1147,6 +1147,33 @@ class VaultShelfUxRegressionTest {
         assertThat(storage).contains("sourcePath = path")
         assertThat(storage).contains("migrateLegacyEntries")
         assertThat(storage).contains("deleteLinkedSource: Boolean = false")
+        assertThat(storage).contains("MessageDigest.getInstance(\"SHA-256\")")
+        assertThat(storage).contains("sha256(it.path) == expectedHash")
+    }
+
+    @Test
+    fun deletingOnlyAFileDetachesItsSurvivingLibraryRelationship() {
+        val repository = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/library/LocalLibraryRepository.kt",
+        ).readText()
+        val external = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
+        ).readText()
+        val target = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultImportTargetActivity.kt",
+        ).readText()
+        val vault = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
+        ).readText()
+
+        assertThat(repository).contains("suspend fun detachOriginalSource")
+        assertThat(external).contains("repository.detachOriginalSource(book.id)")
+        assertThat(target).contains("repository.detachOriginalSource(book.id)")
+        assertThat(vault).contains("vaultLibrary.removePath(element.fullPath)")
     }
 
     @Test

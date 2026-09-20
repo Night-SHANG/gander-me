@@ -147,7 +147,13 @@ class ExternalExplorerActivity : ExplorerActivity() {
                 )
                 .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
                     lifecycleScope.launch {
-                        deleteElements(selected)
+                        if (deleteElements(selected)) {
+                            withContext(Dispatchers.IO) {
+                                imported.forEach { book ->
+                                    repository.detachOriginalSource(book.id)
+                                }
+                            }
+                        }
                     }
                 }
                 .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
@@ -230,7 +236,16 @@ class ExternalExplorerActivity : ExplorerActivity() {
                         }
                     }
                     .setNeutralButton(R.string.vault_transfer_delete_file_only) { _, _ ->
-                        lifecycleScope.launch { deleteElements(selected) }
+                        lifecycleScope.launch {
+                            if (deleteElements(selected)) {
+                                withContext(Dispatchers.IO) {
+                                    val repository = LocalLibraryRepository(applicationContext)
+                                    linked.forEach { book ->
+                                        repository.detachOriginalSource(book.id)
+                                    }
+                                }
+                            }
+                        }
                     }
             } else {
                 builder.setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
@@ -245,6 +260,8 @@ class ExternalExplorerActivity : ExplorerActivity() {
         selected: List<ExplorerElement>,
     ): List<LibraryBook> {
         val repository = LocalLibraryRepository(applicationContext)
+        val books = repository.listBooks()
+        val saf = encryptedVolume as? SafVolume
         val matched = LinkedHashMap<String, LibraryBook>()
         val files = buildList {
             selected.forEach { element ->
@@ -258,11 +275,21 @@ class ExternalExplorerActivity : ExplorerActivity() {
             }
         }
         files.forEach { element ->
+            val sourceUri = saf?.uriForPath(element.fullPath)?.toString()
+            if (sourceUri != null) {
+                books.firstOrNull { it.sourceUri == sourceUri }?.let { exact ->
+                    matched[exact.id] = exact
+                    return@forEach
+                }
+            }
+
             val format = BookFormat.fromFileName(element.name) ?: return@forEach
             val digest = sha256(element.fullPath) ?: return@forEach
-            repository.findByContentFingerprint(format, element.stat.size, digest)?.let { book ->
-                matched[book.id] = book
-            }
+            repository.findByContentFingerprint(format, element.stat.size, digest)
+                ?.takeIf { it.sourceUri == null }
+                ?.let { legacy ->
+                    matched[legacy.id] = legacy
+                }
         }
         return matched.values.toList()
     }

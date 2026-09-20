@@ -330,23 +330,34 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
     ): List<LibraryBook> {
         val localRepository = LocalLibraryRepository(applicationContext)
         val books = localRepository.listBooks()
-            .filter { !it.contentSha256.isNullOrBlank() }
         if (books.isEmpty()) return emptyList()
 
+        val safVolume = sourceVolume as? SafVolume
         val matched = LinkedHashMap<String, LibraryBook>()
         copied.asSequence()
             .filterNot { it.isDirectory }
             .forEach { operation ->
+                val sourceUri = safVolume?.uriForPath(operation.srcPath)?.toString()
+                if (sourceUri != null) {
+                    books.firstOrNull { it.sourceUri == sourceUri }?.let { exact ->
+                        matched[exact.id] = exact
+                        return@forEach
+                    }
+                }
+
                 val format = VaultLibraryStore.formatForPath(operation.srcPath)
                     ?: return@forEach
                 val stat = sourceVolume.getAttr(operation.srcPath) ?: return@forEach
                 val candidates = books.filter {
-                    it.format == format && it.sizeBytes == stat.size
+                    it.sourceUri == null &&
+                        !it.contentSha256.isNullOrBlank() &&
+                        it.format == format &&
+                        it.sizeBytes == stat.size
                 }
                 if (candidates.isEmpty()) return@forEach
                 val digest = sha256(sourceVolume, operation.srcPath) ?: return@forEach
-                candidates.firstOrNull { it.contentSha256 == digest }?.let { book ->
-                    matched[book.id] = book
+                candidates.firstOrNull { it.contentSha256 == digest }?.let { legacy ->
+                    matched[legacy.id] = legacy
                 }
             }
         return matched.values.toList()
@@ -409,7 +420,13 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
                         }
                     }
                     .setNegativeButton(R.string.vault_transfer_keep_linked_library) { _, _ ->
-                        finish()
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val repository = LocalLibraryRepository(applicationContext)
+                            matchedBooks.forEach { book ->
+                                repository.detachOriginalSource(book.id)
+                            }
+                            finish()
+                        }
                     }
                     .setCancelable(false)
                     .show()

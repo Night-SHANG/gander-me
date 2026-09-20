@@ -12,6 +12,7 @@ import com.vaultshelf.droidfs.VaultShelfProgressStore
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
+import java.security.MessageDigest
 import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
@@ -347,12 +348,14 @@ class VaultLibraryStore(
     fun importExternalLibraryBook(book: LibraryBook, sourceFile: File): VaultLibraryEntry {
         require(sourceFile.isFile)
         val entries = migrateLegacyEntries(readEntries()).toMutableList()
-        entries.firstOrNull {
-            it.title == book.title &&
+        book.contentSha256?.let { expectedHash ->
+            entries.firstOrNull {
                 it.format == book.format &&
-                it.sizeBytes == book.sizeBytes &&
-                volume.getAttr(it.path)?.type == Stat.S_IFREG
-        }?.let { existing -> return existing }
+                    it.sizeBytes == book.sizeBytes &&
+                    volume.getAttr(it.path)?.type == Stat.S_IFREG &&
+                    sha256(it.path) == expectedHash
+            }?.let { existing -> return existing }
+        }
 
         val id = UUID.randomUUID().toString()
         val privatePath = privateBookPath(id, book.format)
@@ -535,6 +538,25 @@ class VaultLibraryStore(
             error("Unable to commit vault library metadata")
         }
         if (volume.pathExists(METADATA_BACKUP)) volume.deleteFile(METADATA_BACKUP)
+    }
+
+    private fun sha256(path: String): String? {
+        val handle = volume.openFileReadMode(path)
+        if (handle == -1L) return null
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var offset = 0L
+            while (true) {
+                val read = volume.read(handle, offset, buffer, 0, buffer.size.toLong())
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+                offset += read
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        } finally {
+            volume.closeFile(handle)
+        }
     }
 
     private fun privateBookPath(id: String, format: BookFormat): String =
