@@ -21,6 +21,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewConfiguration
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import android.webkit.MimeTypeMap
 import android.webkit.WebResourceRequest
