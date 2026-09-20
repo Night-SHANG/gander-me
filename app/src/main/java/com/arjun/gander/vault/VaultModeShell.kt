@@ -86,7 +86,6 @@ fun VaultModeShell(
     fileRepository: VaultFileRepository,
     libraryStore: VaultLibraryStore,
     externalRevision: Int,
-    initialDestinationName: String = VaultModeDestination.HOME.name,
     onOpenFile: (VaultFileItem) -> Unit,
     onOpenFiles: () -> Unit,
     onExportLibraryToVaultFiles: (List<VaultLibraryEntry>) -> Unit,
@@ -94,6 +93,7 @@ fun VaultModeShell(
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
     modifier: Modifier = Modifier,
+    initialDestinationName: String = VaultModeDestination.HOME.name,
 ) {
     var selectedName by rememberSaveable {
         mutableStateOf(

@@ -40,6 +40,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -95,10 +96,10 @@ fun VaultShelfShell(
     onImportBooksToVaultFiles: (List<LibraryBook>) -> Unit,
     onImportBooksToVaultLibrary: (List<LibraryBook>) -> Unit,
     onOpenAbout: () -> Unit,
+    modifier: Modifier = Modifier,
     initialDestinationName: String = VaultShelfDestination.HOME.name,
     returnToFiles: Boolean = false,
     onReturnToFiles: () -> Unit = {},
-    modifier: Modifier = Modifier,
 ) {
     var selectedName by rememberSaveable {
         mutableStateOf(
@@ -173,7 +174,7 @@ private fun ExternalFilesScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    var revision by rememberSaveable { mutableStateOf(0) }
+    var revision by rememberSaveable { mutableIntStateOf(0) }
     val roots by produceState<List<Pair<Uri, String>>>(
         initialValue = emptyList(),
         revision,

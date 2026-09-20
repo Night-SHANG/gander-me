@@ -108,7 +108,6 @@
     <string name="vaultshelf_library_delete">Delete from library</string>
     <string name="vaultshelf_library_delete_title">Delete this book?</string>
     <string name="vaultshelf_library_delete_message">VaultShelf will delete its private copy of “%1$s”. The original file you imported is not changed.</string>
-    <string name="vaultshelf_library_delete_confirm">Delete</string>
     <string name="vaultshelf_library_list_meta">%1$s · %2$s · %3$d%%</string>
     <string name="vaultshelf_library_cover_description">Cover for %1$s</string>
     <string name="vaultshelf_untitled_book">Untitled book</string>
@@ -170,38 +169,17 @@
     <string name="vault_library_empty">No books in this vault library</string>
     <string name="vault_library_empty_detail">Files in the vault are not added automatically. Add a supported document from the Files tab.</string>
     <string name="vault_library_add_from_files">Add from vault files</string>
-    <string name="vault_library_remove">Remove from library</string>
     <string name="vault_settings_title">Vault settings</string>
     <string name="vault_settings_security">Security and vault behavior</string>
     <string name="vault_settings_backup">Export / restore backup</string>
     <string name="vault_settings_lock">Lock vault</string>
     <string name="vault_open_failed">This file cannot be opened.</string>
-    <string name="vault_external_import_done_title">Imported into vault</string>
-    <string name="vault_external_import_delete_source">Delete originals</string>
-    <string name="vault_external_import_keep_source">Keep originals</string>
-    <string name="vault_external_import_failed">No selected books could be imported into the vault.</string>
-    <string name="vaultshelf_library_import_to_vault">Import to vault</string>
 
 
-    <string name="vaultshelf_files_import_to_vault">Import to vault</string>
-    <string name="vault_file_import_done_title">Imported into vault</string>
-    <string name="vault_file_import_done_message">The selected files were encrypted and copied into the vault. Delete the original files?</string>
 
     <plurals name="vault_library_count">
         <item quantity="one">%1$d book</item>
         <item quantity="other">%1$d books</item>
-    </plurals>
-    <plurals name="vault_external_import_done_message">
-        <item quantity="one">%1$d library item was encrypted and added to the vault library. Delete the original library copy?</item>
-        <item quantity="other">%1$d library items were encrypted and added to the vault library. Delete the original library copies?</item>
-    </plurals>
-    <plurals name="vault_external_import_partial">
-        <item quantity="one">%1$d item could not be imported.</item>
-        <item quantity="other">%1$d items could not be imported.</item>
-    </plurals>
-    <plurals name="vault_file_import_done_with_library">
-        <item quantity="one">%1$d selected file was already in the external library and was also added to the vault library. If you delete the original, that external library entry will also be removed.</item>
-        <item quantity="other">%1$d selected files were already in the external library and were also added to the vault library. If you delete the originals, those external library entries will also be removed.</item>
     </plurals>
 
     <string name="vaultshelf_files_title">Files</string>
@@ -230,7 +208,6 @@
     <string name="vault_transfer_delete_file_only">Delete file only</string>
     <string name="vault_transfer_delete_library_only">Delete library copy only</string>
     <string name="vault_transfer_delete_library_and_file">Delete library copy and linked file</string>
-    <string name="vault_transfer_export_to_files">Export to files</string>
     <string name="vault_transfer_external_library_to_files">Export to external files</string>
     <string name="vault_transfer_vault_library_to_files">Export to vault files</string>
 
