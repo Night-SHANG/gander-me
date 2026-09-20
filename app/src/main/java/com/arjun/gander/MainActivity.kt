@@ -1,10 +1,8 @@
 package com.arjun.gander
 
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -23,6 +21,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -30,11 +29,16 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.Accessibilit
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.vaultshelf.droidfs.SafVolume
 import java.io.File
+import java.util.UUID
+import sushi.hardcore.droidfs.VolumeData
+import sushi.hardcore.droidfs.VolumeManagerApp
+import com.arjun.gander.files.ExternalExplorerActivity
+import sushi.hardcore.droidfs.filesystems.EncryptedVolume
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
@@ -74,6 +78,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var list: RecyclerView
     private lateinit var welcome: View
     private lateinit var fab: ExtendedFloatingActionButton
+    private var standaloneAbout = false
 
     /**
      * The last "Removed" toast, kept only so the next one can cancel it.
@@ -145,7 +150,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.gander_activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { v, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
@@ -210,6 +215,12 @@ class MainActivity : AppCompatActivity() {
 
         restoreStack(savedInstanceState)
         onBackPressedDispatcher.addCallback(this, backCallback)
+
+        standaloneAbout = intent.getBooleanExtra(EXTRA_SHOW_ABOUT, false)
+        if (standaloneAbout) {
+            intent.removeExtra(EXTRA_SHOW_ABOUT)
+            toolbar.post { showAbout(finishOnDismiss = true) }
+        }
     }
 
     /**
@@ -250,7 +261,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        render()
+        if (!standaloneAbout) render()
     }
 
     /**
@@ -277,7 +288,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun openInViewer(uri: Uri) {
         startActivity(
-            Intent(this, ViewerActivity::class.java)
+            Intent(this, FileDispatchActivity::class.java)
                 .setData(uri)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         )
@@ -288,7 +299,7 @@ class MainActivity : AppCompatActivity() {
      * permission list read back out of Android, plus the way in to the licence
      * text the bundled libraries require to travel with the binary.
      */
-    private fun showAbout() {
+    private fun showAbout(finishOnDismiss: Boolean = false) {
         val view = layoutInflater.inflate(R.layout.dialog_about, null)
 
         val version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }
@@ -305,15 +316,10 @@ class MainActivity : AppCompatActivity() {
             permissions == null ->
                 view.findViewById<View>(R.id.aboutPermissionsCard).visibility = View.GONE
             permissions.isEmpty() -> field.setText(R.string.about_permissions_none)
-            // Never expected: assembleRelease fails before a build can get here.
-            // Shown rather than swallowed, because a broken promise is the thing
-            // a reader of this dialog most needs to know.
-            else -> {
-                field.text = permissions.joinToString("\n")
-                field.setTextColor(
-                    MaterialColors.getColor(field, com.google.android.material.R.attr.colorError)
-                )
-            }
+            // VaultShelf deliberately carries a small reviewed permission set for the
+            // encrypted vault and local read-aloud features. Show Android's actual list
+            // instead of duplicating a hand-maintained product claim here.
+            else -> field.text = permissions.joinToString("\n")
         }
 
         view.findViewById<View>(R.id.aboutAuthor)
@@ -321,15 +327,21 @@ class MainActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.aboutSource)
             .setOnClickListener { openUrl(getString(R.string.url_source)) }
 
+        var openingLicences = false
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.about_gander)
             .setView(view)
             .setPositiveButton(R.string.about_close, null)
+            .setOnDismissListener {
+                if (finishOnDismiss && !openingLicences && !isFinishing) finish()
+            }
             .show()
 
         view.findViewById<View>(R.id.aboutLicences).setOnClickListener {
+            openingLicences = true
             dialog.dismiss()
             openLicences()
+            if (finishOnDismiss && !isFinishing) finish()
         }
     }
 
@@ -420,7 +432,7 @@ class MainActivity : AppCompatActivity() {
             .setType("text/plain")
             .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name))
             .putExtra(Intent.EXTRA_TEXT, getString(R.string.share_app_text, getString(R.string.url_site)))
-        val chooser = Intent.createChooser(send, getString(R.string.share_app))
+        val chooser = Intent.createChooser(send, getString(R.string.gander_share_app))
             .putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(ComponentName(this, ViewerActivity::class.java)))
         runCatching { startActivity(chooser) }
     }
@@ -444,8 +456,8 @@ class MainActivity : AppCompatActivity() {
         lockup.visibility = if (here == null) View.VISIBLE else View.GONE
         toolbar.navigationIcon =
             if (here == null) null
-            else androidx.appcompat.content.res.AppCompatResources.getDrawable(this, R.drawable.ic_back)
-        toolbar.navigationContentDescription = getString(R.string.back)
+            else androidx.appcompat.content.res.AppCompatResources.getDrawable(this, R.drawable.gander_ic_back)
+        toolbar.navigationContentDescription = getString(R.string.gander_back)
 
         val token = ++renderToken
         // Delayed rather than shown at once. Most folders come back in a few
@@ -530,10 +542,7 @@ class MainActivity : AppCompatActivity() {
             rows += Row.Item(
                 "DIR", DIR_COLOR, label, null,
                 onClick = {
-                    stack.addLast(
-                        Crumb(perm.uri, DocumentsContract.getTreeDocumentId(perm.uri), label)
-                    )
-                    render()
+                    openManagedFolder(perm.uri, label)
                 },
                 // The only confirmation in the app, because this is the only thing on the
                 // screen that cannot be undone. Android has no inverse for a released
@@ -543,7 +552,7 @@ class MainActivity : AppCompatActivity() {
                     val dialog = MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.remove_folder_title)
                         .setMessage(getString(R.string.remove_folder_message, label))
-                        .setPositiveButton(R.string.remove) { _, _ ->
+                        .setPositiveButton(R.string.gander_remove) { _, _ ->
                             runCatching {
                                 contentResolver.releasePersistableUriPermission(
                                     perm.uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -563,14 +572,12 @@ class MainActivity : AppCompatActivity() {
                     // makes Cancel look dangerous too. Standing the dismissive button down
                     // to a neutral is what leaves the red meaning one thing.
                     listOf(
-                        AlertDialog.BUTTON_POSITIVE to
-                            com.google.android.material.R.attr.colorError,
-                        AlertDialog.BUTTON_NEGATIVE to
-                            com.google.android.material.R.attr.colorOnSurfaceVariant
-                    ).forEach { (which, attr) ->
-                        dialog.getButton(which).let {
-                            it.setTextColor(MaterialColors.getColor(it, attr))
-                        }
+                        AlertDialog.BUTTON_POSITIVE to R.color.gander_error,
+                        AlertDialog.BUTTON_NEGATIVE to R.color.gander_on_surface_variant
+                    ).forEach { (which, colorRes) ->
+                        dialog.getButton(which).setTextColor(
+                            ContextCompat.getColor(this, colorRes)
+                        )
                     }
                 }
             )
@@ -580,6 +587,37 @@ class MainActivity : AppCompatActivity() {
         return Screen(rows)
     }
 
+    private fun openManagedFolder(treeUri: Uri, label: String) {
+        val app = application as VolumeManagerApp
+        val volume = runCatching { SafVolume(applicationContext, treeUri) }.getOrElse {
+            Toast.makeText(this, R.string.vault_open_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val volumeId = app.volumeManager.insert(
+            volume,
+            VolumeData(
+                uuid = UUID.randomUUID().toString(),
+                name = "saf:$treeUri",
+                isHidden = false,
+                type = EncryptedVolume.GOCRYPTFS_VOLUME_TYPE,
+            ),
+        )
+        val opened = runCatching {
+            startActivity(
+                Intent(this, ExternalExplorerActivity::class.java)
+                    .putExtra("volumeId", volumeId)
+                    .putExtra("volumeName", label)
+                    .putExtra(EXTRA_PLAIN_VOLUME, true),
+            )
+            true
+        }.getOrDefault(false)
+        if (!opened) {
+            app.volumeManager.closeVolume(volumeId)
+            Toast.makeText(this, R.string.vault_open_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    @android.annotation.SuppressLint("Recycle")
     private fun folderRows(crumb: Crumb): Screen {
         val children = mutableListOf<ChildDoc>()
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
@@ -685,8 +723,10 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    private companion object {
-        const val LICENCES_ASSET = "licences.md"
+    companion object {
+        const val EXTRA_SHOW_ABOUT = "vaultshelf.show_about"
+        const val EXTRA_PLAIN_VOLUME = "vaultshelf.plain_volume"
+        private const val LICENCES_ASSET = "licences.md"
 
         /** Google Play's package: the installer Rate depends on, and the app it opens. */
         const val PLAY_STORE = "com.android.vending"
@@ -787,7 +827,7 @@ class MainActivity : AppCompatActivity() {
                         // default behaviour, so this reads "double tap and hold to Remove"
                         ViewCompat.replaceAccessibilityAction(
                             holder.itemView, AccessibilityActionCompat.ACTION_LONG_CLICK,
-                            holder.itemView.context.getString(R.string.remove), null
+                            holder.itemView.context.getString(R.string.gander_remove), null
                         )
                     }
                 }

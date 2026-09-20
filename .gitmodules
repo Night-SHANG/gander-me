@@ -1,0 +1,6 @@
+[submodule "third_party/legado"]
+	path = third_party/legado
+	url = https://github.com/LegadoTeam/legado.git
+[submodule "third_party/droidfs"]
+	path = third_party/droidfs
+	url = https://github.com/hardcore-sushi/DroidFS.git

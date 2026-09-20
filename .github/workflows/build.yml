@@ -49,6 +49,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout pinned upstream sources
+        run: |
+          git submodule update --init third_party/legado third_party/droidfs
+          git -C third_party/droidfs config             submodule.app/libgocryptfs.url https://github.com/hardcore-sushi/libgocryptfs.git
+          git -C third_party/droidfs submodule update --init app/libgocryptfs
+          git -C third_party/droidfs/app/libgocryptfs submodule update --init openssl
+
       # The wrapper jar is a binary that runs before any of this repo's own
       # code does, and pull requests arrive from 31 forks. This checks it is
       # one Gradle published rather than one somebody edited.
@@ -60,43 +67,89 @@ jobs:
           java-version: '21'
 
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          # Same-repository development PRs may refresh Gradle caches. Fork PRs stay
+          # read-only so untrusted code cannot populate caches consumed elsewhere.
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
 
-      # Ahead of the builds: a compile error or a broken assertion should be
-      # reported as such, not as a failure somewhere inside assembleRelease.
-      - name: Unit tests
-        run: ./gradlew testDebugUnitTest
+      # libgocryptfs + OpenSSL are expensive but deterministic for a pinned source
+      # commit, NDK and Go version. Save this cache immediately after building it so
+      # later test/lint failures do not throw away the native work.
+      - name: Restore DroidFS native cache
+        id: droidfs_native_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            third_party/droidfs/app/libgocryptfs/build
+            third_party/droidfs/app/libgocryptfs/lib
+            third_party/droidfs/app/libgocryptfs/include
+          key: droidfs-native-${{ runner.os }}-ndk28.2.13676358-go1.24-libgocryptfs-4cf68bded7cfd6cce646516e059b10561589ad2d
 
-      # Against app/lint-baseline.xml, so the 39 issues that were already here
-      # stay visible in the report without blocking anything, and a new one
-      # fails the build.
-      - name: Lint
-        run: ./gradlew lintDebug
+      - name: Ensure Android NDK
+        run: |
+          NDK_DIR="$ANDROID_HOME/ndk/28.2.13676358"
+          if [ ! -d "$NDK_DIR" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358"
+          else
+            echo "Using preinstalled NDK at $NDK_DIR"
+          fi
+          echo "ANDROID_NDK_HOME=$NDK_DIR" >> "$GITHUB_ENV"
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug
+      - uses: actions/setup-go@v5
+        if: steps.droidfs_native_cache.outputs.cache-hit != 'true'
+        with:
+          go-version: '1.24.x'
 
-      # Also builds the release merged manifest, which is the one that actually
-      # ships, so checkReleasePermissions guards it too. Unsigned without a keystore.
-      - name: Build release APK
-        run: ./gradlew assembleRelease
+      - name: Install DroidFS native build tools
+        if: steps.droidfs_native_cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential perl nasm
 
-      # Printed into the log so a tester handed the artifact link can confirm the
-      # file they unzipped is the one this run produced, rather than taking it on
-      # trust. GitHub rewraps artifacts in its own zip, so the hash is of the APK
-      # inside, not of the download.
+      - name: Build pinned DroidFS native dependencies
+        if: steps.droidfs_native_cache.outputs.cache-hit != 'true'
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+          (cd third_party/droidfs/app/libgocryptfs && ./build.sh)
+
+      - name: Save DroidFS native cache
+        if: steps.droidfs_native_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            third_party/droidfs/app/libgocryptfs/build
+            third_party/droidfs/app/libgocryptfs/lib
+            third_party/droidfs/app/libgocryptfs/include
+          key: droidfs-native-${{ runner.os }}-ndk28.2.13676358-go1.24-libgocryptfs-4cf68bded7cfd6cce646516e059b10561589ad2d
+
+      # One Gradle invocation avoids paying configuration/startup cost four times.
+      # --continue keeps every independent task running after a failure, so tests,
+      # lint, debug and release expose as many problems as possible in one CI run.
+      - name: Android validation
+        id: android_validation
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --continue
+
+      # A debug APK is still useful when tests/lint/release fail independently.
       - name: Checksum the debug APK
+        if: always() && hashFiles('app/build/outputs/apk/debug/*.apk') != ''
         run: shasum -a 256 app/build/outputs/apk/debug/*.apk
 
-      - uses: actions/upload-artifact@v4
+      - if: always() && hashFiles('app/build/outputs/apk/debug/*.apk') != ''
+        uses: actions/upload-artifact@v4
         with:
           name: gander-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
 
-      # Only on failure, and only the reports: the HTML test report says which
-      # assertion went and with what, which a log tail does not.
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: gander-reports
           path: app/build/reports/
           retention-days: 7
+
+      - name: Summarize validation
+        if: always()
+        run: |
+          echo "Android validation: ${{ steps.android_validation.outcome }}"
+          echo "Gradle ran unit tests, lint, debug and release in one task graph with --continue."

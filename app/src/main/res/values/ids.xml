@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="action_import_to_vault" type="id" />
+    <item name="action_import_to_vault_library" type="id" />
+    <item name="action_add_to_library" type="id" />
+    <item name="action_export_external" type="id" />
+    <item name="action_add_to_external_library" type="id" />
+    <item name="action_add_to_vault_library" type="id" />
+</resources>

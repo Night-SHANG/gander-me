@@ -1,0 +1,3512 @@
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/content_providers/TemporaryFileProvider.kt
+@@ -11,9 +11,8 @@ import android.provider.OpenableColumns
+ import android.util.Log
+ import android.webkit.MimeTypeMap
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.GlobalScope
+ import kotlinx.coroutines.launch
+-import sushi.hardcore.droidfs.BuildConfig
+ import sushi.hardcore.droidfs.EncryptedFileProvider
+ import sushi.hardcore.droidfs.VolumeManager
+ import sushi.hardcore.droidfs.VolumeManagerApp
+@@ -31,8 +30,7 @@ class TemporaryFileProvider : ContentProvider() {
+ 
+     companion object {
+         private const val TAG = "TemporaryFileProvider"
+-        private const val AUTHORITY = BuildConfig.APPLICATION_ID + ".temporary_provider"
+-        private val BASE_URI: Uri = Uri.parse("content://$AUTHORITY")
++        private lateinit var BASE_URI: Uri
+ 
+         lateinit var instance: TemporaryFileProvider
+             private set
+@@ -46,6 +44,7 @@ class TemporaryFileProvider : ContentProvider() {
+ 
+     override fun onCreate(): Boolean {
+         return context?.let {
++            BASE_URI = Uri.parse("content://${it.packageName}.temporary_provider")
+             volumeManager = (it.applicationContext as VolumeManagerApp).volumeManager
+             usfSafWriteDelegate.init(it)
+             encryptedFileProvider = EncryptedFileProvider(it)
+@@ -76,12 +76,23 @@
+     override fun query(
+         uri: Uri,
+         projection: Array<String>?,
+         selection: String?,
+         selectionArgs: Array<String>?,
+         sortOrder: String?
+     ): Cursor? {
+         val file = files[uri] ?: return null
+-        return MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), 1).apply {
+-            addRow(arrayOf(File(file.file.path).name, file.size))
++        val columns = projection ?: arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
++        return MatrixCursor(columns, 1).apply {
++            addRow(columns.map<String, Any?> { column ->
++                when (column) {
++                    OpenableColumns.DISPLAY_NAME -> File(file.file.path).name
++                    OpenableColumns.SIZE -> file.size
++                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID -> uri.lastPathSegment
++                    android.provider.DocumentsContract.Document.COLUMN_LAST_MODIFIED -> 0L
++                    android.provider.DocumentsContract.Document.COLUMN_FLAGS -> 0
++                    android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE -> getType(uri)
++                    else -> null
++                }
++            }.toTypedArray())
+         }
+     }
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/FileViewerActivity.kt
+@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.withLock
+ import kotlinx.coroutines.withContext
++import com.vaultshelf.droidfs.VaultShelfExternalMediaRouter
+ import sushi.hardcore.droidfs.BaseActivity
+ import sushi.hardcore.droidfs.FileTypes
+ import sushi.hardcore.droidfs.R
+@@ -35,5 +36,10 @@ abstract class FileViewerActivity: BaseActivity() {
+     protected lateinit var encryptedVolume: EncryptedVolume
+     protected val volumeId: Int by lazy { intent.getIntExtra("volumeId", -1) }
++    protected val plainMediaUri by lazy {
++        intent.data.takeIf {
++            intent.getBooleanExtra(VaultShelfExternalMediaRouter.EXTRA_PLAIN_MEDIA, false)
++        }
++    }
+     private lateinit var originalParentPath: String
+     private lateinit var windowInsetsController: WindowInsetsControllerCompat
+     private val playlistMutex = Mutex()
+@@ -49,12 +55,22 @@ abstract class FileViewerActivity: BaseActivity() {
+             windowInsetsController.isAppearanceLightNavigationBars = false
+         }
+         if (fileViewerViewModel.filePath == null) {
+-            fileViewerViewModel.filePath = intent.getStringExtra("path")!!
++            fileViewerViewModel.filePath = if (plainMediaUri != null) {
++                intent.getStringExtra(VaultShelfExternalMediaRouter.EXTRA_DISPLAY_NAME)
++                    ?: plainMediaUri?.lastPathSegment
++                    ?: "media"
++            } else {
++                intent.getStringExtra("path")!!
++            }
++        }
++        if (plainMediaUri == null) {
++            originalParentPath = PathUtils.getParentPath(fileViewerViewModel.filePath!!)
++            encryptedVolume = (application as VolumeManagerApp).volumeManager.getVolume(
++                volumeId
++            )!!
++            finishOnClose(encryptedVolume)
++        } else {
++            originalParentPath = ""
+         }
+-        originalParentPath = PathUtils.getParentPath(fileViewerViewModel.filePath!!)
+-        encryptedVolume = (application as VolumeManagerApp).volumeManager.getVolume(
+-            volumeId
+-        )!!
+-        finishOnClose(encryptedVolume)
+         viewFile()
+     }
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/MediaPlayer.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/MediaPlayer.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/MediaPlayer.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/MediaPlayer.kt
+@@ -8,88 +8,141 @@
+ import androidx.media3.common.Player
+ import androidx.media3.common.VideoSize
+ import androidx.media3.common.util.UnstableApi
+-import androidx.media3.exoplayer.ExoPlayer
+-import androidx.media3.exoplayer.source.MediaSource
+-import androidx.media3.exoplayer.source.ProgressiveMediaSource
+-import androidx.media3.extractor.DefaultExtractorsFactory
+-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+-import kotlinx.coroutines.launch
+-import sushi.hardcore.droidfs.Constants
+-import sushi.hardcore.droidfs.R
+-import java.io.File
+-
+-@OptIn(UnstableApi::class)
+-abstract class MediaPlayer: FileViewerActivity() {
+-    override val blackBackground: Boolean = true
+-    private lateinit var player: ExoPlayer
+-
+-    override fun viewFile() {
+-        initializePlayer()
+-        refreshFileName()
+-    }
+-
+-    abstract fun bindPlayer(player: ExoPlayer)
+-    abstract fun onNewFileName(fileName: String)
+-    protected open fun onVideoSizeChanged(width: Int, height: Int) {}
+-
+-    private fun createMediaSource(filePath: String): MediaSource {
+-        val dataSourceFactory = EncryptedVolumeDataSource.Factory(encryptedVolume, filePath)
+-        return ProgressiveMediaSource.Factory(dataSourceFactory, DefaultExtractorsFactory())
+-            .createMediaSource(MediaItem.fromUri(Constants.FAKE_URI))
+-    }
+-
+-    private fun initializePlayer(){
+-        player = ExoPlayer.Builder(this).setSeekForwardIncrementMs(5000).build()
+-        bindPlayer(player)
+-        player.addMediaSource(createMediaSource(fileViewerViewModel.filePath!!))
+-        lifecycleScope.launch {
+-            createPlaylist()
+-            fileViewerViewModel.playlist.forEachIndexed { index, e ->
+-                if (index != fileViewerViewModel.currentPlaylistIndex) {
+-                    player.addMediaSource(index, createMediaSource(e.fullPath))
+-                }
+-            }
+-        }
+-        player.repeatMode = sharedPrefs.getInt("playerRepeatMode", Player.REPEAT_MODE_ALL)
+-        player.playWhenReady = true
+-        player.addListener(object : Player.Listener{
+-            override fun onVideoSizeChanged(videoSize: VideoSize) {
+-                if (videoSize.width > 0 && videoSize.height > 0) {
+-                    onVideoSizeChanged(videoSize.width, videoSize.height)
+-                }
+-            }
+-            override fun onPlayerError(error: PlaybackException) {
+-                MaterialAlertDialogBuilder(this@MediaPlayer)
+-                        .setTitle(R.string.error)
+-                        .setMessage(getString(R.string.playing_failed, error.errorCodeName))
+-                        .setCancelable(false)
+-                        .setPositiveButton(R.string.ok) { _, _ -> goBackToExplorer()}
+-                        .show()
+-            }
+-            override fun onIsPlayingChanged(isPlaying: Boolean) {
+-                if (isPlaying){
+-                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+-                } else {
+-                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+-                }
+-            }
+-
+-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+-                if (player.repeatMode != Player.REPEAT_MODE_ONE && fileViewerViewModel.currentPlaylistIndex != -1) {
+-                    lifecycleScope.launch {
+-                        playlistNext(player.currentMediaItemIndex == (fileViewerViewModel.currentPlaylistIndex + 1) % player.mediaItemCount)
+-                        refreshFileName()
+-                    }
+-                }
+-            }
+-            override fun onRepeatModeChanged(repeatMode: Int) {
+-                with (sharedPrefs.edit()) {
+-                    putInt("playerRepeatMode", repeatMode)
+-                    apply()
+-                }
+-            }
+-        })
+-        player.prepare()
++import androidx.media3.datasource.DefaultDataSource
++import androidx.media3.exoplayer.ExoPlayer
++import androidx.media3.exoplayer.source.MediaSource
++import androidx.media3.exoplayer.source.ProgressiveMediaSource
++import androidx.media3.extractor.DefaultExtractorsFactory
++import com.google.android.material.dialog.MaterialAlertDialogBuilder
++import com.vaultshelf.droidfs.VaultShelfExternalMediaRouter
++import com.vaultshelf.droidfs.VaultShelfProgressStore
++import kotlinx.coroutines.launch
++import sushi.hardcore.droidfs.Constants
++import sushi.hardcore.droidfs.R
++import java.io.File
++
++@OptIn(UnstableApi::class)
++abstract class MediaPlayer: FileViewerActivity() {
++    override val blackBackground: Boolean = true
++    private lateinit var player: ExoPlayer
++
++    override fun viewFile() {
++        initializePlayer()
++        refreshFileName()
++    }
++
++    abstract fun bindPlayer(player: ExoPlayer)
++    abstract fun onNewFileName(fileName: String)
++    protected open fun onVideoSizeChanged(width: Int, height: Int) {}
++
++    private fun createMediaSource(filePath: String): MediaSource {
++        plainMediaUri?.let { uri ->
++            return ProgressiveMediaSource.Factory(
++                DefaultDataSource.Factory(this),
++                DefaultExtractorsFactory(),
++            ).createMediaSource(MediaItem.fromUri(uri))
++        }
++
++        val dataSourceFactory = EncryptedVolumeDataSource.Factory(encryptedVolume, filePath)
++        return ProgressiveMediaSource.Factory(dataSourceFactory, DefaultExtractorsFactory())
++            .createMediaSource(MediaItem.fromUri(Constants.FAKE_URI))
++    }
++
++    private fun initializePlayer(){
++        player = ExoPlayer.Builder(this).setSeekForwardIncrementMs(5000).build()
++        bindPlayer(player)
++        player.addMediaSource(createMediaSource(fileViewerViewModel.filePath!!))
++        if (plainMediaUri != null) {
++            intent.getStringExtra(VaultShelfExternalMediaRouter.EXTRA_PROGRESS_KEY)
++                ?.let { key ->
++                    val saved = VaultShelfProgressStore.plainMediaPosition(this, key)
++                    if (saved > 0L) player.seekTo(saved)
++                }
++        } else {
++            lifecycleScope.launch {
++                createPlaylist()
++                fileViewerViewModel.playlist.forEachIndexed { index, e ->
++                    if (index != fileViewerViewModel.currentPlaylistIndex) {
++                        player.addMediaSource(index, createMediaSource(e.fullPath))
++                    }
++                }
++                val currentIndex = fileViewerViewModel.currentPlaylistIndex
++                val currentPath = fileViewerViewModel.filePath
++                if (currentIndex >= 0 && currentPath != null) {
++                    val saved = VaultShelfProgressStore.mediaPosition(
++                        this@MediaPlayer,
++                        volumeId,
++                        currentPath,
++                    )
++                    if (saved > 0L) player.seekTo(currentIndex, saved)
++                }
++            }
++        }
++        player.repeatMode = sharedPrefs.getInt("playerRepeatMode", Player.REPEAT_MODE_ALL)
++        player.playWhenReady = true
++        player.addListener(object : Player.Listener{
++            override fun onVideoSizeChanged(videoSize: VideoSize) {
++                if (videoSize.width > 0 && videoSize.height > 0) {
++                    onVideoSizeChanged(videoSize.width, videoSize.height)
++                }
++            }
++            override fun onPlayerError(error: PlaybackException) {
++                MaterialAlertDialogBuilder(this@MediaPlayer)
++                        .setTitle(R.string.error)
++                        .setMessage(getString(R.string.playing_failed, error.errorCodeName))
++                        .setCancelable(false)
++                        .setPositiveButton(R.string.ok) { _, _ -> goBackToExplorer()}
++                        .show()
++            }
++            override fun onIsPlayingChanged(isPlaying: Boolean) {
++                if (isPlaying){
++                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++                } else {
++                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++                }
++            }
++
++            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
++                if (player.repeatMode != Player.REPEAT_MODE_ONE && fileViewerViewModel.currentPlaylistIndex != -1) {
++                    lifecycleScope.launch {
++                        playlistNext(player.currentMediaItemIndex == (fileViewerViewModel.currentPlaylistIndex + 1) % player.mediaItemCount)
++                        refreshFileName()
++                    }
++                }
++            }
++            override fun onRepeatModeChanged(repeatMode: Int) {
++                with (sharedPrefs.edit()) {
++                    putInt("playerRepeatMode", repeatMode)
++                    apply()
++                }
++            }
++        })
++        player.prepare()
++    }
++
++    override fun onStop() {
++        if (::player.isInitialized) {
++            val plainKey = intent.getStringExtra(VaultShelfExternalMediaRouter.EXTRA_PROGRESS_KEY)
++            if (plainMediaUri != null && plainKey != null) {
++                VaultShelfProgressStore.savePlainMediaPosition(
++                    this,
++                    plainKey,
++                    player.currentPosition,
++                    player.duration,
++                )
++            } else if (plainMediaUri == null) {
++                fileViewerViewModel.filePath?.let { path ->
++                    VaultShelfProgressStore.saveMediaPosition(
++                        this,
++                        volumeId,
++                        path,
++                        player.currentPosition,
++                        player.duration,
++                    )
++                }
++            }
++        }
++        super.onStop()
+     }
+ 
+     override fun onDestroy() {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt b/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/add_volume/SelectPathFragment.kt
+@@ -103,6 +103,11 @@ class SelectPathFragment : Fragment() {
+             theme = Compat.getParcelable(arguments, KEY_THEME_VALUE)!!
+             pickMode = arguments.getBoolean(KEY_PICK_MODE)
+         }
++        if (savedInstanceState == null && !pickMode) {
++            // VaultShelf is a private vault first; external volumes remain available for migration.
++            binding.switchHiddenVolume.isChecked = true
++            binding.root.post { updateUi() }
++        }
+         volumeDatabase = VolumeDatabase(requireContext())
+         filesDir = requireContext().filesDir.path
+         binding.containerHiddenVolume.setOnClickListener {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt b/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumeProvider.kt
+@@ -21,4 +21,3 @@ import kotlinx.coroutines.runBlocking
+-import sushi.hardcore.droidfs.BuildConfig
+ import sushi.hardcore.droidfs.EncryptedFileProvider
+ import sushi.hardcore.droidfs.FileTypes
+ import sushi.hardcore.droidfs.R
+@@ -35,6 +34,5 @@ class VolumeProvider: DocumentsProvider() {
+     companion object {
+         private const val TAG = "DocumentsProvider"
+-        private const val AUTHORITY = BuildConfig.APPLICATION_ID + ".volume_provider"
+         private val DEFAULT_ROOT_PROJECTION = arrayOf(
+             DocumentsContract.Root.COLUMN_ROOT_ID,
+             DocumentsContract.Root.COLUMN_FLAGS,
+@@ -52,6 +50,9 @@ class VolumeProvider: DocumentsProvider() {
+         )
+ 
+         fun notifyRootsChanged(context: Context) {
+-            context.contentResolver.notifyChange(DocumentsContract.buildRootsUri(AUTHORITY), null)
++            context.contentResolver.notifyChange(
++                DocumentsContract.buildRootsUri(context.packageName + ".volume_provider"),
++                null,
++            )
+         }
+     }
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
+@@ -18,46 +18,50 @@
+ import sushi.hardcore.droidfs.adapters.VolumeAdapter
+ import sushi.hardcore.droidfs.add_volume.AddVolumeActivity
+ import sushi.hardcore.droidfs.content_providers.VolumeProvider
+-import sushi.hardcore.droidfs.databinding.ActivityMainBinding
+-import sushi.hardcore.droidfs.databinding.DialogDeleteVolumeBinding
+-import sushi.hardcore.droidfs.explorers.ExplorerRouter
+-import sushi.hardcore.droidfs.file_operations.FileOperationService
+-import sushi.hardcore.droidfs.file_operations.TaskResult
+-import sushi.hardcore.droidfs.util.IntentUtils
+-import sushi.hardcore.droidfs.util.PathUtils
+-import sushi.hardcore.droidfs.widgets.EditTextDialog
+-import java.io.File
+-
+-class MainActivity : BaseActivity(), VolumeAdapter.Listener {
+-    companion object {
+-        private const val OPEN_DEFAULT_VOLUME = "openDefault"
+-    }
+-
+-    private lateinit var binding: ActivityMainBinding
+-    private lateinit var volumeDatabase: VolumeDatabase
+-    private lateinit var volumeManager: VolumeManager
+-    private lateinit var volumeAdapter: VolumeAdapter
+-    private lateinit var volumeOpener: VolumeOpener
+-    private var addVolume = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+-        if ((explorerRouter.pickMode || explorerRouter.dropMode) && result.resultCode != AddVolumeActivity.RESULT_USER_BACK) {
+-            setResult(result.resultCode, result.data) // forward result
+-            finish()
+-        }
+-    }
+-    private var selectedVolumePosition: Int? = null
+-    private var changePassword = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+-        selectedVolumePosition?.let { unselect(it) }
+-    }
+-    private val pickDirectory = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+-        if (uri != null)
+-            onDirectoryPicked(uri)
+-    }
+-    private lateinit var fileOperationService: FileOperationService
+-    private lateinit var explorerRouter: ExplorerRouter
+-
+-    override fun onCreate(savedInstanceState: Bundle?) {
+-        super.onCreate(savedInstanceState)
+-        binding = ActivityMainBinding.inflate(layoutInflater)
++import sushi.hardcore.droidfs.databinding.DroidfsActivityMainBinding
++import sushi.hardcore.droidfs.databinding.DialogDeleteVolumeBinding
++import sushi.hardcore.droidfs.explorers.ExplorerRouter
++import sushi.hardcore.droidfs.file_operations.FileOperationService
++import sushi.hardcore.droidfs.file_operations.TaskResult
++import sushi.hardcore.droidfs.util.IntentUtils
++import sushi.hardcore.droidfs.util.PathUtils
++import sushi.hardcore.droidfs.widgets.EditTextDialog
++import java.io.File
++
++class MainActivity : BaseActivity(), VolumeAdapter.Listener {
++    init {
++        applyCustomTheme = false
++    }
++
++    companion object {
++        private const val OPEN_DEFAULT_VOLUME = "openDefault"
++    }
++
++    private lateinit var binding: DroidfsActivityMainBinding
++    private lateinit var volumeDatabase: VolumeDatabase
++    private lateinit var volumeManager: VolumeManager
++    private lateinit var volumeAdapter: VolumeAdapter
++    private lateinit var volumeOpener: VolumeOpener
++    private var addVolume = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
++        if ((explorerRouter.pickMode || explorerRouter.dropMode) && result.resultCode != AddVolumeActivity.RESULT_USER_BACK) {
++            setResult(result.resultCode, result.data) // forward result
++            finish()
++        }
++    }
++    private var selectedVolumePosition: Int? = null
++    private var changePassword = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
++        selectedVolumePosition?.let { unselect(it) }
++    }
++    private val pickDirectory = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
++        if (uri != null)
++            onDirectoryPicked(uri)
++    }
++    private lateinit var fileOperationService: FileOperationService
++    private lateinit var explorerRouter: ExplorerRouter
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        binding = DroidfsActivityMainBinding.inflate(layoutInflater)
+         setContentView(binding.root)
+         setSupportActionBar(findViewById(R.id.toolbar))
+         if (sharedPrefs.getBoolean("applicationFirstOpening", true)) {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/VideoPlayer.kt
+@@ -1,51 +1,24 @@
+ package sushi.hardcore.droidfs.file_viewers
+ 
+-import android.annotation.SuppressLint
+ import android.content.pm.ActivityInfo
+ import android.content.res.Configuration
+ import android.view.View
+-import android.widget.FrameLayout
+-import androidx.core.view.ViewCompat
+-import androidx.core.view.WindowInsetsCompat
+-import androidx.core.view.updateLayoutParams
+-import androidx.core.view.updatePadding
+ import androidx.media3.exoplayer.ExoPlayer
+ import androidx.media3.ui.PlayerView
+ import sushi.hardcore.droidfs.R
++import sushi.hardcore.droidfs.databinding.DroidfsActivityVideoPlayerBinding
+-import sushi.hardcore.droidfs.databinding.ActivityVideoPlayerBinding
+ 
+ class VideoPlayer: MediaPlayer() {
+     private val autoFit by lazy {
+         sharedPrefs.getBoolean("autoFit", false)
+     }
++    private lateinit var binding: DroidfsActivityVideoPlayerBinding
+-    private lateinit var binding: ActivityVideoPlayerBinding
+ 
+     override fun viewFile() {
++        binding = DroidfsActivityVideoPlayerBinding.inflate(layoutInflater)
+-        binding = ActivityVideoPlayerBinding.inflate(layoutInflater)
+         setContentView(binding.root)
+         binding.topBar.fitsSystemWindows = true
+         binding.videoPlayer.doubleTapOverlay = binding.doubleTapOverlay
+-        val bottomBar = findViewById<FrameLayout>(R.id.exo_bottom_bar)
+-        val progressBar = findViewById<View>(R.id.exo_progress)
+-        ViewCompat.setOnApplyWindowInsetsListener(binding.videoPlayer) { _, windowInsets ->
+-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+-            bottomBar.apply {
+-                updatePadding(left = insets.left, right = insets.right, bottom = insets.bottom)
+-                updateLayoutParams<FrameLayout.LayoutParams> {
+-                    @SuppressLint("PrivateResource")
+-                    height = resources.getDimensionPixelSize(R.dimen.exo_styled_bottom_bar_height) + insets.bottom
+-                }
+-            }
+-            progressBar.apply {
+-                updatePadding(left = insets.left, right = insets.right)
+-                updateLayoutParams<FrameLayout.LayoutParams> {
+-                    @SuppressLint("PrivateResource")
+-                    bottomMargin = resources.getDimensionPixelSize(R.dimen.exo_styled_progress_margin_bottom) + insets.bottom
+-                }
+-            }
+-            windowInsets
+-        }
+-
+         binding.videoPlayer.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+             binding.topBar.visibility = visibility
+             if (visibility == View.VISIBLE) {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt b/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/widgets/EditTextDialog.kt
+@@ -10,7 +10,7 @@
+ class EditTextDialog(
+     activity: Activity,
+     private val titleId: Int,
+-    viewId: Int = R.layout.dialog_edit_text,
++    viewId: Int = R.layout.droidfs_dialog_edit_text,
+ ) : MaterialAlertDialogBuilder(activity) {
+     val root = activity.layoutInflater.inflate(viewId, null)
+     val dialogEditText = root.findViewById<EditText>(R.id.dialog_edit_text)
+diff --git a/app/src/main/res/layout/activity_main.xml b/app/src/main/res/layout/droidfs_activity_main.xml
+similarity index 100%
+rename from app/src/main/res/layout/activity_main.xml
+rename to app/src/main/res/layout/droidfs_activity_main.xml
+diff --git a/app/src/main/res/layout/activity_video_player.xml b/app/src/main/res/layout/droidfs_activity_video_player.xml
+similarity index 100%
+rename from app/src/main/res/layout/activity_video_player.xml
+rename to app/src/main/res/layout/droidfs_activity_video_player.xml
+diff --git a/app/src/main/res/layout/dialog_edit_text.xml b/app/src/main/res/layout/droidfs_dialog_edit_text.xml
+similarity index 100%
+rename from app/src/main/res/layout/dialog_edit_text.xml
+rename to app/src/main/res/layout/droidfs_dialog_edit_text.xml
+diff --git a/app/src/main/res/xml/backup_rules.xml b/app/src/main/res/xml/droidfs_backup_rules.xml
+similarity index 100%
+rename from app/src/main/res/xml/backup_rules.xml
+rename to app/src/main/res/xml/droidfs_backup_rules.xml
+diff --git a/app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java b/app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java
+rename to app/src/main/java/androidx/camera/video/originals/base/EncoderImpl.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java b/app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java
+rename to app/src/main/java/androidx/camera/video/originals/base/PendingRecording.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/originals/base/Recorder.java b/app/src/main/java/androidx/camera/video/originals/base/Recorder.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/originals/base/Recorder.java
+rename to app/src/main/java/androidx/camera/video/originals/base/Recorder.java.vaultshelf-disabled
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt b/app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/file_viewers/PdfViewer.kt.vaultshelf-disabled
+
+
+
+diff --git a/app/src/main/res/xml/unsafe_features_preferences.xml b/app/src/main/res/xml/unsafe_features_preferences.xml
+--- a/app/src/main/res/xml/unsafe_features_preferences.xml
++++ b/app/src/main/res/xml/unsafe_features_preferences.xml
+@@ -3,18 +3,5 @@
+     xmlns:android="http://schemas.android.com/apk/res/android">
+ 
+-    <PreferenceCategory android:title="@string/about">
+-
+-        <Preference
+-            android:icon="@drawable/icon_notes"
+-            android:summary="@string/usf_read_doc"
+-            android:title="@string/usf_doc">
+-            <intent
+-                android:action="android.intent.action.VIEW"
+-                android:data="https://tangled.org/cipherd.arkensys.dedyn.io/DroidFS#unsafe-features" />
+-        </Preference>
+-
+-    </PreferenceCategory>
+-
+     <PreferenceCategory android:title="@string/ux">
+ 
+         <SwitchPreferenceCompat
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt b/app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/SensorOrientationListener.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt b/app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt
+rename to app/src/main/java/sushi/hardcore/droidfs/video_recording/FFmpegMuxer.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/MediaMuxer.kt b/app/src/main/java/androidx/camera/video/MediaMuxer.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/MediaMuxer.kt
+rename to app/src/main/java/androidx/camera/video/MediaMuxer.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt b/app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt
+rename to app/src/main/java/androidx/camera/video/MuxerOutputOptions.kt.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/SucklessPendingRecording.java b/app/src/main/java/androidx/camera/video/SucklessPendingRecording.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/SucklessPendingRecording.java
+rename to app/src/main/java/androidx/camera/video/SucklessPendingRecording.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/SucklessRecorder.java b/app/src/main/java/androidx/camera/video/SucklessRecorder.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/SucklessRecorder.java
+rename to app/src/main/java/androidx/camera/video/SucklessRecorder.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/SucklessRecording.java b/app/src/main/java/androidx/camera/video/SucklessRecording.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/SucklessRecording.java
+rename to app/src/main/java/androidx/camera/video/SucklessRecording.java.vaultshelf-disabled
+diff --git a/app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java b/app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java.vaultshelf-disabled
+similarity index 100%
+rename from app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java
+rename to app/src/main/java/androidx/camera/video/internal/encoder/SucklessEncoderImpl.java.vaultshelf-disabled
+diff --git a/app/src/main/res/layout/activity_camera.xml b/app/src/main/vaultshelf-disabled/activity_camera.xml
+similarity index 100%
+rename from app/src/main/res/layout/activity_camera.xml
+rename to app/src/main/vaultshelf-disabled/activity_camera.xml
+# VaultShelf disables DroidFS camera capture: hidden-volume storage/import/export remain intact.
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerRouter.kt
+@@ -7,6 +7,9 @@
+ class ExplorerRouter(private val context: Context, private val intent: Intent) {
+     var pickMode = intent.action == "pick"
+     var dropMode = (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) && intent.extras != null
++    var importTargetMode =
++        intent.action == "vaultshelf_import_to_vault" ||
++            intent.action == "vaultshelf_import_to_vault_library"
+ 
+     fun getExplorerIntent(volumeId: Int, volumeShortName: String): Intent {
+         var explorerIntent: Intent? = null
+@@ -16,9 +17,21 @@
+         } else if (pickMode) {
+             explorerIntent = Intent(context, ExplorerActivityPick::class.java)
+             explorerIntent.flags = Intent.FLAG_ACTIVITY_FORWARD_RESULT
++        } else if (importTargetMode) {
++            explorerIntent = Intent().setClassName(
++                context.packageName,
++                "com.arjun.gander.vault.VaultImportTargetActivity",
++            )
++            intent.extras?.let { explorerIntent.putExtras(it) }
+         }
+         if (explorerIntent == null) {
+-            explorerIntent = Intent(context, ExplorerActivity::class.java) //default opening
++            explorerIntent = Intent().setClassName(
++                context.packageName,
++                "com.arjun.gander.vault.VaultModeActivity",
++            )
++            intent.extras?.let { explorerIntent.putExtras(it) }
++            explorerIntent.putExtra("vaultshelf.mode.volume_id", volumeId)
++            explorerIntent.putExtra("vaultshelf.mode.volume_name", volumeShortName)
+         }
+         explorerIntent.putExtra("volumeId", volumeId)
+         explorerIntent.putExtra("volumeName", volumeShortName)
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
+@@ -24,22 +24,46 @@
+     protected lateinit var sharedPrefs: SharedPreferences
+     protected var applyCustomTheme: Boolean = true
+     lateinit var theme: Theme
++    private val screenshotPreferenceListener =
++        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
++            if (key == "usf_screenshot") applyScreenshotPolicy()
++        }
+ 
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
+         sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this)
+         theme = Theme.fromSharedPrefs(sharedPrefs)
+         if (applyCustomTheme) {
+             setTheme(theme.toResourceId())
+         }
+         if (applyCustomTheme && theme.color == "dynamic") {
+             enableEdgeToEdge()
+         } else {
+             enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
+         }
+-        if (!sharedPrefs.getBoolean("usf_screenshot", false)) {
+-            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
++        applyScreenshotPolicy()
++    }
++
++    private fun applyScreenshotPolicy() {
++        val plainSurface =
++            intent.getBooleanExtra("vaultshelf.plain_volume", false) ||
++                intent.getBooleanExtra("vaultshelf.plain_surface", false)
++        if (plainSurface || sharedPrefs.getBoolean("usf_screenshot", false)) {
++            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
++        } else {
++            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+         }
+     }
+ 
++    override fun onStart() {
++        super.onStart()
++        sharedPrefs.registerOnSharedPreferenceChangeListener(screenshotPreferenceListener)
++        applyScreenshotPolicy()
++    }
++
++    override fun onStop() {
++        sharedPrefs.unregisterOnSharedPreferenceChangeListener(screenshotPreferenceListener)
++        super.onStop()
++    }
++
+     override fun onPostCreate(savedInstanceState: Bundle?) {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
+@@ -21,2 +21,6 @@
+ class SettingsActivity : BaseActivity() {
++    init {
++        applyCustomTheme = false
++    }
++
+     override val contentAreaId = R.id.settings
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
+@@ -10,3 +10,7 @@
+ class AddVolumeActivity: BaseActivity() {
+ 
++    init {
++        applyCustomTheme = false
++    }
++
+     companion object {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt
+@@ -23,3 +23,7 @@
+ class ChangePasswordActivity: BaseActivity() {
+ 
++    init {
++        applyCustomTheme = false
++    }
++
+     private lateinit var binding: ActivityChangePasswordBinding
+
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt b/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt
+@@ -109,4 +109,7 @@
+     private var serviceScope = MainScope()
+     private val notificationPermissionHelpers = ArrayDeque<AndroidUtils.NotificationPermissionHelper<BaseActivity>>(2)
+-    private var askForNotificationPermission = true
++    // Android 13+ does not require POST_NOTIFICATIONS for the data-sync foreground
++    // service itself. VaultShelf therefore never blocks or nags file import/export
++    // for this optional permission; denied notifications simply stay out of the drawer.
++    private var askForNotificationPermission = false
+     private lateinit var notificationManager: NotificationManagerCompat
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt b/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt
+@@ -28,4 +28,6 @@
+ 
+-    private val usfSafWrite = PreferenceManager.getDefaultSharedPreferences(context).getBoolean("usf_saf_write", false)
++    private val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(context)
++    private val usfSafWrite: Boolean
++        get() = sharedPrefs.getBoolean("usf_saf_write", false)
+ 
+     private fun exportFile(exportedFile: EncryptedFileProvider.ExportedFile, size: Long, volumeId: Int, previousContentType: String? = null): Pair<Uri, String>? {
+
+# /* VaultShelf removes obsolete DroidFS theme controls */
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
+@@ -1,723 +1,920 @@
+-package sushi.hardcore.droidfs.explorers
+-
+-import android.content.Intent
+-import android.net.Uri
+-import android.os.Bundle
+-import android.view.Menu
+-import android.view.MenuItem
+-import android.view.View
+-import android.widget.ImageButton
+-import android.widget.ProgressBar
+-import android.widget.TextView
+-import android.widget.Toast
+-import androidx.activity.addCallback
+-import androidx.core.view.isVisible
+-import androidx.lifecycle.ViewModel
+-import androidx.lifecycle.ViewModelProvider
+-import androidx.lifecycle.lifecycleScope
+-import androidx.recyclerview.widget.GridLayoutManager
+-import androidx.recyclerview.widget.LinearLayoutManager
+-import androidx.recyclerview.widget.RecyclerView
+-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+-import kotlinx.coroutines.Dispatchers
+-import kotlinx.coroutines.Job
+-import kotlinx.coroutines.MainScope
+-import kotlinx.coroutines.cancel
+-import kotlinx.coroutines.cancelAndJoin
+-import kotlinx.coroutines.launch
+-import kotlinx.coroutines.yield
+-import sushi.hardcore.droidfs.BaseActivity
+-import sushi.hardcore.droidfs.Constants
+-import sushi.hardcore.droidfs.EncryptedFileProvider
+-import sushi.hardcore.droidfs.FileShare
+-import sushi.hardcore.droidfs.FileTypes
+-import sushi.hardcore.droidfs.LoadingTask
+-import sushi.hardcore.droidfs.R
+-import sushi.hardcore.droidfs.VolumeManagerApp
+-import sushi.hardcore.droidfs.adapters.ExplorerElementAdapter
+-import sushi.hardcore.droidfs.adapters.OpenAsDialogAdapter
+-import sushi.hardcore.droidfs.content_providers.TemporaryFileProvider
+-import sushi.hardcore.droidfs.file_operations.FileOperationService
+-import sushi.hardcore.droidfs.file_operations.OperationFile
+-import sushi.hardcore.droidfs.file_operations.TaskResult
+-import sushi.hardcore.droidfs.file_viewers.AudioPlayer
+-import sushi.hardcore.droidfs.file_viewers.ImageViewer
+-import sushi.hardcore.droidfs.file_viewers.PdfViewer
+-import sushi.hardcore.droidfs.file_viewers.TextEditor
+-import sushi.hardcore.droidfs.file_viewers.VideoPlayer
+-import sushi.hardcore.droidfs.filesystems.EncryptedVolume
+-import sushi.hardcore.droidfs.filesystems.Stat
+-import sushi.hardcore.droidfs.util.PathUtils
+-import sushi.hardcore.droidfs.util.finishOnClose
+-import sushi.hardcore.droidfs.widgets.EditTextDialog
+-
+-open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener {
+-    private lateinit var sortOrderEntries: Array<String>
+-    private lateinit var sortOrderValues: Array<String>
+-    private var foldersFirst = true
+-    private var mapFolders = true
+-    private var currentSortOrderIndex = 0
+-    protected var volumeId = -1
+-    protected lateinit var encryptedVolume: EncryptedVolume
+-    private lateinit var volumeName: String
+-    private lateinit var explorerViewModel: ExplorerViewModel
+-    protected var currentDirectoryPath: String = ""
+-        set(value) {
+-            field = value
+-            explorerViewModel.currentDirectoryPath = value
+-            currentPathText.text = getString(R.string.location, value)
+-        }
+-    protected lateinit var fileOperationService: FileOperationService
+-    protected val activityScope = MainScope()
+-    private var directoryLoadingTask: Job? = null
+-    protected lateinit var explorerElements: MutableList<ExplorerElement>
+-    protected lateinit var explorerAdapter: ExplorerElementAdapter
+-    protected lateinit var app: VolumeManagerApp
+-    private var usf_open = false
+-    private lateinit var linearLayoutManager: LinearLayoutManager
+-    private var isUsingListLayout = true
+-    private lateinit var layoutIcon: ImageButton
+-    private lateinit var recycler_view_explorer: RecyclerView
+-    private lateinit var refresher: SwipeRefreshLayout
+-    private lateinit var loader: ProgressBar
+-    private lateinit var textDirEmpty: TextView
+-    private lateinit var currentPathText: TextView
+-    private lateinit var numberOfFilesText: TextView
+-    private lateinit var numberOfFoldersText: TextView
+-    private lateinit var totalSizeText: TextView
+-    protected val fileShare by lazy { FileShare(this) }
+-
+-    override fun onCreate(savedInstanceState: Bundle?) {
+-        super.onCreate(savedInstanceState)
+-        app = application as VolumeManagerApp
+-        volumeName = intent.getStringExtra("volumeName") ?: ""
+-        volumeId = intent.getIntExtra("volumeId", -1)
+-        encryptedVolume = app.volumeManager.getVolume(volumeId)!!.also { finishOnClose(it) }
+-        sortOrderEntries = resources.getStringArray(R.array.sort_orders_entries)
+-        sortOrderValues = resources.getStringArray(R.array.sort_orders_values)
+-        foldersFirst = sharedPrefs.getBoolean("folders_first", true)
+-        mapFolders = sharedPrefs.getBoolean("map_folders", true)
+-        loadUnsafeFeatures()
+-        currentSortOrderIndex = resources.getStringArray(R.array.sort_orders_values).indexOf(sharedPrefs.getString(Constants.SORT_ORDER_KEY, "name"))
+-        init()
+-        recycler_view_explorer = findViewById(R.id.recycler_view_explorer)
+-        refresher = findViewById(R.id.refresher)
+-        loader = findViewById(R.id.loader)
+-        textDirEmpty = findViewById(R.id.text_dir_empty)
+-        currentPathText = findViewById(R.id.current_path_text)
+-        numberOfFilesText = findViewById(R.id.number_of_files_text)
+-        numberOfFoldersText = findViewById(R.id.number_of_folders_text)
+-        totalSizeText = findViewById(R.id.total_size_text)
+-        setSupportActionBar(findViewById(R.id.toolbar))
+-        title = ""
+-        setVolumeNameTitle()
+-        explorerAdapter = ExplorerElementAdapter(
+-            this,
+-            if (sharedPrefs.getBoolean("thumbnails", true)) {
+-                app.volumeManager.getImageLoader(volumeId)
+-            } else {
+-                null
+-            },
+-            this,
+-        )
+-        explorerViewModel = ViewModelProvider(this).get(ExplorerViewModel::class.java)
+-        currentDirectoryPath = explorerViewModel.currentDirectoryPath
+-        linearLayoutManager = LinearLayoutManager(this@BaseExplorerActivity)
+-        recycler_view_explorer.adapter = explorerAdapter
+-        isUsingListLayout = sharedPrefs.getBoolean("useListLayout", true)
+-        layoutIcon = findViewById(R.id.layout_icon)
+-        setRecyclerViewLayout()
+-        onBackPressedDispatcher.addCallback(this) {
+-            if (explorerAdapter.selectedItems.isEmpty()) {
+-                val parentPath = PathUtils.getParentPath(currentDirectoryPath)
+-                if (parentPath == currentDirectoryPath) {
+-                    isEnabled = false
+-                    onBackPressedDispatcher.onBackPressed()
+-                } else {
+-                    changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
+-                }
+-            } else {
+-                unselectAll()
+-            }
+-        }
+-        layoutIcon.setOnClickListener {
+-            isUsingListLayout = !isUsingListLayout
+-            setRecyclerViewLayout()
+-            recycler_view_explorer.recycledViewPool.clear()
+-            with (sharedPrefs.edit()) {
+-                putBoolean("useListLayout", isUsingListLayout)
+-                apply()
+-            }
+-        }
+-        refresher.setOnRefreshListener {
+-            val prefix = if (currentDirectoryPath == "/") "/" else "$currentDirectoryPath/"
+-            app.volumeManager.evictImageCache(volumeId) { it.startsWith(prefix) }
+-            refreshCurrentDirectory()
+-            refresher.isRefreshing = false
+-        }
+-        bindFileOperationService()
+-        findViewById<View>(R.id.info_bar)?.let {
+-            applyHorizonalDisplayCutoutInsets(it)
+-        }
+-    }
+-
+-    class ExplorerViewModel: ViewModel() {
+-        var currentDirectoryPath = "/"
+-    }
+-
+-    private fun setRecyclerViewLayout() {
+-        layoutIcon.setImageResource(if (isUsingListLayout) {
+-            recycler_view_explorer.layoutManager = linearLayoutManager
+-            explorerAdapter.isUsingListLayout = true
+-            R.drawable.icon_view_grid
+-        } else {
+-            val displayMetrics = resources.displayMetrics
+-            val columnsNumber = (displayMetrics.widthPixels / displayMetrics.density / 200 + 0.5).toInt()
+-            recycler_view_explorer.layoutManager = GridLayoutManager(this, columnsNumber)
+-            explorerAdapter.isUsingListLayout = false
+-            R.drawable.icon_view_list
+-        })
+-    }
+-
+-    protected open fun loadUnsafeFeatures() {
+-        usf_open = sharedPrefs.getBoolean("usf_open", false)
+-    }
+-
+-    protected open fun init() {
+-        setContentView(R.layout.activity_explorer)
+-    }
+-
+-    protected open fun bindFileOperationService() {
+-        FileOperationService.bind(this) {
+-            fileOperationService = it
+-        }
+-    }
+-
+-    private fun startFileViewer(cls: Class<*>, filePath: String) {
+-        val intent = Intent(this, cls).apply {
+-            putExtra("path", filePath)
+-            putExtra("volumeId", volumeId)
+-            putExtra("sortOrder", sortOrderValues[currentSortOrderIndex])
+-        }
+-        startActivity(intent)
+-    }
+-
+-    protected fun onExportFailed(errorResId: Int) {
+-        MaterialAlertDialogBuilder(this)
+-            .setTitle(R.string.error)
+-            .setMessage(getString(R.string.tmp_export_failed, getString(errorResId)))
+-            .setPositiveButton(R.string.ok, null)
+-            .show()
+-    }
+-
+-    private fun openWithExternalApp(path: String, size: Long) {
+-        app.isExporting = true
+-        val exportedFile = TemporaryFileProvider.instance.encryptedFileProvider.createFile(path, size)
+-        if (exportedFile == null) {
+-            onExportFailed(R.string.export_failed_create)
+-            return
+-        }
+-        val msg = when (exportedFile) {
+-            is EncryptedFileProvider.ExportedMemFile -> R.string.export_mem
+-            is EncryptedFileProvider.ExportedDiskFile -> R.string.export_disk
+-            else -> R.string.loading_msg_export
+-        }
+-        object : LoadingTask<Pair<Intent?, Int?>>(this, msg) {
+-            override suspend fun doTask(): Pair<Intent?, Int?> {
+-                return fileShare.openWith(exportedFile, size, volumeId)
+-            }
+-        }.startTask(lifecycleScope) { (intent, error) ->
+-            if (intent == null) {
+-                onExportFailed(error!!)
+-            } else {
+-                app.isStartingExternalApp = true
+-                startActivity(intent)
+-            }
+-            app.isExporting = false
+-        }
+-    }
+-
+-    private fun showOpenAsDialog(explorerElement: ExplorerElement) {
+-        val path = explorerElement.fullPath
+-        val adapter = OpenAsDialogAdapter(this, usf_open)
+-        MaterialAlertDialogBuilder(this)
+-            .setSingleChoiceItems(adapter, -1) { dialog, which ->
+-                when (adapter.getItem(which)) {
+-                    "image" -> startFileViewer(ImageViewer::class.java, path)
+-                    "video" -> startFileViewer(VideoPlayer::class.java, path)
+-                    "audio" -> startFileViewer(AudioPlayer::class.java, path)
+-                    "pdf" -> startFileViewer(PdfViewer::class.java, path)
+-                    "text" -> startFileViewer(TextEditor::class.java, path)
+-                    "external" -> if (usf_open) {
+-                        openWithExternalApp(path, explorerElement.stat.size)
+-                    }
+-                }
+-                dialog.dismiss()
+-            }
+-            .setTitle(getString(R.string.open_as) + ':')
+-            .setNegativeButton(R.string.cancel, null)
+-            .show()
+-    }
+-
+-    protected fun createNewFile(callback: (Long) -> Unit) {
+-        EditTextDialog(this, R.string.enter_file_name)
+-            .onSubmit {
+-                if (it.isEmpty()) {
+-                    Toast.makeText(this, R.string.error_filename_empty, Toast.LENGTH_SHORT).show()
+-                    createNewFile(callback)
+-                } else {
+-                    val filePath = PathUtils.pathJoin(currentDirectoryPath, it)
+-                    val handleID = encryptedVolume.openFileWriteMode(filePath)
+-                    if (handleID == -1L) {
+-                        MaterialAlertDialogBuilder(this)
+-                            .setTitle(R.string.error)
+-                            .setMessage(R.string.file_creation_failed)
+-                            .setPositiveButton(R.string.ok, null)
+-                            .show()
+-                    } else {
+-                        callback(handleID)
+-                    }
+-                }
+-            }.show()
+-    }
+-
+-    private fun setVolumeNameTitle() {
+-        supportActionBar?.title = getString(R.string.volume, volumeName)
+-    }
+-
+-    override fun onSelectionChanged(size: Int) {
+-        if (size == 0) {
+-            setVolumeNameTitle()
+-        } else {
+-            supportActionBar?.title = getString(R.string.elements_selected, size, explorerElements.count { !it.isParentFolder })
+-        }
+-    }
+-
+-    override fun onExplorerElementClick(position: Int) {
+-        if (explorerAdapter.selectedItems.isEmpty()) {
+-            val fullPath = explorerElements[position].fullPath
+-            when {
+-                explorerElements[position].isDirectory -> {
+-                    changeCurrentDirectory(fullPath)
+-                }
+-                explorerElements[position].isParentFolder -> {
+-                    changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
+-                }
+-                FileTypes.isImage(fullPath) -> {
+-                    startFileViewer(ImageViewer::class.java, fullPath)
+-                }
+-                FileTypes.isVideo(fullPath) -> {
+-                    startFileViewer(VideoPlayer::class.java, fullPath)
+-                }
+-                FileTypes.isText(fullPath) -> {
+-                    startFileViewer(TextEditor::class.java, fullPath)
+-                }
+-                FileTypes.isPDF(fullPath) -> {
+-                    startFileViewer(PdfViewer::class.java, fullPath)
+-                }
+-                FileTypes.isAudio(fullPath) -> {
+-                    startFileViewer(AudioPlayer::class.java, fullPath)
+-                }
+-                else -> showOpenAsDialog(explorerElements[position])
+-            }
+-        }
+-        invalidateOptionsMenu()
+-    }
+-
+-    override fun onExplorerElementLongClick(position: Int) {
+-        invalidateOptionsMenu()
+-    }
+-
+-    protected fun unselectAll(notifyChange: Boolean = true) {
+-        explorerAdapter.unSelectAll(notifyChange)
+-        invalidateOptionsMenu()
+-    }
+-
+-    private fun displayExplorerElements() {
+-        ExplorerElement.sortBy(sortOrderValues[currentSortOrderIndex], foldersFirst, explorerElements)
+-        unselectAll(false)
+-        loader.isVisible = false
+-        recycler_view_explorer.isVisible = true
+-        explorerAdapter.explorerElements = explorerElements
+-    }
+-
+-    private suspend fun recursiveSetSize(directory: ExplorerElement) {
+-        yield()
+-        for (child in encryptedVolume.readDir(directory.fullPath) ?: return) {
+-            if (child.isDirectory) {
+-                recursiveSetSize(child)
+-            }
+-            directory.stat.size += child.stat.size
+-        }
+-    }
+-
+-    private fun displayNumberOfElements(textView: TextView, stringIdSingular: Int, stringIdPlural: Int, count: Int) {
+-        with(textView) {
+-            visibility = if (count == 0) {
+-                View.GONE
+-            } else {
+-                text = if (count == 1) {
+-                    getString(stringIdSingular)
+-                } else {
+-                    getString(stringIdPlural, count)
+-                }
+-                View.VISIBLE
+-            }
+-        }
+-    }
+-
+-    protected fun changeCurrentDirectory(path: String) {
+-        currentDirectoryPath = path
+-        refreshCurrentDirectory {
+-            recycler_view_explorer.scrollToPosition(0)
+-        }
+-    }
+-
+-    protected fun refreshCurrentDirectory(onDisplayed: (() -> Unit)? = null) = lifecycleScope.launch {
+-        directoryLoadingTask?.cancelAndJoin()
+-        recycler_view_explorer.isVisible = false
+-        loader.isVisible = true
+-        explorerElements = encryptedVolume.readDir(currentDirectoryPath) ?: return@launch
+-        if (currentDirectoryPath != "/") {
+-            explorerElements.add(
+-                0,
+-                ExplorerElement("..", Stat.parentFolderStat(), parentPath = currentDirectoryPath)
+-            )
+-        }
+-        textDirEmpty.visibility = if (explorerElements.size == 0) View.VISIBLE else View.GONE
+-        displayNumberOfElements(numberOfFilesText, R.string.one_file, R.string.multiple_files, explorerElements.count { it.isRegularFile })
+-        displayNumberOfElements(numberOfFoldersText, R.string.one_folder, R.string.multiple_folders, explorerElements.count { it.isDirectory })
+-        if (mapFolders) {
+-            var totalSize: Long = 0
+-            directoryLoadingTask = launch(Dispatchers.IO) {
+-                for (element in explorerElements) {
+-                    if (element.isDirectory) {
+-                        recursiveSetSize(element)
+-                    }
+-                    totalSize += element.stat.size
+-                }
+-            }
+-            directoryLoadingTask!!.join()
+-            displayExplorerElements()
+-            totalSizeText.text = getString(R.string.total_size, PathUtils.formatSize(totalSize))
+-            onDisplayed?.invoke()
+-        } else {
+-            displayExplorerElements()
+-            totalSizeText.text = getString(
+-                R.string.total_size,
+-                PathUtils.formatSize(explorerElements.filter { !it.isParentFolder }.sumOf { it.stat.size })
+-            )
+-            onDisplayed?.invoke()
+-        }
+-    }
+-
+-    private fun askLockVolume() {
+-        MaterialAlertDialogBuilder(this)
+-                .setTitle(R.string.warning)
+-                .setMessage(R.string.ask_lock_volume)
+-                .setPositiveButton(R.string.ok) { _, _ ->
+-                    app.volumeManager.closeVolume(volumeId)
+-                    finish()
+-                }
+-                .setNegativeButton(R.string.cancel, null)
+-                .show()
+-    }
+-
+-    private fun createFolder(folderName: String){
+-        if (folderName.isEmpty()) {
+-            Toast.makeText(this, R.string.error_filename_empty, Toast.LENGTH_SHORT).show()
+-        } else {
+-            if (!encryptedVolume.mkdir(PathUtils.pathJoin(currentDirectoryPath, folderName))) {
+-                MaterialAlertDialogBuilder(this)
+-                        .setTitle(R.string.error)
+-                        .setMessage(R.string.error_mkdir)
+-                        .setPositiveButton(R.string.ok, null)
+-                        .show()
+-            } else {
+-                refreshCurrentDirectory()
+-                invalidateOptionsMenu()
+-            }
+-        }
+-    }
+-
+-    protected fun openDialogCreateFolder() {
+-        EditTextDialog(this, R.string.enter_folder_name)
+-            .onSubmit(::createFolder)
+-            .show()
+-    }
+-
+-    protected fun checkPathOverwrite(items: List<OperationFile>, dstDirectoryPath: String, callback: (List<OperationFile>?) -> Unit) {
+-        val srcDirectoryPath = items[0].parentPath
+-        val dstPaths = HashSet<String>()
+-        for (i in items.indices) {
+-            if (items[i].dstPath == null) {
+-                items[i].dstPath = PathUtils.pathJoin(dstDirectoryPath, PathUtils.getRelativePath(srcDirectoryPath, items[i].srcPath))
+-            }
+-            val collision = items[i].dstPath in dstPaths
+-            if (items[i].overwriteConfirmed || !(collision || encryptedVolume.pathExists(items[i].dstPath!!))) {
+-                dstPaths.add(items[i].dstPath!!)
+-            } else {
+-                MaterialAlertDialogBuilder(this)
+-                    .setTitle(R.string.warning)
+-                    .setMessage(getString(
+-                        if (collision) {
+-                            // No collision should happen on directories since we can't select multiple directories
+-                            R.string.file_collision_question
+-                        } else {
+-                            if (items[i].isDirectory) {
+-                                R.string.dir_overwrite_question
+-                            } else {
+-                                R.string.file_overwrite_question
+-                            }
+-                        }, items[i].dstPath
+-                    ))
+-                    .setPositiveButton(R.string.yes) {_, _ ->
+-                        items[i].overwriteConfirmed = true
+-                        checkPathOverwrite(items, dstDirectoryPath, callback)
+-                    }
+-                    .setNegativeButton(R.string.no) { _, _ ->
+-                        EditTextDialog(this, R.string.enter_new_name)
+-                            .setSelectedText(items[i].name)
+-                            .onSubmit {
+-                                items[i].dstPath = PathUtils.pathJoin(dstDirectoryPath, PathUtils.getRelativePath(srcDirectoryPath, items[i].parentPath), it)
+-                                if (items[i].isDirectory) {
+-                                    for (j in items.indices) {
+-                                        if (PathUtils.isChildOf(items[j].srcPath, items[i].srcPath)) {
+-                                            items[j].dstPath = PathUtils.pathJoin(items[i].dstPath!!, PathUtils.getRelativePath(items[i].srcPath, items[j].srcPath))
+-                                        }
+-                                    }
+-                                }
+-                                checkPathOverwrite(items, dstDirectoryPath, callback)
+-                            }
+-                            .setOnCancelListener {
+-                                callback(null)
+-                            }.show()
+-                    }
+-                    .setOnCancelListener{
+-                        callback(null)
+-                    }
+-                    .show()
+-                return
+-            }
+-        }
+-        callback(items)
+-    }
+-
+-    protected fun onTaskResult(
+-        result: TaskResult<out String?>,
+-        failedErrorMessage: Int,
+-        successMessage: Int = -1,
+-        onSuccess: (() -> Unit)? = null,
+-    ) {
+-        when (result.state) {
+-            TaskResult.State.SUCCESS -> {
+-                if (onSuccess == null) {
+-                    Toast.makeText(this, successMessage, Toast.LENGTH_SHORT).show()
+-                } else {
+-                    onSuccess()
+-                }
+-            }
+-            TaskResult.State.FAILED -> {
+-                MaterialAlertDialogBuilder(this)
+-                    .setTitle(R.string.error)
+-                    .setMessage(getString(failedErrorMessage, result.failedItem))
+-                    .setPositiveButton(R.string.ok, null)
+-                    .show()
+-            }
+-            TaskResult.State.ERROR -> result.showErrorAlertDialog(this)
+-            TaskResult.State.CANCELLED -> {}
+-        }
+-    }
+-
+-    protected fun importFilesFromUris(uris: List<Uri>, callback: () -> Unit) {
+-        val items = ArrayList<OperationFile>()
+-        for (uri in uris) {
+-            val fileName = PathUtils.getFilenameFromURI(this, uri)
+-            if (fileName == null) {
+-                MaterialAlertDialogBuilder(this)
+-                        .setTitle(R.string.error)
+-                        .setMessage(getString(R.string.error_retrieving_filename, uri))
+-                        .setPositiveButton(R.string.ok, null)
+-                        .show()
+-                items.clear()
+-                break
+-            } else {
+-                items.add(OperationFile(PathUtils.pathJoin(currentDirectoryPath, fileName), Stat.S_IFREG))
+-            }
+-        }
+-        if (items.size > 0) {
+-            checkPathOverwrite(items, currentDirectoryPath) { checkedItems ->
+-                checkedItems?.let {
+-                    activityScope.launch {
+-                        val result = fileOperationService.importFilesFromUris(volumeId, checkedItems.map { it.dstPath!! }, uris)
+-                        onTaskResult(result, R.string.import_failed, onSuccess = callback)
+-                        refreshCurrentDirectory()
+-                    }
+-                }
+-            }
+-        }
+-    }
+-
+-    private fun showRenameDialog(element: ExplorerElement, preselectedText: String) {
+-        EditTextDialog(this, R.string.rename_title)
+-            .setSelectedText(preselectedText)
+-            .onSubmit { newName ->
+-                if (newName.isEmpty()) {
+-                    Toast.makeText(this, R.string.error_filename_empty, Toast.LENGTH_SHORT).show()
+-                    showRenameDialog(element, element.name)
+-                    return@onSubmit
+-                }
+-                val dstPath = if (newName.startsWith("/")) {
+-                    newName
+-                } else {
+-                    PathUtils.pathJoin(currentDirectoryPath, newName)
+-                }
+-                val lastComponent = newName.substringAfterLast('/')
+-                // if a directory is explicitly requested, rename into it with the original file name
+-                if (lastComponent.isEmpty() || lastComponent == "." || lastComponent == "..") {
+-                    checkRenameOverwrite(element, newName, PathUtils.pathJoin(dstPath, element.name))
+-                } else {
+-                    checkRenameOverwrite(element, newName, dstPath)
+-                }
+-            }
+-            .show()
+-    }
+-
+-    private fun askRenameOverwrite(messageResId: Int, dstPath: String, element: ExplorerElement, newName: String, onConfirm: () -> Unit) {
+-        MaterialAlertDialogBuilder(this)
+-            .setTitle(R.string.warning)
+-            .setMessage(getString(messageResId, dstPath, element.name))
+-            .setPositiveButton(R.string.yes) { _, _ -> onConfirm() }
+-            .setNegativeButton(R.string.no) { _, _ -> showRenameDialog(element, newName) }
+-            .show()
+-    }
+-
+-    private fun checkRenameOverwrite(element: ExplorerElement, newName: String, dstPath: String) {
+-        val attr = encryptedVolume.getAttr(dstPath)
+-        when {
+-            attr == null -> rename(element, dstPath)
+-            attr.type == Stat.S_IFDIR ->
+-                askRenameOverwrite(R.string.rename_into_dir_question, dstPath, element, newName) {
+-                    checkRenameOverwrite(element, newName, PathUtils.pathJoin(dstPath, element.name))
+-                }
+-            element.isDirectory -> {
+-                Toast.makeText(this, R.string.error_is_file, Toast.LENGTH_SHORT).show()
+-                showRenameDialog(element, newName)
+-            }
+-            else ->
+-                askRenameOverwrite(R.string.file_overwrite_question, dstPath, element, newName) {
+-                    rename(element, dstPath)
+-                }
+-        }
+-    }
+-
+-    private fun rename(element: ExplorerElement, dstPath: String) {
+-        if (!encryptedVolume.rename(element.fullPath, dstPath)) {
+-            MaterialAlertDialogBuilder(this)
+-                .setTitle(R.string.error)
+-                .setMessage(getString(R.string.rename_failed, element.name))
+-                .setPositiveButton(R.string.ok, null)
+-                .show()
+-        } else {
+-            val normalizedPath = PathUtils.normalizePath(dstPath)
+-            app.volumeManager.evictImageCache(volumeId) { it == normalizedPath }
+-            refreshCurrentDirectory() {
+-                invalidateOptionsMenu()
+-            }
+-        }
+-    }
+-
+-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+-        menu.findItem(R.id.rename).isVisible = false
+-        menu.findItem(R.id.open_as)?.isVisible = false
+-        if (usf_open){
+-            menu.findItem(R.id.external_open)?.isVisible = false
+-        }
+-        val noItemSelected = explorerAdapter.selectedItems.isEmpty()
+-        menu.findItem(R.id.sort).isVisible = noItemSelected
+-        menu.findItem(R.id.lock).isVisible = noItemSelected
+-        menu.findItem(R.id.close).isVisible = noItemSelected
+-        supportActionBar?.setDisplayHomeAsUpEnabled(!noItemSelected)
+-        if (!noItemSelected) {
+-            if (explorerAdapter.selectedItems.size == 1) {
+-                menu.findItem(R.id.rename).isVisible = true
+-                if (explorerElements[explorerAdapter.selectedItems.first()].isRegularFile) {
+-                    menu.findItem(R.id.open_as)?.isVisible = true
+-                    if (usf_open) {
+-                        menu.findItem(R.id.external_open)?.isVisible = true
+-                    }
+-                }
+-            }
+-        }
+-        return super.onCreateOptionsMenu(menu)
+-    }
+-
+-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+-        return when (item.itemId) {
+-            android.R.id.home -> {
+-                unselectAll()
+-                true
+-            }
+-            R.id.sort -> {
+-                MaterialAlertDialogBuilder(this)
+-                        .setTitle(R.string.sort_order)
+-                        .setSingleChoiceItems(sortOrderEntries, currentSortOrderIndex) { dialog, which ->
+-                            currentSortOrderIndex = which
+-                            // displayExplorerElements must not be called if directoryLoadingTask is active
+-                            if (directoryLoadingTask?.isActive != true) {
+-                                displayExplorerElements()
+-                            }
+-                            val sharedPrefsEditor = sharedPrefs.edit()
+-                            sharedPrefsEditor.putString(Constants.SORT_ORDER_KEY, sortOrderValues[currentSortOrderIndex])
+-                            sharedPrefsEditor.apply()
+-                            dialog.dismiss()
+-                        }
+-                        .setNegativeButton(R.string.cancel, null)
+-                        .show()
+-                true
+-            }
+-            R.id.rename -> {
+-                val explorerElement = explorerElements[explorerAdapter.selectedItems.first()]
+-                showRenameDialog(explorerElement, explorerElement.name)
+-                true
+-            }
+-            R.id.open_as -> {
+-                showOpenAsDialog(explorerElements[explorerAdapter.selectedItems.first()])
+-                true
+-            }
+-            R.id.external_open -> {
+-                if (usf_open){
+-                    val explorerElement = explorerElements[explorerAdapter.selectedItems.first()]
+-                    openWithExternalApp(explorerElement.fullPath, explorerElement.stat.size)
+-                    unselectAll()
+-                }
+-                true
+-            }
+-            R.id.close -> {
+-                finish()
+-                true
+-            }
+-            R.id.lock -> {
+-                askLockVolume()
+-                true
+-            }
+-            else -> super.onOptionsItemSelected(item)
+-        }
+-    }
+-
+-    override fun onDestroy() {
+-        super.onDestroy()
+-        if (!isChangingConfigurations) { //activity won't be recreated
+-            activityScope.cancel()
+-        }
+-    }
+-
+-    override fun onResume() {
+-        super.onResume()
+-        if (app.isStartingExternalApp) {
+-            TemporaryFileProvider.instance.wipe()
+-        }
+-        refreshCurrentDirectory()
+-    }
+-}
++package sushi.hardcore.droidfs.explorers
++
++import android.content.Intent
++import android.net.Uri
++import android.os.Bundle
++import android.view.Menu
++import android.view.MenuItem
++import android.view.View
++import android.widget.ImageButton
++import android.widget.ProgressBar
++import android.widget.TextView
++import android.widget.Toast
++import androidx.activity.addCallback
++import androidx.core.view.ViewCompat
++import androidx.core.view.WindowInsetsCompat
++import androidx.core.view.isVisible
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.ViewModelProvider
++import androidx.lifecycle.lifecycleScope
++import androidx.recyclerview.widget.GridLayoutManager
++import androidx.recyclerview.widget.LinearLayoutManager
++import androidx.recyclerview.widget.RecyclerView
++import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
++import com.google.android.material.dialog.MaterialAlertDialogBuilder
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.MainScope
++import kotlinx.coroutines.cancel
++import kotlinx.coroutines.cancelAndJoin
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++import com.vaultshelf.droidfs.SafVolume
++import com.vaultshelf.droidfs.VaultShelfFileRouter
++import kotlinx.coroutines.yield
++import sushi.hardcore.droidfs.BaseActivity
++import sushi.hardcore.droidfs.Constants
++import sushi.hardcore.droidfs.EncryptedFileProvider
++import sushi.hardcore.droidfs.FileShare
++import sushi.hardcore.droidfs.FileTypes
++import sushi.hardcore.droidfs.LoadingTask
++import sushi.hardcore.droidfs.R
++import sushi.hardcore.droidfs.VolumeManagerApp
++import sushi.hardcore.droidfs.adapters.ExplorerElementAdapter
++import sushi.hardcore.droidfs.adapters.OpenAsDialogAdapter
++import sushi.hardcore.droidfs.content_providers.TemporaryFileProvider
++import sushi.hardcore.droidfs.file_operations.FileOperationService
++import sushi.hardcore.droidfs.file_operations.OperationFile
++import sushi.hardcore.droidfs.file_operations.TaskResult
++import sushi.hardcore.droidfs.file_viewers.AudioPlayer
++import sushi.hardcore.droidfs.file_viewers.ImageViewer
++import sushi.hardcore.droidfs.file_viewers.TextEditor
++import sushi.hardcore.droidfs.file_viewers.VideoPlayer
++import sushi.hardcore.droidfs.filesystems.EncryptedVolume
++import sushi.hardcore.droidfs.filesystems.Stat
++import sushi.hardcore.droidfs.util.PathUtils
++import sushi.hardcore.droidfs.util.finishOnClose
++import sushi.hardcore.droidfs.widgets.EditTextDialog
++import java.util.ArrayDeque
++
++open class BaseExplorerActivity : BaseActivity(), ExplorerElementAdapter.Listener {
++    init {
++        applyCustomTheme = false
++    }
++
++    private lateinit var sortOrderEntries: Array<String>
++    private lateinit var sortOrderValues: Array<String>
++    private var foldersFirst = true
++    private var mapFolders = true
++    private var currentSortOrderIndex = 0
++    protected var volumeId = -1
++    protected lateinit var encryptedVolume: EncryptedVolume
++    private lateinit var volumeName: String
++    private lateinit var explorerViewModel: ExplorerViewModel
++    protected var currentDirectoryPath: String = ""
++        set(value) {
++            field = value
++            explorerViewModel.currentDirectoryPath = value
++            currentPathText.text = getString(R.string.location, value)
++        }
++    protected lateinit var fileOperationService: FileOperationService
++    protected val activityScope = MainScope()
++    private var directoryLoadingTask: Job? = null
++    private var searchJob: Job? = null
++    private var searchRootPath: String? = null
++    private var activeSearchQuery: String = ""
++    private val searchMenuItemId: Int = View.generateViewId()
++    protected lateinit var explorerElements: MutableList<ExplorerElement>
++    protected lateinit var explorerAdapter: ExplorerElementAdapter
++    protected lateinit var app: VolumeManagerApp
++    private var usf_open = false
++    private lateinit var linearLayoutManager: LinearLayoutManager
++    private var isUsingListLayout = true
++    private lateinit var layoutIcon: ImageButton
++    private lateinit var recycler_view_explorer: RecyclerView
++    private lateinit var refresher: SwipeRefreshLayout
++    private lateinit var loader: ProgressBar
++    private lateinit var textDirEmpty: TextView
++    private lateinit var currentPathText: TextView
++    private lateinit var numberOfFilesText: TextView
++    private lateinit var numberOfFoldersText: TextView
++    private lateinit var totalSizeText: TextView
++    protected val fileShare by lazy { FileShare(this) }
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        app = application as VolumeManagerApp
++        volumeName = intent.getStringExtra("volumeName") ?: ""
++        volumeId = intent.getIntExtra("volumeId", -1)
++        encryptedVolume = app.volumeManager.getVolume(volumeId)!!.also { finishOnClose(it) }
++        sortOrderEntries = resources.getStringArray(R.array.sort_orders_entries)
++        sortOrderValues = resources.getStringArray(R.array.sort_orders_values)
++        foldersFirst = sharedPrefs.getBoolean("folders_first", true)
++        mapFolders = sharedPrefs.getBoolean("map_folders", true)
++        loadUnsafeFeatures()
++        currentSortOrderIndex = resources.getStringArray(R.array.sort_orders_values).indexOf(sharedPrefs.getString(Constants.SORT_ORDER_KEY, "name"))
++        init()
++        recycler_view_explorer = findViewById(R.id.recycler_view_explorer)
++        refresher = findViewById(R.id.refresher)
++        loader = findViewById(R.id.loader)
++        textDirEmpty = findViewById(R.id.text_dir_empty)
++        currentPathText = findViewById(R.id.current_path_text)
++        numberOfFilesText = findViewById(R.id.number_of_files_text)
++        numberOfFoldersText = findViewById(R.id.number_of_folders_text)
++        totalSizeText = findViewById(R.id.total_size_text)
++        setSupportActionBar(findViewById(R.id.toolbar))
++        title = ""
++        setVolumeNameTitle()
++        explorerAdapter = ExplorerElementAdapter(
++            this,
++            if (sharedPrefs.getBoolean("thumbnails", true)) {
++                app.volumeManager.getImageLoader(volumeId)
++            } else {
++                null
++            },
++            this,
++        )
++        explorerViewModel = ViewModelProvider(this).get(ExplorerViewModel::class.java)
++        currentDirectoryPath = explorerViewModel.currentDirectoryPath
++        linearLayoutManager = LinearLayoutManager(this@BaseExplorerActivity)
++        recycler_view_explorer.adapter = explorerAdapter
++        isUsingListLayout = sharedPrefs.getBoolean("useListLayout", true)
++        layoutIcon = findViewById(R.id.layout_icon)
++        setRecyclerViewLayout()
++        onBackPressedDispatcher.addCallback(this) {
++            when {
++                explorerAdapter.selectedItems.isNotEmpty() -> unselectAll()
++                activeSearchQuery.isNotEmpty() -> exitSearch()
++                else -> {
++                    val parentPath = PathUtils.getParentPath(currentDirectoryPath)
++                    if (parentPath == currentDirectoryPath) {
++                        isEnabled = false
++                        onBackPressedDispatcher.onBackPressed()
++                    } else {
++                        changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
++                    }
++                }
++            }
++        }
++        layoutIcon.setOnClickListener {
++            isUsingListLayout = !isUsingListLayout
++            setRecyclerViewLayout()
++            recycler_view_explorer.recycledViewPool.clear()
++            with (sharedPrefs.edit()) {
++                putBoolean("useListLayout", isUsingListLayout)
++                apply()
++            }
++        }
++        refresher.setOnRefreshListener {
++            val prefix = if (currentDirectoryPath == "/") "/" else "$currentDirectoryPath/"
++            app.volumeManager.evictImageCache(volumeId) { it.startsWith(prefix) }
++            refreshCurrentDirectory()
++            refresher.isRefreshing = false
++        }
++        bindFileOperationService()
++        findViewById<View>(R.id.info_bar)?.let {
++            applyHorizonalDisplayCutoutInsets(it)
++        }
++    }
++
++    override fun onPostCreate(savedInstanceState: Bundle?) {
++        super.onPostCreate(savedInstanceState)
++        val root = findViewById<View>(android.R.id.content)
++        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
++            val bars = insets.getInsets(
++                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
++            )
++            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
++            view.setPadding(
++                bars.left,
++                bars.top,
++                bars.right,
++                if (ime.bottom > 0) ime.bottom else 0,
++            )
++            insets
++        }
++        ViewCompat.requestApplyInsets(root)
++    }
++
++    class ExplorerViewModel: ViewModel() {
++        var currentDirectoryPath = "/"
++    }
++
++    private fun setRecyclerViewLayout() {
++        layoutIcon.setImageResource(if (isUsingListLayout) {
++            recycler_view_explorer.layoutManager = linearLayoutManager
++            explorerAdapter.isUsingListLayout = true
++            R.drawable.icon_view_grid
++        } else {
++            val displayMetrics = resources.displayMetrics
++            val columnsNumber = (displayMetrics.widthPixels / displayMetrics.density / 200 + 0.5).toInt()
++            recycler_view_explorer.layoutManager = GridLayoutManager(this, columnsNumber)
++            explorerAdapter.isUsingListLayout = false
++            R.drawable.icon_view_list
++        })
++    }
++
++    protected open fun loadUnsafeFeatures() {
++        usf_open = sharedPrefs.getBoolean("usf_open", false)
++    }
++
++    protected open fun init() {
++        setContentView(R.layout.activity_explorer)
++    }
++
++    protected open fun bindFileOperationService() {
++        FileOperationService.bind(this) {
++            fileOperationService = it
++        }
++    }
++
++    private fun startFileViewer(cls: Class<*>, filePath: String) {
++        val intent = Intent(this, cls).apply {
++            putExtra("path", filePath)
++            putExtra("volumeId", volumeId)
++            putExtra("sortOrder", sortOrderValues[currentSortOrderIndex])
++            if (this@BaseExplorerActivity.intent.getBooleanExtra("vaultshelf.plain_volume", false)) {
++                putExtra("vaultshelf.plain_surface", true)
++            }
++        }
++        startActivity(intent)
++    }
++
++    protected fun onExportFailed(errorResId: Int) {
++        MaterialAlertDialogBuilder(this)
++            .setTitle(R.string.error)
++            .setMessage(getString(R.string.tmp_export_failed, getString(errorResId)))
++            .setPositiveButton(R.string.ok, null)
++            .show()
++    }
++
++    private fun openWithExternalApp(path: String, size: Long) {
++        app.isExporting = true
++        val exportedFile = TemporaryFileProvider.instance.encryptedFileProvider.createFile(path, size)
++        if (exportedFile == null) {
++            onExportFailed(R.string.export_failed_create)
++            return
++        }
++        val msg = when (exportedFile) {
++            is EncryptedFileProvider.ExportedMemFile -> R.string.export_mem
++            is EncryptedFileProvider.ExportedDiskFile -> R.string.export_disk
++            else -> R.string.loading_msg_export
++        }
++        object : LoadingTask<Pair<Intent?, Int?>>(this, msg) {
++            override suspend fun doTask(): Pair<Intent?, Int?> {
++                return fileShare.openWith(exportedFile, size, volumeId)
++            }
++        }.startTask(lifecycleScope) { (intent, error) ->
++            if (intent == null) {
++                onExportFailed(error!!)
++            } else {
++                app.isStartingExternalApp = true
++                startActivity(intent)
++            }
++            app.isExporting = false
++        }
++    }
++
++    private fun showOpenAsDialog(explorerElement: ExplorerElement) {
++        val path = explorerElement.fullPath
++        val adapter = OpenAsDialogAdapter(this, usf_open)
++        MaterialAlertDialogBuilder(this)
++            .setSingleChoiceItems(adapter, -1) { dialog, which ->
++                when (adapter.getItem(which)) {
++                    "image" -> startFileViewer(ImageViewer::class.java, path)
++                    "video" -> startFileViewer(VideoPlayer::class.java, path)
++                    "audio" -> startFileViewer(AudioPlayer::class.java, path)
++                    "pdf" -> VaultShelfFileRouter.open(this, path, explorerElement.stat.size, volumeId)
++                    "text" -> startFileViewer(TextEditor::class.java, path)
++                    "external" -> if (usf_open) {
++                        openWithExternalApp(path, explorerElement.stat.size)
++                    }
++                }
++                dialog.dismiss()
++            }
++            .setTitle(getString(R.string.open_as) + ':')
++            .setNegativeButton(R.string.cancel, null)
++            .show()
++    }
++
++    protected fun createNewFile(callback: (Long) -> Unit) {
++        EditTextDialog(this, R.string.enter_file_name)
++            .onSubmit {
++                if (it.isEmpty()) {
++                    Toast.makeText(this, R.string.error_filename_empty, Toast.LENGTH_SHORT).show()
++                    createNewFile(callback)
++                } else {
++                    val filePath = PathUtils.pathJoin(currentDirectoryPath, it)
++                    val handleID = encryptedVolume.openFileWriteMode(filePath)
++                    if (handleID == -1L) {
++                        MaterialAlertDialogBuilder(this)
++                            .setTitle(R.string.error)
++                            .setMessage(R.string.file_creation_failed)
++                            .setPositiveButton(R.string.ok, null)
++                            .show()
++                    } else {
++                        callback(handleID)
++                    }
++                }
++            }.show()
++    }
++
++    private fun setVolumeNameTitle() {
++        setExplorerTitle()
++    }
++
++    override fun onSelectionChanged(size: Int) {
++        if (size == 0) {
++            setExplorerTitle()
++        } else {
++            supportActionBar?.title = getString(R.string.elements_selected, size, explorerElements.count { !it.isParentFolder })
++        }
++    }
++
++    override fun onExplorerElementClick(position: Int) {
++        if (explorerAdapter.selectedItems.isEmpty()) {
++            val fullPath = explorerElements[position].fullPath
++            when {
++                explorerElements[position].isDirectory -> {
++                    changeCurrentDirectory(fullPath)
++                }
++                explorerElements[position].isParentFolder -> {
++                    changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
++                }
++                VaultShelfFileRouter.supports(fullPath) -> {
++                    val element = explorerElements[position]
++                    if (!VaultShelfFileRouter.open(
++                            this, fullPath, element.stat.size, volumeId
++                        )
++                    ) {
++                        showOpenAsDialog(element)
++                    }
++                }
++                FileTypes.isImage(fullPath) -> {
++                    startFileViewer(ImageViewer::class.java, fullPath)
++                }
++                FileTypes.isVideo(fullPath) -> {
++                    startFileViewer(VideoPlayer::class.java, fullPath)
++                }
++                FileTypes.isText(fullPath) -> {
++                    startFileViewer(TextEditor::class.java, fullPath)
++                }
++                FileTypes.isAudio(fullPath) -> {
++                    startFileViewer(AudioPlayer::class.java, fullPath)
++                }
++                else -> showOpenAsDialog(explorerElements[position])
++            }
++        }
++        invalidateOptionsMenu()
++    }
++
++    override fun onExplorerElementLongClick(position: Int) {
++        invalidateOptionsMenu()
++    }
++
++    protected fun unselectAll(notifyChange: Boolean = true) {
++        explorerAdapter.unSelectAll(notifyChange)
++        invalidateOptionsMenu()
++    }
++
++    private fun displayExplorerElements() {
++        ExplorerElement.sortBy(sortOrderValues[currentSortOrderIndex], foldersFirst, explorerElements)
++        unselectAll(false)
++        loader.isVisible = false
++        recycler_view_explorer.isVisible = true
++        explorerAdapter.explorerElements = explorerElements
++    }
++
++    private suspend fun recursiveSetSize(directory: ExplorerElement) {
++        yield()
++        for (child in encryptedVolume.readDir(directory.fullPath) ?: return) {
++            if (child.isDirectory) {
++                recursiveSetSize(child)
++            }
++            directory.stat.size += child.stat.size
++        }
++    }
++
++    private fun displayNumberOfElements(textView: TextView, stringIdSingular: Int, stringIdPlural: Int, count: Int) {
++        with(textView) {
++            visibility = if (count == 0) {
++                View.GONE
++            } else {
++                text = if (count == 1) {
++                    getString(stringIdSingular)
++                } else {
++                    getString(stringIdPlural, count)
++                }
++                View.VISIBLE
++            }
++        }
++    }
++
++    protected fun changeCurrentDirectory(path: String) {
++        clearSearchState()
++        currentDirectoryPath = path
++        refreshCurrentDirectory {
++            recycler_view_explorer.scrollToPosition(0)
++        }
++    }
++
++    private fun openSearchDialog() {
++        EditTextDialog(this, android.R.string.search_go)
++            .setSelectedText(activeSearchQuery)
++            .onSubmit { query ->
++                val normalized = query.trim()
++                if (normalized.isNotEmpty()) {
++                    startSearch(normalized)
++                }
++            }
++            .show()
++    }
++
++    private fun startSearch(query: String) {
++        searchJob?.cancel()
++        if (searchRootPath == null) {
++            searchRootPath = currentDirectoryPath
++        }
++        activeSearchQuery = query
++        setExplorerTitle()
++        searchJob = refreshCurrentDirectory()
++    }
++
++    private fun exitSearch() {
++        clearSearchState()
++        setExplorerTitle()
++        refreshCurrentDirectory {
++            recycler_view_explorer.scrollToPosition(0)
++        }
++    }
++
++    private fun clearSearchState() {
++        searchJob?.cancel()
++        searchJob = null
++        searchRootPath = null
++        activeSearchQuery = ""
++    }
++
++    private fun setExplorerTitle() {
++        supportActionBar?.title = if (activeSearchQuery.isEmpty()) {
++            getString(R.string.volume, volumeName)
++        } else {
++            "${getString(android.R.string.search_go)}: $activeSearchQuery"
++        }
++    }
++
++    private suspend fun displaySearchResults(
++        matches: List<ExplorerElement>,
++        query: String,
++        rootPath: String,
++        complete: Boolean,
++    ) {
++        explorerElements = matches.toMutableList()
++        ExplorerElement.sortBy(sortOrderValues[currentSortOrderIndex], foldersFirst, explorerElements)
++        unselectAll(false)
++        loader.isVisible = false
++        recycler_view_explorer.isVisible = true
++        explorerAdapter.explorerElements = explorerElements
++        currentPathText.text =
++            "${getString(R.string.location, rootPath)} · ${getString(android.R.string.search_go)}: $query"
++        displayNumberOfElements(
++            numberOfFilesText,
++            R.string.one_file,
++            R.string.multiple_files,
++            explorerElements.count { it.isRegularFile },
++        )
++        displayNumberOfElements(
++            numberOfFoldersText,
++            R.string.one_folder,
++            R.string.multiple_folders,
++            explorerElements.count { it.isDirectory },
++        )
++        totalSizeText.text = getString(
++            R.string.total_size,
++            PathUtils.formatSize(explorerElements.filterNot { it.isDirectory }.sumOf { it.stat.size }),
++        )
++        textDirEmpty.visibility =
++            if (complete && explorerElements.isEmpty()) View.VISIBLE else View.GONE
++    }
++
++    private suspend fun performRecursiveSearch(query: String, rootPath: String) {
++        recycler_view_explorer.isVisible = false
++        loader.isVisible = true
++        textDirEmpty.isVisible = false
++
++        val pending = ArrayDeque<String>()
++        pending.add(rootPath)
++        val visited = HashSet<String>()
++        val matches = mutableListOf<ExplorerElement>()
++        var lastPublishMillis = System.currentTimeMillis()
++
++        while (pending.isNotEmpty()) {
++            yield()
++            val directory = pending.removeFirst()
++            if (!visited.add(directory)) continue
++            val children = withContext(Dispatchers.IO) {
++                encryptedVolume.readDir(directory)?.toList().orEmpty()
++            }
++            for (child in children) {
++                if (encryptedVolume !is SafVolume && child.fullPath == "/.vaultshelf") {
++                    continue
++                }
++                if (child.name.contains(query, ignoreCase = true)) {
++                    matches += child
++                }
++                if (child.isDirectory) {
++                    pending.addLast(child.fullPath)
++                }
++            }
++
++            val now = System.currentTimeMillis()
++            if (matches.isNotEmpty() && now - lastPublishMillis >= 350L) {
++                displaySearchResults(matches, query, rootPath, complete = false)
++                lastPublishMillis = now
++            }
++        }
++
++        displaySearchResults(matches, query, rootPath, complete = true)
++    }
++
++    protected fun refreshCurrentDirectory(onDisplayed: (() -> Unit)? = null) = lifecycleScope.launch {
++        directoryLoadingTask?.cancelAndJoin()
++        val searchQuery = activeSearchQuery
++        val searchRoot = searchRootPath
++        if (searchQuery.isNotEmpty() && searchRoot != null) {
++            performRecursiveSearch(searchQuery, searchRoot)
++            onDisplayed?.invoke()
++            return@launch
++        }
++        recycler_view_explorer.isVisible = false
++        loader.isVisible = true
++        explorerElements = encryptedVolume.readDir(currentDirectoryPath) ?: return@launch
++        if (encryptedVolume !is SafVolume && currentDirectoryPath == "/") {
++            explorerElements.removeAll { it.name == ".vaultshelf" }
++        }
++        if (currentDirectoryPath != "/") {
++            explorerElements.add(
++                0,
++                ExplorerElement("..", Stat.parentFolderStat(), parentPath = currentDirectoryPath)
++            )
++        }
++        textDirEmpty.visibility = if (explorerElements.size == 0) View.VISIBLE else View.GONE
++        displayNumberOfElements(numberOfFilesText, R.string.one_file, R.string.multiple_files, explorerElements.count { it.isRegularFile })
++        displayNumberOfElements(numberOfFoldersText, R.string.one_folder, R.string.multiple_folders, explorerElements.count { it.isDirectory })
++        if (mapFolders) {
++            var totalSize: Long = 0
++            directoryLoadingTask = launch(Dispatchers.IO) {
++                for (element in explorerElements) {
++                    if (element.isDirectory) {
++                        recursiveSetSize(element)
++                    }
++                    totalSize += element.stat.size
++                }
++            }
++            directoryLoadingTask!!.join()
++            displayExplorerElements()
++            totalSizeText.text = getString(R.string.total_size, PathUtils.formatSize(totalSize))
++            onDisplayed?.invoke()
++        } else {
++            displayExplorerElements()
++            totalSizeText.text = getString(
++                R.string.total_size,
++                PathUtils.formatSize(explorerElements.filter { !it.isParentFolder }.sumOf { it.stat.size })
++            )
++            onDisplayed?.invoke()
++        }
++    }
++
++    private fun askLockVolume() {
++        MaterialAlertDialogBuilder(this)
++                .setTitle(R.string.warning)
++                .setMessage(R.string.ask_lock_volume)
++                .setPositiveButton(R.string.ok) { _, _ ->
++                    app.volumeManager.closeVolume(volumeId)
++                    finish()
++                }
++                .setNegativeButton(R.string.cancel, null)
++                .show()
++    }
++
++    private fun createFolder(folderName: String){
++        if (folderName.isEmpty()) {
++            Toast.makeText(this, R.string.error_filename_empty, Toast.LENGTH_SHORT).show()
++        } else {
++            if (!encryptedVolume.mkdir(PathUtils.pathJoin(currentDirectoryPath, folderName))) {
++                MaterialAlertDialogBuilder(this)
++                        .setTitle(R.string.error)
++                        .setMessage(R.string.error_mkdir)
++                        .setPositiveButton(R.string.ok, null)
++                        .show()
++            } else {
++                refreshCurrentDirectory()
++                invalidateOptionsMenu()
++            }
++        }
++    }
++
++    protected fun openDialogCreateFolder() {
++        EditTextDialog(this, R.string.enter_folder_name)
++            .onSubmit(::createFolder)
++            .show()
++    }
++
++    protected fun checkPathOverwrite(items: List<OperationFile>, dstDirectoryPath: String, callback: (List<OperationFile>?) -> Unit) {
++        val srcDirectoryPath = items[0].parentPath
++        val dstPaths = HashSet<String>()
++        for (i in items.indices) {
++            if (items[i].dstPath == null) {
++                items[i].dstPath = PathUtils.pathJoin(dstDirectoryPath, PathUtils.getRelativePath(srcDirectoryPath, items[i].srcPath))
++            }
++            val collision = items[i].dstPath in dstPaths
++            if (items[i].overwriteConfirmed || !(collision || encryptedVolume.pathExists(items[i].dstPath!!))) {
++                dstPaths.add(items[i].dstPath!!)
++            } else {
++                MaterialAlertDialogBuilder(this)
++                    .setTitle(R.string.warning)
++                    .setMessage(getString(
++                        if (collision) {
++                            // No collision should happen on directories since we can't select multiple directories
++                            R.string.file_collision_question
++                        } else {
++                            if (items[i].isDirectory) {
++                                R.string.dir_overwrite_question
++                            } else {
++                                R.string.file_overwrite_question
++                            }
++                        }, items[i].dstPath
++                    ))
++                    .setPositiveButton(R.string.yes) {_, _ ->
++                        items[i].overwriteConfirmed = true
++                        checkPathOverwrite(items, dstDirectoryPath, callback)
++                    }
++                    .setNegativeButton(R.string.no) { _, _ ->
++                        EditTextDialog(this, R.string.enter_new_name)
++                            .setSelectedText(items[i].name)
++                            .onSubmit {
++                                items[i].dstPath = PathUtils.pathJoin(dstDirectoryPath, PathUtils.getRelativePath(srcDirectoryPath, items[i].parentPath), it)
++                                if (items[i].isDirectory) {
++                                    for (j in items.indices) {
++                                        if (PathUtils.isChildOf(items[j].srcPath, items[i].srcPath)) {
++                                            items[j].dstPath = PathUtils.pathJoin(items[i].dstPath!!, PathUtils.getRelativePath(items[i].srcPath, items[j].srcPath))
++                                        }
++                                    }
++                                }
++                                checkPathOverwrite(items, dstDirectoryPath, callback)
++                            }
++                            .setOnCancelListener {
++                                callback(null)
++                            }.show()
++                    }
++                    .setOnCancelListener{
++                        callback(null)
++                    }
++                    .show()
++                return
++            }
++        }
++        callback(items)
++    }
++
++    protected fun onTaskResult(
++        result: TaskResult<out String?>,
++        failedErrorMessage: Int,
++        successMessage: Int = -1,
++        onSuccess: (() -> Unit)? = null,
++    ) {
++        when (result.state) {
++            TaskResult.State.SUCCESS -> {
++                if (onSuccess == null) {
++                    Toast.makeText(this, successMessage, Toast.LENGTH_SHORT).show()
++                } else {
++                    onSuccess()
++                }
++            }
++            TaskResult.State.FAILED -> {
++                MaterialAlertDialogBuilder(this)
++                    .setTitle(R.string.error)
++                    .setMessage(getString(failedErrorMessage, result.failedItem))
++                    .setPositiveButton(R.string.ok, null)
++                    .show()
++            }
++            TaskResult.State.ERROR -> result.showErrorAlertDialog(this)
++            TaskResult.State.CANCELLED -> {}
++        }
++    }
++
++    protected fun importFilesFromUris(uris: List<Uri>, callback: () -> Unit) {
++        val items = ArrayList<OperationFile>()
++        for (uri in uris) {
++            val fileName = PathUtils.getFilenameFromURI(this, uri)
++            if (fileName == null) {
++                MaterialAlertDialogBuilder(this)
++                        .setTitle(R.string.error)
++                        .setMessage(getString(R.string.error_retrieving_filename, uri))
++                        .setPositiveButton(R.string.ok, null)
++                        .show()
++                items.clear()
++                break
++            } else {
++                items.add(OperationFile(PathUtils.pathJoin(currentDirectoryPath, fileName), Stat.S_IFREG))
++            }
++        }
++        if (items.size > 0) {
++            checkPathOverwrite(items, currentDirectoryPath) { checkedItems ->
++                checkedItems?.let {
++                    activityScope.launch {
++                        val result = fileOperationService.importFilesFromUris(volumeId, checkedItems.map { it.dstPath!! }, uris)
++                        onTaskResult(result, R.string.import_failed, onSuccess = callback)
++                        refreshCurrentDirectory()
++                    }
++                }
++            }
++        }
++    }
++
++    private fun showRenameDialog(element: ExplorerElement, preselectedText: String) {
++        EditTextDialog(this, R.string.rename_title)
++            .setSelectedText(preselectedText)
++            .onSubmit { newName ->
++                if (newName.isEmpty()) {
++                    Toast.makeText(this, R.string.error_filename_empty, Toast.LENGTH_SHORT).show()
++                    showRenameDialog(element, element.name)
++                    return@onSubmit
++                }
++                val dstPath = if (newName.startsWith("/")) {
++                    newName
++                } else {
++                    PathUtils.pathJoin(currentDirectoryPath, newName)
++                }
++                val lastComponent = newName.substringAfterLast('/')
++                // if a directory is explicitly requested, rename into it with the original file name
++                if (lastComponent.isEmpty() || lastComponent == "." || lastComponent == "..") {
++                    checkRenameOverwrite(element, newName, PathUtils.pathJoin(dstPath, element.name))
++                } else {
++                    checkRenameOverwrite(element, newName, dstPath)
++                }
++            }
++            .show()
++    }
++
++    private fun askRenameOverwrite(messageResId: Int, dstPath: String, element: ExplorerElement, newName: String, onConfirm: () -> Unit) {
++        MaterialAlertDialogBuilder(this)
++            .setTitle(R.string.warning)
++            .setMessage(getString(messageResId, dstPath, element.name))
++            .setPositiveButton(R.string.yes) { _, _ -> onConfirm() }
++            .setNegativeButton(R.string.no) { _, _ -> showRenameDialog(element, newName) }
++            .show()
++    }
++
++    private fun checkRenameOverwrite(element: ExplorerElement, newName: String, dstPath: String) {
++        val attr = encryptedVolume.getAttr(dstPath)
++        when {
++            attr == null -> rename(element, dstPath)
++            attr.type == Stat.S_IFDIR ->
++                askRenameOverwrite(R.string.rename_into_dir_question, dstPath, element, newName) {
++                    checkRenameOverwrite(element, newName, PathUtils.pathJoin(dstPath, element.name))
++                }
++            element.isDirectory -> {
++                Toast.makeText(this, R.string.error_is_file, Toast.LENGTH_SHORT).show()
++                showRenameDialog(element, newName)
++            }
++            else ->
++                askRenameOverwrite(R.string.file_overwrite_question, dstPath, element, newName) {
++                    rename(element, dstPath)
++                }
++        }
++    }
++
++    private fun rename(element: ExplorerElement, dstPath: String) {
++        if (!encryptedVolume.rename(element.fullPath, dstPath)) {
++            MaterialAlertDialogBuilder(this)
++                .setTitle(R.string.error)
++                .setMessage(getString(R.string.rename_failed, element.name))
++                .setPositiveButton(R.string.ok, null)
++                .show()
++        } else {
++            val normalizedPath = PathUtils.normalizePath(dstPath)
++            app.volumeManager.evictImageCache(volumeId) { it == normalizedPath }
++            refreshCurrentDirectory() {
++                invalidateOptionsMenu()
++            }
++        }
++    }
++
++    override fun onCreateOptionsMenu(menu: Menu): Boolean {
++        menu.findItem(R.id.rename).isVisible = false
++        menu.findItem(R.id.open_as)?.isVisible = false
++        if (usf_open){
++            menu.findItem(R.id.external_open)?.isVisible = false
++        }
++        val noItemSelected = explorerAdapter.selectedItems.isEmpty()
++        val searchActive = activeSearchQuery.isNotEmpty()
++        val searchItem = menu.findItem(searchMenuItemId)
++            ?: menu.add(Menu.NONE, searchMenuItemId, Menu.NONE, android.R.string.search_go).apply {
++                setIcon(R.drawable.icon_folder_search)
++                setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
++            }
++        searchItem.isVisible = noItemSelected
++        menu.findItem(R.id.sort).isVisible = noItemSelected
++        menu.findItem(R.id.lock).isVisible = noItemSelected
++        menu.findItem(R.id.close).isVisible = noItemSelected
++        supportActionBar?.setDisplayHomeAsUpEnabled(!noItemSelected)
++        if (!noItemSelected) {
++            if (explorerAdapter.selectedItems.size == 1) {
++                menu.findItem(R.id.rename).isVisible = !searchActive
++                if (explorerElements[explorerAdapter.selectedItems.first()].isRegularFile) {
++                    menu.findItem(R.id.open_as)?.isVisible = true
++                    if (usf_open) {
++                        menu.findItem(R.id.external_open)?.isVisible = true
++                    }
++                }
++            }
++        }
++        return super.onCreateOptionsMenu(menu)
++    }
++
++    override fun onOptionsItemSelected(item: MenuItem): Boolean {
++        if (item.itemId == searchMenuItemId) {
++            openSearchDialog()
++            return true
++        }
++        return when (item.itemId) {
++            android.R.id.home -> {
++                unselectAll()
++                true
++            }
++            R.id.sort -> {
++                MaterialAlertDialogBuilder(this)
++                        .setTitle(R.string.sort_order)
++                        .setSingleChoiceItems(sortOrderEntries, currentSortOrderIndex) { dialog, which ->
++                            currentSortOrderIndex = which
++                            // displayExplorerElements must not be called if directoryLoadingTask is active
++                            if (directoryLoadingTask?.isActive != true) {
++                                displayExplorerElements()
++                            }
++                            val sharedPrefsEditor = sharedPrefs.edit()
++                            sharedPrefsEditor.putString(Constants.SORT_ORDER_KEY, sortOrderValues[currentSortOrderIndex])
++                            sharedPrefsEditor.apply()
++                            dialog.dismiss()
++                        }
++                        .setNegativeButton(R.string.cancel, null)
++                        .show()
++                true
++            }
++            R.id.rename -> {
++                val explorerElement = explorerElements[explorerAdapter.selectedItems.first()]
++                showRenameDialog(explorerElement, explorerElement.name)
++                true
++            }
++            R.id.open_as -> {
++                showOpenAsDialog(explorerElements[explorerAdapter.selectedItems.first()])
++                true
++            }
++            R.id.external_open -> {
++                if (usf_open){
++                    val explorerElement = explorerElements[explorerAdapter.selectedItems.first()]
++                    openWithExternalApp(explorerElement.fullPath, explorerElement.stat.size)
++                    unselectAll()
++                }
++                true
++            }
++            R.id.close -> {
++                finish()
++                true
++            }
++            R.id.lock -> {
++                askLockVolume()
++                true
++            }
++            else -> super.onOptionsItemSelected(item)
++        }
++    }
++
++    override fun onDestroy() {
++        super.onDestroy()
++        if (!isChangingConfigurations) { //activity won't be recreated
++            activityScope.cancel()
++        }
++    }
++
++    override fun onResume() {
++        super.onResume()
++        val thumbnailsEnabled = sharedPrefs.getBoolean("thumbnails", true)
++        if (thumbnailsEnabled != (explorerAdapter.thumbnailsLoader != null)) {
++            recreate()
++            return
++        }
++        foldersFirst = sharedPrefs.getBoolean("folders_first", true)
++        mapFolders = sharedPrefs.getBoolean("map_folders", true)
++        loadUnsafeFeatures()
++        currentSortOrderIndex = sortOrderValues.indexOf(
++            sharedPrefs.getString(Constants.SORT_ORDER_KEY, "name"),
++        ).coerceAtLeast(0)
++        explorerAdapter.loadThumbnails = thumbnailsEnabled
++        invalidateOptionsMenu()
++        if (app.isStartingExternalApp) {
++            TemporaryFileProvider.instance.wipe()
++        }
++        refreshCurrentDirectory()
++    }
++}
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+@@ -1,507 +1,500 @@
+-package sushi.hardcore.droidfs.explorers
+-
+-import android.app.Activity
+-import android.content.Intent
+-import android.net.Uri
+-import android.view.Menu
+-import android.view.MenuItem
+-import android.widget.Toast
+-import androidx.activity.addCallback
+-import androidx.activity.result.contract.ActivityResultContracts
+-import androidx.documentfile.provider.DocumentFile
+-import androidx.lifecycle.lifecycleScope
+-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+-import com.google.android.material.floatingactionbutton.FloatingActionButton
+-import kotlinx.coroutines.launch
+-import sushi.hardcore.droidfs.CameraActivity
+-import sushi.hardcore.droidfs.LoadingTask
+-import sushi.hardcore.droidfs.MainActivity
+-import sushi.hardcore.droidfs.R
+-import sushi.hardcore.droidfs.SettingsActivity
+-import sushi.hardcore.droidfs.adapters.IconTextDialogAdapter
+-import sushi.hardcore.droidfs.file_operations.OperationFile
+-import sushi.hardcore.droidfs.filesystems.Stat
+-import sushi.hardcore.droidfs.util.PathUtils
+-import sushi.hardcore.droidfs.widgets.EditTextDialog
+-
+-class ExplorerActivity : BaseExplorerActivity() {
+-    companion object {
+-        private enum class ItemsActions {NONE, COPY, MOVE}
+-    }
+-
+-    private var usf_decrypt = false
+-    private var usf_share = false
+-    private val proposeWipe by lazy { sharedPrefs.getBoolean("propose_wipe_imported_files", true) }
+-    private var currentItemAction = ItemsActions.NONE
+-    private val itemsToProcess = ArrayList<OperationFile>()
+-    private val unsafeFeaturesLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
+-        loadUnsafeFeatures()
+-    }
+-    private val pickFromOtherVolumes = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+-        if (result.resultCode == Activity.RESULT_OK) {
+-            result.data?.let { resultIntent ->
+-                val srcVolumeId = resultIntent.getIntExtra("volumeId", -1)
+-                val srcEncryptedVolume = app.volumeManager.getVolume(srcVolumeId)!!
+-                val path = resultIntent.getStringExtra("path")
+-                if (path == null){ //multiples elements
+-                    val paths = resultIntent.getStringArrayListExtra("paths")
+-                    val types = resultIntent.getIntegerArrayListExtra("types")
+-                    if (types != null && paths != null){
+-                        object : LoadingTask<List<OperationFile>>(this, R.string.discovering_files) {
+-                            override suspend fun doTask(): List<OperationFile> {
+-                                val operationFiles = ArrayList<OperationFile>()
+-                                for (i in paths.indices) {
+-                                    operationFiles.add(OperationFile(paths[i], types[i]))
+-                                    if (types[i] == Stat.S_IFDIR) {
+-                                        srcEncryptedVolume.recursiveMapFiles(paths[i])?.forEach {
+-                                            operationFiles.add(OperationFile.fromExplorerElement(it))
+-                                        }
+-                                    }
+-                                }
+-                                return operationFiles
+-                            }
+-                        }.startTask(lifecycleScope) { operationFiles ->
+-                            importFilesFromVolume(srcVolumeId, operationFiles)
+-                        }
+-                    }
+-                } else {
+-                    importFilesFromVolume(srcVolumeId, arrayListOf(OperationFile(path, Stat.S_IFREG)))
+-                }
+-            }
+-        }
+-    }
+-    private val pickFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+-        if (uris != null) {
+-            for (uri in uris) {
+-                try {
+-                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+-                } catch (e: SecurityException) {
+-                    e.printStackTrace()
+-                }
+-            }
+-            importFilesFromUris(uris) {
+-                onImportComplete(uris)
+-            }
+-        }
+-    }
+-    private val pickExportDirectory = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+-        if (uri != null) {
+-            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+-            val items = explorerAdapter.selectedItems.map { i -> explorerElements[i] }
+-            activityScope.launch {
+-                val result = fileOperationService.exportFiles(volumeId, items, uri)
+-                onTaskResult(result, R.string.export_failed, R.string.success_export)
+-            }
+-        }
+-        unselectAll()
+-    }
+-    private val pickImportDirectory = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { rootUri ->
+-        rootUri?.let {
+-            contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+-            val tree = DocumentFile.fromTreeUri(this, it)!! //non-null after Lollipop
+-            val operation = OperationFile(PathUtils.pathJoin(currentDirectoryPath, tree.name!!), Stat.S_IFDIR)
+-            checkPathOverwrite(arrayListOf(operation), currentDirectoryPath) { checkedOperation ->
+-                checkedOperation?.let {
+-                    activityScope.launch {
+-                        val result = fileOperationService.importDirectory(volumeId, checkedOperation[0].dstPath!!, tree)
+-                        onTaskResult(result.taskResult, R.string.import_failed) {
+-                            onImportComplete(result.uris, tree)
+-                        }
+-                        refreshCurrentDirectory()
+-                    }
+-                }
+-            }
+-        }
+-    }
+-
+-    private fun importFilesFromVolume(srcVolumeId: Int, operationFiles: List<OperationFile>) {
+-        checkPathOverwrite(operationFiles, currentDirectoryPath) { items ->
+-            if (items != null) {
+-                // stop loading thumbnails while writing files
+-                explorerAdapter.loadThumbnails = false
+-                activityScope.launch {
+-                    onTaskResult(
+-                        fileOperationService.copyElements(
+-                            volumeId,
+-                            items,
+-                            srcVolumeId
+-                        ), R.string.import_failed, R.string.success_import
+-                    )
+-                    explorerAdapter.loadThumbnails = true
+-                    refreshCurrentDirectory()
+-                }
+-            }
+-        }
+-
+-    }
+-
+-    private fun onImportComplete(urisToWipe: List<Uri>, rootFile: DocumentFile? = null) {
+-        if (!proposeWipe) {
+-            Toast.makeText(this, R.string.success_import, Toast.LENGTH_SHORT).show()
+-            return
+-        }
+-        MaterialAlertDialogBuilder(this)
+-            .setTitle(R.string.success_import)
+-            .setMessage("""
+-                            ${getString(R.string.success_import_msg)}
+-                            ${getString(R.string.ask_for_wipe)}
+-                            """.trimIndent())
+-            .setPositiveButton(R.string.yes) { _, _ ->
+-                activityScope.launch {
+-                    onTaskResult(
+-                        fileOperationService.wipeUris(urisToWipe, rootFile),
+-                        R.string.wipe_failed,
+-                        R.string.wipe_successful,
+-                    )
+-                }
+-            }
+-            .setNegativeButton(R.string.no, null)
+-            .show()
+-    }
+-
+-    override fun loadUnsafeFeatures() {
+-        super.loadUnsafeFeatures()
+-        usf_decrypt = sharedPrefs.getBoolean("usf_decrypt", false)
+-        usf_share = sharedPrefs.getBoolean("usf_share", false)
+-    }
+-
+-    override fun init() {
+-        super.init()
+-        onBackPressedDispatcher.addCallback(this) {
+-            if (currentItemAction != ItemsActions.NONE) {
+-                cancelItemAction()
+-                invalidateOptionsMenu()
+-            } else {
+-                isEnabled = false
+-                onBackPressedDispatcher.onBackPressed()
+-                isEnabled = true
+-            }
+-        }
+-        findViewById<FloatingActionButton>(R.id.fab).setOnClickListener {
+-            if (currentItemAction != ItemsActions.NONE){
+-                openDialogCreateFolder()
+-            } else {
+-                val adapter = IconTextDialogAdapter(this)
+-                adapter.items = listOf(
+-                    listOf("importFromOtherVolumes", R.string.import_from_other_volume, R.drawable.icon_transfer),
+-                    listOf("importFiles", R.string.import_files, R.drawable.icon_encrypt),
+-                    listOf("importFolder", R.string.import_folder, R.drawable.icon_import_folder),
+-                    listOf("createFile", R.string.new_file, R.drawable.icon_file_unknown),
+-                    listOf("createFolder", R.string.mkdir, R.drawable.icon_create_new_folder),
+-                    listOf("camera", R.string.camera, R.drawable.icon_photo)
+-                )
+-                MaterialAlertDialogBuilder(this)
+-                    .setSingleChoiceItems(adapter, -1){ thisDialog, which ->
+-                        when (adapter.getItem(which)){
+-                            "importFromOtherVolumes" -> {
+-                                val intent = Intent(this, MainActivity::class.java)
+-                                intent.action = "pick"
+-                                pickFromOtherVolumes.launch(intent)
+-                            }
+-                            "importFiles" -> {
+-                                app.isStartingExternalApp = true
+-                                pickFiles.launch(arrayOf("*/*"))
+-                            }
+-                            "importFolder" -> {
+-                                app.isStartingExternalApp = true
+-                                pickImportDirectory.launch(null)
+-                            }
+-                            "createFile" -> {
+-                                createNewFile {
+-                                    encryptedVolume.closeFile(it)
+-                                    refreshCurrentDirectory()
+-                                    invalidateOptionsMenu()
+-                                }
+-                            }
+-                            "createFolder" -> {
+-                                openDialogCreateFolder()
+-                            }
+-                            "camera" -> {
+-                                val intent = Intent(this, CameraActivity::class.java)
+-                                intent.putExtra("path", currentDirectoryPath)
+-                                intent.putExtra("volumeId", volumeId)
+-                                startActivity(intent)
+-                            }
+-                        }
+-                        thisDialog.dismiss()
+-                    }
+-                    .setTitle(getString(R.string.add))
+-                    .setNegativeButton(R.string.cancel, null)
+-                    .show()
+-            }
+-        }
+-    }
+-
+-    override fun onExplorerElementLongClick(position: Int) {
+-        super.onExplorerElementLongClick(position)
+-        cancelItemAction()
+-    }
+-
+-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+-        menuInflater.inflate(R.menu.explorer, menu)
+-        val result = super.onCreateOptionsMenu(menu)
+-        if (currentItemAction != ItemsActions.NONE) {
+-            menu.findItem(R.id.validate).isVisible = true
+-            menu.findItem(R.id.lock).isVisible = false
+-            menu.findItem(R.id.close).isVisible = false
+-            supportActionBar?.setDisplayHomeAsUpEnabled(true)
+-        } else {
+-            if (usf_share){
+-                menu.findItem(R.id.share).isVisible = false
+-            }
+-            val anyItemSelected = explorerAdapter.selectedItems.isNotEmpty()
+-            menu.findItem(R.id.select_all).isVisible = anyItemSelected
+-            menu.findItem(R.id.delete).isVisible = anyItemSelected
+-            menu.findItem(R.id.copy).isVisible = anyItemSelected
+-            menu.findItem(R.id.cut).isVisible = anyItemSelected
+-            menu.findItem(R.id.decrypt).isVisible = anyItemSelected && usf_decrypt
+-            if (anyItemSelected && usf_share){
+-                var containsDir = false
+-                for (i in explorerAdapter.selectedItems) {
+-                    if (explorerElements[i].isDirectory) {
+-                        containsDir = true
+-                        break
+-                    }
+-                }
+-                if (!containsDir) {
+-                    menu.findItem(R.id.share).isVisible = true
+-                }
+-            }
+-        }
+-        return result
+-    }
+-
+-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+-        return when (item.itemId) {
+-            android.R.id.home -> {
+-                cancelItemAction()
+-                super.onOptionsItemSelected(item)
+-            }
+-            R.id.select_all -> {
+-                explorerAdapter.selectAll()
+-                invalidateOptionsMenu()
+-                true
+-            }
+-            R.id.cut -> {
+-                for (i in explorerAdapter.selectedItems){
+-                    itemsToProcess.add(OperationFile.fromExplorerElement(explorerElements[i]))
+-                }
+-                currentItemAction = ItemsActions.MOVE
+-                unselectAll()
+-                true
+-            }
+-            R.id.copy -> {
+-                for (i in explorerAdapter.selectedItems){
+-                    itemsToProcess.add(OperationFile.fromExplorerElement(explorerElements[i]))
+-                }
+-                currentItemAction = ItemsActions.COPY
+-                unselectAll()
+-                true
+-            }
+-            R.id.validate -> {
+-                if (currentItemAction == ItemsActions.COPY){
+-                    object : LoadingTask<List<OperationFile>>(this, R.string.discovering_files) {
+-                        override suspend fun doTask(): List<OperationFile> {
+-                            val items = itemsToProcess.toMutableList()
+-                            itemsToProcess.filter { it.isDirectory }.forEach { dir ->
+-                                encryptedVolume.recursiveMapFiles(dir.srcPath)?.forEach {
+-                                    items.add(OperationFile.fromExplorerElement(it))
+-                                }
+-                            }
+-                            return items
+-                        }
+-                    }.startTask(lifecycleScope) { items ->
+-                        checkPathOverwrite(items, currentDirectoryPath) {
+-                            it?.let { checkedItems ->
+-                                activityScope.launch {
+-                                    onTaskResult(
+-                                        fileOperationService.copyElements(volumeId, checkedItems),
+-                                        R.string.copy_failed,
+-                                        R.string.copy_success,
+-                                    )
+-                                    refreshCurrentDirectory()
+-                                }
+-                            }
+-                            cancelItemAction()
+-                            invalidateOptionsMenu()
+-                        }
+-                    }
+-                } else if (currentItemAction == ItemsActions.MOVE){
+-                    itemsToProcess.forEach {
+-                        it.dstPath = PathUtils.pathJoin(currentDirectoryPath, it.name)
+-                        it.overwriteConfirmed = false // reset the field in case of a previous cancelled move
+-                    }
+-                    val toMove = ArrayList<OperationFile>(itemsToProcess.size)
+-                    val toClean = ArrayList<String>()
+-                    prepareFilesForMove(
+-                        itemsToProcess,
+-                        toMove,
+-                        toClean,
+-                    ) {
+-                        activityScope.launch {
+-                            onTaskResult(
+-                                fileOperationService.moveElements(volumeId, toMove, toClean),
+-                                R.string.move_failed,
+-                                R.string.move_success,
+-                            )
+-                            refreshCurrentDirectory()
+-                        }
+-                        cancelItemAction()
+-                        invalidateOptionsMenu()
+-                    }
+-                }
+-                true
+-            }
+-            R.id.delete -> {
+-                val size = explorerAdapter.selectedItems.size
+-                val dialog = MaterialAlertDialogBuilder(this)
+-                dialog.setTitle(R.string.warning)
+-                dialog.setPositiveButton(R.string.ok) { _, _ ->
+-                    val items = explorerAdapter.selectedItems.map { i -> explorerElements[i] }
+-                    activityScope.launch {
+-                        fileOperationService.removeElements(volumeId, items)?.let { failedItem ->
+-                            MaterialAlertDialogBuilder(this@ExplorerActivity)
+-                                .setTitle(R.string.error)
+-                                .setMessage(getString(R.string.remove_failed, failedItem))
+-                                .setPositiveButton(R.string.ok, null)
+-                                .show()
+-                        }
+-                        refreshCurrentDirectory()
+-                    }
+-                    unselectAll()
+-                }
+-                dialog.setNegativeButton(R.string.cancel, null)
+-                if (size > 1) {
+-                    dialog.setMessage(getString(R.string.multiple_delete_confirm, explorerAdapter.selectedItems.size.toString()))
+-                } else {
+-                    dialog.setMessage(getString(
+-                        R.string.single_delete_confirm,
+-                        explorerAdapter.explorerElements[explorerAdapter.selectedItems.first()].name
+-                    ))
+-                }
+-                dialog.show()
+-                true
+-            }
+-            R.id.share -> {
+-                val files = explorerAdapter.selectedItems.map { i ->
+-                    explorerElements[i].let {
+-                        Pair(it.fullPath, it.stat.size)
+-                    }
+-                }
+-                app.isExporting = true
+-                object : LoadingTask<Pair<Intent?, Int?>>(this, R.string.loading_msg_export) {
+-                    override suspend fun doTask(): Pair<Intent?, Int?> {
+-                        return fileShare.share(files, volumeId)
+-                    }
+-                }.startTask(lifecycleScope) { (intent, error) ->
+-                    if (intent == null) {
+-                        onExportFailed(error!!)
+-                    } else {
+-                        app.isStartingExternalApp = true
+-                        startActivity(Intent.createChooser(intent, getString(R.string.share_chooser)))
+-                    }
+-                    app.isExporting = false
+-                }
+-                unselectAll()
+-                true
+-            }
+-            R.id.decrypt -> {
+-                app.isStartingExternalApp = true
+-                pickExportDirectory.launch(null)
+-                true
+-            }
+-            R.id.unsafe_features -> {
+-                unsafeFeaturesLauncher.launch(Intent(this, SettingsActivity::class.java).apply {
+-                    putExtra("screen", "UnsafeFeaturesSettingsFragment")
+-                })
+-                true
+-            }
+-            else -> super.onOptionsItemSelected(item)
+-        }
+-    }
+-
+-    /**
+-     * Ask the user what to do if an item would overwrite another item in case of a move.
+-     *
+-     * All [OperationFile] must have a non-null [dstPath][OperationFile.dstPath].
+-     */
+-    private fun checkMoveOverwrite(items: List<OperationFile>, callback: (List<OperationFile>?) -> Unit) {
+-        for (item in items) {
+-            if (encryptedVolume.pathExists(item.dstPath!!) && !item.overwriteConfirmed) {
+-                MaterialAlertDialogBuilder(this)
+-                    .setTitle(R.string.warning)
+-                    .setMessage(
+-                        getString(
+-                            if (item.isDirectory) {
+-                                R.string.dir_overwrite_question
+-                            } else {
+-                                R.string.file_overwrite_question
+-                            },
+-                            item.dstPath!!
+-                        )
+-                    )
+-                    .setPositiveButton(R.string.yes) {_, _ ->
+-                        item.overwriteConfirmed = true
+-                        checkMoveOverwrite(items, callback)
+-                    }.setNegativeButton(R.string.no) { _, _ ->
+-                        EditTextDialog(this, R.string.enter_new_name).setSelectedText(item.name)
+-                            .onSubmit {
+-                                item.dstPath = PathUtils.pathJoin(PathUtils.getParentPath(item.dstPath!!), it)
+-                                checkMoveOverwrite(items, callback)
+-                            }.show()
+-                    }
+-                    .show()
+-                return
+-            }
+-        }
+-        callback(items)
+-    }
+-
+-    /**
+-     * Check for destination overwriting in case of a move operation.
+-     *
+-     * If the user decides to merge the content of a folder, the function recursively tests all
+-     * children of the source folder to see if they will overwrite.
+-     *
+-     * The items to be moved are stored in [toMove]. We also need to keep track of the merged
+-     * folders to delete them after the move. These folders are stored in [toClean].
+-     */
+-    private fun prepareFilesForMove(
+-        items: List<OperationFile>,
+-        toMove: ArrayList<OperationFile>,
+-        toClean: ArrayList<String>,
+-        onReady: () -> Unit
+-    ) {
+-        checkMoveOverwrite(items) { checkedItems ->
+-            checkedItems?.let {
+-                for (item in checkedItems) {
+-                    if (!item.overwriteConfirmed || !item.isDirectory) {
+-                        toMove.add(item)
+-                    }
+-                }
+-                val toCheck = mutableListOf<OperationFile>()
+-                for (item in checkedItems) {
+-                    if (item.overwriteConfirmed && item.isDirectory) {
+-                        val children = encryptedVolume.readDir(item.srcPath)
+-                        children?.map {
+-                            OperationFile(it.fullPath, it.stat.type, PathUtils.pathJoin(item.dstPath!!, it.name))
+-                        }?.let { toCheck.addAll(it) }
+-                        toClean.add(item.srcPath)
+-                    }
+-                }
+-                if (toCheck.isEmpty()) {
+-                    onReady()
+-                } else {
+-                    prepareFilesForMove(toCheck, toMove, toClean, onReady)
+-                }
+-            }
+-        }
+-    }
+-
+-    private fun cancelItemAction() {
+-        if (currentItemAction != ItemsActions.NONE){
+-            currentItemAction = ItemsActions.NONE
+-            itemsToProcess.clear()
+-        }
+-    }
+-}
++package sushi.hardcore.droidfs.explorers
++
++import android.app.Activity
++import android.content.Intent
++import android.net.Uri
++import android.view.Menu
++import android.view.MenuItem
++import android.widget.Toast
++import androidx.activity.addCallback
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.documentfile.provider.DocumentFile
++import androidx.lifecycle.lifecycleScope
++import com.google.android.material.dialog.MaterialAlertDialogBuilder
++import com.google.android.material.floatingactionbutton.FloatingActionButton
++import kotlinx.coroutines.launch
++import sushi.hardcore.droidfs.LoadingTask
++import sushi.hardcore.droidfs.MainActivity
++import sushi.hardcore.droidfs.R
++import sushi.hardcore.droidfs.SettingsActivity
++import sushi.hardcore.droidfs.adapters.IconTextDialogAdapter
++import sushi.hardcore.droidfs.file_operations.OperationFile
++import sushi.hardcore.droidfs.filesystems.Stat
++import sushi.hardcore.droidfs.util.PathUtils
++import sushi.hardcore.droidfs.widgets.EditTextDialog
++
++open class ExplorerActivity : BaseExplorerActivity() {
++    companion object {
++        private enum class ItemsActions {NONE, COPY, MOVE}
++    }
++
++    private var usf_decrypt = false
++    private var usf_share = false
++    private val proposeWipe: Boolean
++        get() = sharedPrefs.getBoolean("propose_wipe_imported_files", true)
++    private var currentItemAction = ItemsActions.NONE
++    private val itemsToProcess = ArrayList<OperationFile>()
++    private val unsafeFeaturesLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
++        loadUnsafeFeatures()
++    }
++    private val pickFromOtherVolumes = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
++        if (result.resultCode == Activity.RESULT_OK) {
++            result.data?.let { resultIntent ->
++                val srcVolumeId = resultIntent.getIntExtra("volumeId", -1)
++                val srcEncryptedVolume = app.volumeManager.getVolume(srcVolumeId)!!
++                val path = resultIntent.getStringExtra("path")
++                if (path == null){ //multiples elements
++                    val paths = resultIntent.getStringArrayListExtra("paths")
++                    val types = resultIntent.getIntegerArrayListExtra("types")
++                    if (types != null && paths != null){
++                        object : LoadingTask<List<OperationFile>>(this, R.string.discovering_files) {
++                            override suspend fun doTask(): List<OperationFile> {
++                                val operationFiles = ArrayList<OperationFile>()
++                                for (i in paths.indices) {
++                                    operationFiles.add(OperationFile(paths[i], types[i]))
++                                    if (types[i] == Stat.S_IFDIR) {
++                                        srcEncryptedVolume.recursiveMapFiles(paths[i])?.forEach {
++                                            operationFiles.add(OperationFile.fromExplorerElement(it))
++                                        }
++                                    }
++                                }
++                                return operationFiles
++                            }
++                        }.startTask(lifecycleScope) { operationFiles ->
++                            importFilesFromVolume(srcVolumeId, operationFiles)
++                        }
++                    }
++                } else {
++                    importFilesFromVolume(srcVolumeId, arrayListOf(OperationFile(path, Stat.S_IFREG)))
++                }
++            }
++        }
++    }
++    private val pickFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
++        if (uris != null) {
++            for (uri in uris) {
++                try {
++                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
++                } catch (e: SecurityException) {
++                    e.printStackTrace()
++                }
++            }
++            importFilesFromUris(uris) {
++                onImportComplete(uris)
++            }
++        }
++    }
++    private val pickExportDirectory = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
++        if (uri != null) {
++            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
++            val items = explorerAdapter.selectedItems.map { i -> explorerElements[i] }
++            activityScope.launch {
++                val result = fileOperationService.exportFiles(volumeId, items, uri)
++                onTaskResult(result, R.string.export_failed, R.string.success_export)
++            }
++        }
++        unselectAll()
++    }
++    private val pickImportDirectory = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { rootUri ->
++        rootUri?.let {
++            contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
++            val tree = DocumentFile.fromTreeUri(this, it)!! //non-null after Lollipop
++            val operation = OperationFile(PathUtils.pathJoin(currentDirectoryPath, tree.name!!), Stat.S_IFDIR)
++            checkPathOverwrite(arrayListOf(operation), currentDirectoryPath) { checkedOperation ->
++                checkedOperation?.let {
++                    activityScope.launch {
++                        val result = fileOperationService.importDirectory(volumeId, checkedOperation[0].dstPath!!, tree)
++                        onTaskResult(result.taskResult, R.string.import_failed) {
++                            onImportComplete(result.uris, tree)
++                        }
++                        refreshCurrentDirectory()
++                    }
++                }
++            }
++        }
++    }
++
++    private fun importFilesFromVolume(srcVolumeId: Int, operationFiles: List<OperationFile>) {
++        checkPathOverwrite(operationFiles, currentDirectoryPath) { items ->
++            if (items != null) {
++                // stop loading thumbnails while writing files
++                explorerAdapter.loadThumbnails = false
++                activityScope.launch {
++                    onTaskResult(
++                        fileOperationService.copyElements(
++                            volumeId,
++                            items,
++                            srcVolumeId
++                        ), R.string.import_failed, R.string.success_import
++                    )
++                    explorerAdapter.loadThumbnails = true
++                    refreshCurrentDirectory()
++                }
++            }
++        }
++
++    }
++
++    private fun onImportComplete(urisToWipe: List<Uri>, rootFile: DocumentFile? = null) {
++        if (!proposeWipe) {
++            Toast.makeText(this, R.string.success_import, Toast.LENGTH_SHORT).show()
++            return
++        }
++        MaterialAlertDialogBuilder(this)
++            .setTitle(R.string.success_import)
++            .setMessage("""
++                            ${getString(R.string.success_import_msg)}
++                            ${getString(R.string.ask_for_wipe)}
++                            """.trimIndent())
++            .setPositiveButton(R.string.yes) { _, _ ->
++                activityScope.launch {
++                    onTaskResult(
++                        fileOperationService.wipeUris(urisToWipe, rootFile),
++                        R.string.wipe_failed,
++                        R.string.wipe_successful,
++                    )
++                }
++            }
++            .setNegativeButton(R.string.no, null)
++            .show()
++    }
++
++    override fun loadUnsafeFeatures() {
++        super.loadUnsafeFeatures()
++        usf_decrypt = sharedPrefs.getBoolean("usf_decrypt", false)
++        usf_share = sharedPrefs.getBoolean("usf_share", false)
++    }
++
++    override fun init() {
++        super.init()
++        onBackPressedDispatcher.addCallback(this) {
++            if (currentItemAction != ItemsActions.NONE) {
++                cancelItemAction()
++                invalidateOptionsMenu()
++            } else {
++                isEnabled = false
++                onBackPressedDispatcher.onBackPressed()
++                isEnabled = true
++            }
++        }
++        findViewById<FloatingActionButton>(R.id.fab).setOnClickListener {
++            if (currentItemAction != ItemsActions.NONE){
++                openDialogCreateFolder()
++            } else {
++                val adapter = IconTextDialogAdapter(this)
++                adapter.items = listOf(
++                    listOf("importFromOtherVolumes", R.string.import_from_other_volume, R.drawable.icon_transfer),
++                    listOf("importFiles", R.string.import_files, R.drawable.icon_encrypt),
++                    listOf("importFolder", R.string.import_folder, R.drawable.icon_import_folder),
++                    listOf("createFile", R.string.new_file, R.drawable.icon_file_unknown),
++                    listOf("createFolder", R.string.mkdir, R.drawable.icon_create_new_folder)
++                )
++                MaterialAlertDialogBuilder(this)
++                    .setSingleChoiceItems(adapter, -1){ thisDialog, which ->
++                        when (adapter.getItem(which)){
++                            "importFromOtherVolumes" -> {
++                                val intent = Intent(this, MainActivity::class.java)
++                                intent.action = "pick"
++                                pickFromOtherVolumes.launch(intent)
++                            }
++                            "importFiles" -> {
++                                app.isStartingExternalApp = true
++                                pickFiles.launch(arrayOf("*/*"))
++                            }
++                            "importFolder" -> {
++                                app.isStartingExternalApp = true
++                                pickImportDirectory.launch(null)
++                            }
++                            "createFile" -> {
++                                createNewFile {
++                                    encryptedVolume.closeFile(it)
++                                    refreshCurrentDirectory()
++                                    invalidateOptionsMenu()
++                                }
++                            }
++                            "createFolder" -> {
++                                openDialogCreateFolder()
++                            }
++                        }
++                        thisDialog.dismiss()
++                    }
++                    .setTitle(getString(R.string.add))
++                    .setNegativeButton(R.string.cancel, null)
++                    .show()
++            }
++        }
++    }
++
++    override fun onExplorerElementLongClick(position: Int) {
++        super.onExplorerElementLongClick(position)
++        cancelItemAction()
++    }
++
++    override fun onCreateOptionsMenu(menu: Menu): Boolean {
++        menuInflater.inflate(R.menu.explorer, menu)
++        val result = super.onCreateOptionsMenu(menu)
++        if (currentItemAction != ItemsActions.NONE) {
++            menu.findItem(R.id.validate).isVisible = true
++            menu.findItem(R.id.lock).isVisible = false
++            menu.findItem(R.id.close).isVisible = false
++            supportActionBar?.setDisplayHomeAsUpEnabled(true)
++        } else {
++            if (usf_share){
++                menu.findItem(R.id.share).isVisible = false
++            }
++            val anyItemSelected = explorerAdapter.selectedItems.isNotEmpty()
++            menu.findItem(R.id.select_all).isVisible = anyItemSelected
++            menu.findItem(R.id.delete).isVisible = anyItemSelected
++            menu.findItem(R.id.copy).isVisible = anyItemSelected
++            menu.findItem(R.id.cut).isVisible = anyItemSelected
++            menu.findItem(R.id.decrypt).isVisible = anyItemSelected && usf_decrypt
++            if (anyItemSelected && usf_share){
++                var containsDir = false
++                for (i in explorerAdapter.selectedItems) {
++                    if (explorerElements[i].isDirectory) {
++                        containsDir = true
++                        break
++                    }
++                }
++                if (!containsDir) {
++                    menu.findItem(R.id.share).isVisible = true
++                }
++            }
++        }
++        return result
++    }
++
++    override fun onOptionsItemSelected(item: MenuItem): Boolean {
++        return when (item.itemId) {
++            android.R.id.home -> {
++                cancelItemAction()
++                super.onOptionsItemSelected(item)
++            }
++            R.id.select_all -> {
++                explorerAdapter.selectAll()
++                invalidateOptionsMenu()
++                true
++            }
++            R.id.cut -> {
++                for (i in explorerAdapter.selectedItems){
++                    itemsToProcess.add(OperationFile.fromExplorerElement(explorerElements[i]))
++                }
++                currentItemAction = ItemsActions.MOVE
++                unselectAll()
++                true
++            }
++            R.id.copy -> {
++                for (i in explorerAdapter.selectedItems){
++                    itemsToProcess.add(OperationFile.fromExplorerElement(explorerElements[i]))
++                }
++                currentItemAction = ItemsActions.COPY
++                unselectAll()
++                true
++            }
++            R.id.validate -> {
++                if (currentItemAction == ItemsActions.COPY){
++                    object : LoadingTask<List<OperationFile>>(this, R.string.discovering_files) {
++                        override suspend fun doTask(): List<OperationFile> {
++                            val items = itemsToProcess.toMutableList()
++                            itemsToProcess.filter { it.isDirectory }.forEach { dir ->
++                                encryptedVolume.recursiveMapFiles(dir.srcPath)?.forEach {
++                                    items.add(OperationFile.fromExplorerElement(it))
++                                }
++                            }
++                            return items
++                        }
++                    }.startTask(lifecycleScope) { items ->
++                        checkPathOverwrite(items, currentDirectoryPath) {
++                            it?.let { checkedItems ->
++                                activityScope.launch {
++                                    onTaskResult(
++                                        fileOperationService.copyElements(volumeId, checkedItems),
++                                        R.string.copy_failed,
++                                        R.string.copy_success,
++                                    )
++                                    refreshCurrentDirectory()
++                                }
++                            }
++                            cancelItemAction()
++                            invalidateOptionsMenu()
++                        }
++                    }
++                } else if (currentItemAction == ItemsActions.MOVE){
++                    itemsToProcess.forEach {
++                        it.dstPath = PathUtils.pathJoin(currentDirectoryPath, it.name)
++                        it.overwriteConfirmed = false // reset the field in case of a previous cancelled move
++                    }
++                    val toMove = ArrayList<OperationFile>(itemsToProcess.size)
++                    val toClean = ArrayList<String>()
++                    prepareFilesForMove(
++                        itemsToProcess,
++                        toMove,
++                        toClean,
++                    ) {
++                        activityScope.launch {
++                            onTaskResult(
++                                fileOperationService.moveElements(volumeId, toMove, toClean),
++                                R.string.move_failed,
++                                R.string.move_success,
++                            )
++                            refreshCurrentDirectory()
++                        }
++                        cancelItemAction()
++                        invalidateOptionsMenu()
++                    }
++                }
++                true
++            }
++            R.id.delete -> {
++                val size = explorerAdapter.selectedItems.size
++                val dialog = MaterialAlertDialogBuilder(this)
++                dialog.setTitle(R.string.warning)
++                dialog.setPositiveButton(R.string.ok) { _, _ ->
++                    val items = explorerAdapter.selectedItems.map { i -> explorerElements[i] }
++                    activityScope.launch {
++                        fileOperationService.removeElements(volumeId, items)?.let { failedItem ->
++                            MaterialAlertDialogBuilder(this@ExplorerActivity)
++                                .setTitle(R.string.error)
++                                .setMessage(getString(R.string.remove_failed, failedItem))
++                                .setPositiveButton(R.string.ok, null)
++                                .show()
++                        }
++                        refreshCurrentDirectory()
++                    }
++                    unselectAll()
++                }
++                dialog.setNegativeButton(R.string.cancel, null)
++                if (size > 1) {
++                    dialog.setMessage(getString(R.string.multiple_delete_confirm, explorerAdapter.selectedItems.size.toString()))
++                } else {
++                    dialog.setMessage(getString(
++                        R.string.single_delete_confirm,
++                        explorerAdapter.explorerElements[explorerAdapter.selectedItems.first()].name
++                    ))
++                }
++                dialog.show()
++                true
++            }
++            R.id.share -> {
++                val files = explorerAdapter.selectedItems.map { i ->
++                    explorerElements[i].let {
++                        Pair(it.fullPath, it.stat.size)
++                    }
++                }
++                app.isExporting = true
++                object : LoadingTask<Pair<Intent?, Int?>>(this, R.string.loading_msg_export) {
++                    override suspend fun doTask(): Pair<Intent?, Int?> {
++                        return fileShare.share(files, volumeId)
++                    }
++                }.startTask(lifecycleScope) { (intent, error) ->
++                    if (intent == null) {
++                        onExportFailed(error!!)
++                    } else {
++                        app.isStartingExternalApp = true
++                        startActivity(Intent.createChooser(intent, getString(R.string.share_chooser)))
++                    }
++                    app.isExporting = false
++                }
++                unselectAll()
++                true
++            }
++            R.id.decrypt -> {
++                app.isStartingExternalApp = true
++                pickExportDirectory.launch(null)
++                true
++            }
++            R.id.unsafe_features -> {
++                unsafeFeaturesLauncher.launch(Intent(this, SettingsActivity::class.java).apply {
++                    putExtra("screen", "UnsafeFeaturesSettingsFragment")
++                })
++                true
++            }
++            else -> super.onOptionsItemSelected(item)
++        }
++    }
++
++    /**
++     * Ask the user what to do if an item would overwrite another item in case of a move.
++     *
++     * All [OperationFile] must have a non-null [dstPath][OperationFile.dstPath].
++     */
++    private fun checkMoveOverwrite(items: List<OperationFile>, callback: (List<OperationFile>?) -> Unit) {
++        for (item in items) {
++            if (encryptedVolume.pathExists(item.dstPath!!) && !item.overwriteConfirmed) {
++                MaterialAlertDialogBuilder(this)
++                    .setTitle(R.string.warning)
++                    .setMessage(
++                        getString(
++                            if (item.isDirectory) {
++                                R.string.dir_overwrite_question
++                            } else {
++                                R.string.file_overwrite_question
++                            },
++                            item.dstPath!!
++                        )
++                    )
++                    .setPositiveButton(R.string.yes) {_, _ ->
++                        item.overwriteConfirmed = true
++                        checkMoveOverwrite(items, callback)
++                    }.setNegativeButton(R.string.no) { _, _ ->
++                        EditTextDialog(this, R.string.enter_new_name).setSelectedText(item.name)
++                            .onSubmit {
++                                item.dstPath = PathUtils.pathJoin(PathUtils.getParentPath(item.dstPath!!), it)
++                                checkMoveOverwrite(items, callback)
++                            }.show()
++                    }
++                    .show()
++                return
++            }
++        }
++        callback(items)
++    }
++
++    /**
++     * Check for destination overwriting in case of a move operation.
++     *
++     * If the user decides to merge the content of a folder, the function recursively tests all
++     * children of the source folder to see if they will overwrite.
++     *
++     * The items to be moved are stored in [toMove]. We also need to keep track of the merged
++     * folders to delete them after the move. These folders are stored in [toClean].
++     */
++    private fun prepareFilesForMove(
++        items: List<OperationFile>,
++        toMove: ArrayList<OperationFile>,
++        toClean: ArrayList<String>,
++        onReady: () -> Unit
++    ) {
++        checkMoveOverwrite(items) { checkedItems ->
++            checkedItems?.let {
++                for (item in checkedItems) {
++                    if (!item.overwriteConfirmed || !item.isDirectory) {
++                        toMove.add(item)
++                    }
++                }
++                val toCheck = mutableListOf<OperationFile>()
++                for (item in checkedItems) {
++                    if (item.overwriteConfirmed && item.isDirectory) {
++                        val children = encryptedVolume.readDir(item.srcPath)
++                        children?.map {
++                            OperationFile(it.fullPath, it.stat.type, PathUtils.pathJoin(item.dstPath!!, it.name))
++                        }?.let { toCheck.addAll(it) }
++                        toClean.add(item.srcPath)
++                    }
++                }
++                if (toCheck.isEmpty()) {
++                    onReady()
++                } else {
++                    prepareFilesForMove(toCheck, toMove, toClean, onReady)
++                }
++            }
++        }
++    }
++
++    private fun cancelItemAction() {
++        if (currentItemAction != ItemsActions.NONE){
++            currentItemAction = ItemsActions.NONE
++            itemsToProcess.clear()
++        }
++    }
++}
+diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
+--- a/app/src/main/res/xml/root_preferences.xml
++++ b/app/src/main/res/xml/root_preferences.xml
+@@ -4,22 +4,2 @@
+ 
+-    <PreferenceCategory android:title="@string/theme">
+-
+-        <sushi.hardcore.droidfs.widgets.MaterialListPreference
+-            android:defaultValue="green"
+-            android:entries="@array/color_names"
+-            android:entryValues="@array/color_values"
+-            android:key="color"
+-            android:title="@string/theme_color"
+-            android:summary="@string/theme_color_summary"
+-            android:icon="@drawable/icon_palette"/>
+-
+-        <SwitchPreferenceCompat
+-            android:defaultValue="false"
+-            android:icon="@drawable/icon_night"
+-            android:key="black_theme"
+-            android:title="@string/black_theme"
+-            app:widgetLayout="@layout/preference_widget_material_switch"/>
+-
+-    </PreferenceCategory>
+-
+     <PreferenceCategory android:title="@string/explorer">
+@@ -103,37 +83,4 @@
+ 
+     </PreferenceCategory>
+ 
+-    <PreferenceCategory android:title="@string/debug">
+-
+-        <Preference
+-            android:key="logcat"
+-            android:title="@string/logcat"
+-            android:summary="@string/logcat_summary"
+-            android:icon="@drawable/icon_debug"/>
+-
+-    </PreferenceCategory>
+-
+-    <PreferenceCategory android:title="@string/about">
+-
+-        <Preference
+-            android:title="@string/github"
+-            android:summary="@string/github_summary"
+-            android:icon="@drawable/icon_github">
+-            <intent android:action="android.intent.action.VIEW" android:data="https://github.com/hardcore-sushi/DroidFS"/>
+-        </Preference>
+-
+-        <Preference
+-            android:title="@string/tangled"
+-            android:summary="@string/tangled_summary"
+-            android:icon="@drawable/icon_tangled">
+-            <intent android:action="android.intent.action.VIEW" android:data="https://tangled.org/cipherd.arkensys.dedyn.io/DroidFS"/>
+-        </Preference>
+-
+-        <Preference
+-            android:icon="@drawable/icon_info"
+-            android:title="@string/version"
+-            android:summary="@string/versionName"/> <!--added by gradle at build time-->
+-
+-    </PreferenceCategory>
+-
+ </PreferenceScreen>

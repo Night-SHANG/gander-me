@@ -1,7 +1,11 @@
 package com.arjun.gander.ui.shell
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
@@ -32,9 +36,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -56,13 +62,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.arjun.gander.EpubReaderActivity
 import com.arjun.gander.R
-import com.arjun.gander.TxtReaderActivity
+import com.arjun.gander.ViewerActivity
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
+import com.arjun.gander.library.createReaderLaunchPlan
+import com.arjun.gander.library.syncLegadoReaderProgress
 import com.arjun.gander.ui.library.LibraryScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -82,10 +89,27 @@ private enum class VaultShelfDestination(
 @Composable
 fun VaultShelfShell(
     libraryRepository: LibraryRepository,
-    onOpenFiles: () -> Unit,
+    externalRevision: Int,
+    onOpenExternalFolder: (Uri, String) -> Unit,
+    onOpenVault: () -> Unit,
+    onOpenVaultSettings: () -> Unit,
+    onOpenVaultBackup: () -> Unit,
+    onImportBooksToVaultFiles: (List<LibraryBook>) -> Unit,
+    onImportBooksToVaultLibrary: (List<LibraryBook>) -> Unit,
+    onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
+    initialDestinationName: String = VaultShelfDestination.HOME.name,
+    returnToFiles: Boolean = false,
+    onReturnToFiles: () -> Unit = {},
 ) {
-    var selectedName by rememberSaveable { mutableStateOf(VaultShelfDestination.HOME.name) }
+    var selectedName by rememberSaveable {
+        mutableStateOf(
+            VaultShelfDestination.entries
+                .firstOrNull { it.name == initialDestinationName && it != VaultShelfDestination.VAULT }
+                ?.name
+                ?: VaultShelfDestination.HOME.name,
+        )
+    }
     val selected = VaultShelfDestination.entries
         .firstOrNull { it.name == selectedName }
         ?: VaultShelfDestination.HOME
@@ -96,7 +120,16 @@ fun VaultShelfShell(
         bottomBar = {
             FluentBottomBar(
                 selected = selected,
-                onSelected = { selectedName = it.name },
+                onSelected = { destination ->
+                    when (destination) {
+                        VaultShelfDestination.FILES -> {
+                            if (returnToFiles) onReturnToFiles()
+                            else selectedName = destination.name
+                        }
+                        VaultShelfDestination.VAULT -> onOpenVault()
+                        else -> selectedName = destination.name
+                    }
+                },
             )
         },
     ) { innerPadding ->
@@ -104,34 +137,206 @@ fun VaultShelfShell(
             VaultShelfDestination.HOME -> HomeScreen(
                 libraryRepository = libraryRepository,
                 modifier = Modifier.padding(innerPadding),
-                onOpenFiles = onOpenFiles,
+                onOpenFiles = {
+                    if (returnToFiles) onReturnToFiles()
+                    else selectedName = VaultShelfDestination.FILES.name
+                },
                 onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
-                onOpenVault = { selectedName = VaultShelfDestination.VAULT.name },
+                onOpenVault = onOpenVault,
             )
 
             VaultShelfDestination.LIBRARY -> LibraryScreen(
                 repository = libraryRepository,
+                externalRevision = externalRevision,
+                onImportToVaultFiles = onImportBooksToVaultFiles,
+                onImportToVaultLibrary = onImportBooksToVaultLibrary,
                 modifier = Modifier.padding(innerPadding),
             )
 
-            VaultShelfDestination.FILES -> FilesScreen(
-                onOpenFiles = onOpenFiles,
+            VaultShelfDestination.FILES -> ExternalFilesScreen(
+                onOpenFolder = onOpenExternalFolder,
                 modifier = Modifier.padding(innerPadding),
             )
 
-            VaultShelfDestination.VAULT -> FoundationScreen(
-                titleRes = R.string.vaultshelf_vault_title,
-                detailRes = R.string.vaultshelf_vault_placeholder,
-                modifier = Modifier.padding(innerPadding),
-            )
+            VaultShelfDestination.VAULT -> Unit
 
-            VaultShelfDestination.SETTINGS -> FoundationScreen(
-                titleRes = R.string.vaultshelf_settings_title,
-                detailRes = R.string.vaultshelf_settings_placeholder,
+            VaultShelfDestination.SETTINGS -> SettingsScreen(
+                onOpenVaultSettings = onOpenVaultSettings,
+                onOpenVaultBackup = onOpenVaultBackup,
+                onOpenAbout = onOpenAbout,
                 modifier = Modifier.padding(innerPadding),
             )
         }
     }
+}
+
+@Composable
+private fun ExternalFilesScreen(
+    onOpenFolder: (Uri, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    var revision by rememberSaveable { mutableIntStateOf(0) }
+    val roots by produceState<List<Pair<Uri, String>>>(
+        initialValue = emptyList(),
+        revision,
+    ) {
+        value = withContext(Dispatchers.IO) {
+            context.contentResolver.persistedUriPermissions
+                .asSequence()
+                .filter { it.isReadPermission && isTreeUri(it.uri) }
+                .map { permission ->
+                    permission.uri to readTreeLabel(context, permission.uri)
+                }
+                .sortedBy { (_, label) -> label.lowercase() }
+                .toList()
+        }
+    }
+    val openTree = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+            revision += 1
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.vaultshelf_files_title),
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.vaultshelf_files_detail),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (roots.isEmpty()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                tonalElevation = 1.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.vaultshelf_files_empty),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.vaultshelf_files_empty_detail),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else {
+            roots.forEach { (uri, label) ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenFolder(uri, label) },
+                    shape = RoundedCornerShape(14.dp),
+                    tonalElevation = 1.dp,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_vaultshelf_files),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = stringResource(R.string.vaultshelf_files_authorized),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                runCatching {
+                                    context.contentResolver.releasePersistableUriPermission(
+                                        uri,
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                                    )
+                                }.recoverCatching {
+                                    context.contentResolver.releasePersistableUriPermission(
+                                        uri,
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                                    )
+                                }
+                                revision += 1
+                            },
+                        ) {
+                            Text(stringResource(R.string.vaultshelf_files_remove_access))
+                        }
+                    }
+                }
+            }
+        }
+
+        Button(
+            onClick = { openTree.launch(null) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.vaultshelf_files_add_folder))
+        }
+    }
+}
+
+private fun isTreeUri(uri: Uri): Boolean =
+    runCatching { DocumentsContract.getTreeDocumentId(uri) }.isSuccess &&
+        uri.pathSegments.firstOrNull() == "tree"
+
+private fun readTreeLabel(context: Context, uri: Uri): String {
+    val documentId = runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
+        ?: return context.getString(R.string.vaultshelf_files_folder_fallback)
+    return runCatching {
+        context.contentResolver.query(
+            DocumentsContract.buildDocumentUriUsingTree(uri, documentId),
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+        }
+    }.getOrNull()
+        ?.takeIf { it.isNotBlank() }
+        ?: documentId.substringAfterLast(':').ifBlank {
+            context.getString(R.string.vaultshelf_files_folder_fallback)
+        }
 }
 
 @Composable
@@ -145,6 +350,8 @@ private fun HomeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var recentBooks by remember { mutableStateOf<List<LibraryBook>>(emptyList()) }
+    var pendingLegadoBookId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingLegadoBookUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun refreshRecent() {
         scope.launch {
@@ -158,19 +365,45 @@ private fun HomeScreen(
 
     val readerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
-    ) {
-        refreshRecent()
+    ) { result ->
+        val legadoId = pendingLegadoBookId
+        val legadoUrl = pendingLegadoBookUrl
+        if (legadoId != null && legadoUrl != null) {
+            pendingLegadoBookId = null
+            pendingLegadoBookUrl = null
+            scope.launch {
+                syncLegadoReaderProgress(context, libraryRepository, legadoId, legadoUrl)
+                refreshRecent()
+            }
+            return@rememberLauncherForActivityResult
+        }
+
+        val data = result.data
+        val bookId = data?.getStringExtra(ViewerActivity.EXTRA_LIBRARY_BOOK_ID)
+        val hasProgress = data?.hasExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS) == true
+        if (result.resultCode == android.app.Activity.RESULT_OK && bookId != null && hasProgress) {
+            val progress = data?.getFloatExtra(ViewerActivity.EXTRA_LIBRARY_PROGRESS, 0f) ?: 0f
+            scope.launch {
+                libraryRepository.updateViewerProgress(bookId, progress)
+                refreshRecent()
+            }
+        } else {
+            refreshRecent()
+        }
     }
 
     fun openBook(book: LibraryBook) {
-        val intent = when (book.format) {
-            BookFormat.TXT -> Intent(context, TxtReaderActivity::class.java)
-                .putExtra(TxtReaderActivity.EXTRA_BOOK_ID, book.id)
-
-            BookFormat.EPUB -> Intent(context, EpubReaderActivity::class.java)
-                .putExtra(EpubReaderActivity.EXTRA_BOOK_ID, book.id)
+        scope.launch {
+            runCatching {
+                createReaderLaunchPlan(context, libraryRepository, book)
+            }.onSuccess { plan ->
+                if (plan.legadoBookUrl != null) {
+                    pendingLegadoBookId = book.id
+                    pendingLegadoBookUrl = plan.legadoBookUrl
+                }
+                readerLauncher.launch(plan.intent)
+            }
         }
-        readerLauncher.launch(intent)
     }
 
     LaunchedEffect(libraryRepository) {
@@ -416,71 +649,99 @@ private fun QuickActionTile(
 }
 
 @Composable
-private fun FilesScreen(
-    onOpenFiles: () -> Unit,
+private fun SettingsScreen(
+    onOpenVaultSettings: () -> Unit,
+    onOpenVaultBackup: () -> Unit,
+    onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(
-            text = stringResource(R.string.vaultshelf_files_title),
+            text = stringResource(R.string.vaultshelf_settings_title),
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.SemiBold,
         )
-        Text(
-            text = stringResource(R.string.vaultshelf_files_detail),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+        SettingsEntry(
+            titleRes = R.string.vaultshelf_settings_vault,
+            detailRes = R.string.vaultshelf_settings_vault_detail,
+            iconRes = R.drawable.ic_vaultshelf_vault,
+            onClick = onOpenVaultSettings,
         )
-        Button(
-            onClick = onOpenFiles,
-            shape = RoundedCornerShape(10.dp),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp),
-        ) {
-            Text(stringResource(R.string.vaultshelf_open_file_browser))
-        }
+
+        SettingsEntry(
+            titleRes = R.string.vaultshelf_settings_backup,
+            detailRes = R.string.vaultshelf_settings_backup_detail,
+            iconRes = R.drawable.ic_vaultshelf_vault,
+            onClick = onOpenVaultBackup,
+        )
+
+        SettingsEntry(
+            titleRes = R.string.vaultshelf_settings_about,
+            detailRes = R.string.vaultshelf_settings_about_detail,
+            iconRes = R.drawable.ic_vaultshelf_settings,
+            onClick = onOpenAbout,
+        )
     }
 }
 
 @Composable
-private fun FoundationScreen(
+private fun SettingsEntry(
     @StringRes titleRes: Int,
     @StringRes detailRes: Int,
-    modifier: Modifier = Modifier,
+    @DrawableRes iconRes: Int,
+    onClick: (() -> Unit)?,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                },
+            ),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
     ) {
-        Text(
-            text = stringResource(titleRes),
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+            ) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(10.dp).size(22.dp),
+                )
+            }
             Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 Text(
-                    text = stringResource(R.string.vaultshelf_foundation_status),
+                    text = stringResource(titleRes),
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = stringResource(detailRes),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

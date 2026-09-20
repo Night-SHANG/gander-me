@@ -60,7 +60,7 @@ class FormatRegistryTest {
             }
         }
         return packageManager.queryIntentActivities(intent, 0).any {
-            it.activityInfo.name == ViewerActivity::class.java.name
+            it.activityInfo.name == FileDispatchActivity::class.java.name
         }
     }
 
@@ -85,15 +85,15 @@ class FormatRegistryTest {
     }
 
     @Test
-    fun theViewerIsTheActivityThatAnswers() {
+    fun theUnifiedDispatcherIsTheActivityThatAnswers() {
         mimesFor("VIEW").forEach { mime ->
-            assertThat("$mime resolves to the viewer: ${resolves(Intent.ACTION_VIEW, mime)}")
-                .isEqualTo("$mime resolves to the viewer: true")
+            assertThat("$mime resolves to the dispatcher: ${resolves(Intent.ACTION_VIEW, mime)}")
+                .isEqualTo("$mime resolves to the dispatcher: true")
         }
     }
 
     @Test
-    fun theShareSheetOffersTheViewerForEveryClaimedFormat() {
+    fun theShareSheetOffersTheDispatcherForEveryClaimedFormat() {
         mimesFor("SEND").forEach { mime ->
             assertThat("$mime resolves to the viewer: ${resolves(Intent.ACTION_SEND, mime)}")
                 .isEqualTo("$mime resolves to the viewer: true")
@@ -128,8 +128,10 @@ class FormatRegistryTest {
                 .isNotEqualTo("$pattern via $mime: ${FileKind.UNSUPPORTED}")
         }
         exact.forEach { mime ->
-            assertThat("$mime routes to: ${FileKind.detect("", mime)}")
-                .isNotEqualTo("$mime routes to: ${FileKind.UNSUPPORTED}")
+            val routed = FileKind.detect("", mime) != FileKind.UNSUPPORTED ||
+                EbookDispatch.supports("", mime)
+            assertThat("$mime routes by MIME alone: $routed")
+                .isEqualTo("$mime routes by MIME alone: true")
         }
     }
 
@@ -206,39 +208,40 @@ class FormatRegistryTest {
     }
 
     /**
-     * Zero permissions, read back from the package Android actually installed.
-     *
-     * app/build.gradle.kts fails the build if the merged manifest requests
-     * anything outside its allowlist; this is the same promise checked from
-     * the other side, which is the side the About screen shows the reader.
-     * The allowlist is repeated here rather than shared, because a gate whose
-     * two halves read the same list only checks one thing.
+     * Read the installed merged manifest back from PackageManager. The allowlist is
+     * intentionally repeated here instead of imported from Gradle: two independent
+     * gates catch both an accidental permission and an accidental weakening of one gate.
      */
     @Test
-    fun theInstalledPackageRequestsNothingOutsideTheAllowlist() {
-        // androidx.core declares this so libraries can call registerReceiver
-        // with RECEIVER_NOT_EXPORTED. Signature level and self-granted, so
-        // Android never shows it to the reader as a permission.
-        val allowed = setOf(
-            "${context.packageName}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+    fun theInstalledPackageRequestsNothingOutsideTheReviewedAllowlist() {
+        val allowedAndroid = setOf(
+            "android.permission.FOREGROUND_SERVICE",
+            "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+            "android.permission.WAKE_LOCK",
+            "android.permission.READ_PHONE_STATE",
+            "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+            "android.permission.POST_NOTIFICATIONS",
+            "android.permission.USE_BIOMETRIC",
+            "android.permission.MANAGE_EXTERNAL_STORAGE",
+            "android.permission.WRITE_EXTERNAL_STORAGE",
         )
+        val allowed = allowedAndroid +
+            "${context.packageName}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
         val info = packageManager.getPackageInfo(
             context.packageName, PackageManager.GET_PERMISSIONS
         )
-        val requested = info.requestedPermissions.orEmpty().toList()
-        assertThat(requested).containsNoneIn(
-            requested.filterNot { it in allowed }.ifEmpty { listOf("nothing unexpected") }
-        )
+        val requested = info.requestedPermissions.orEmpty().toSet()
+        assertThat(requested - allowed).isEmpty()
     }
 
-    /** Nothing the reader would ever be prompted for. */
     @Test
-    fun noPermissionTheReaderWouldSeeIsRequested() {
+    fun internetAndNetworkStateRemainAbsentFromTheInstalledPackage() {
         val info = packageManager.getPackageInfo(
-            context.packageName, PackageManager.GET_PERMISSIONS
+            context.packageName,
+            PackageManager.GET_PERMISSIONS,
         )
-        val userVisible = info.requestedPermissions.orEmpty()
-            .filter { it.startsWith("android.permission.") }
-        assertThat(userVisible).isEmpty()
+        val requested = info.requestedPermissions.orEmpty().toSet()
+        assertThat(requested).doesNotContain("android.permission.INTERNET")
+        assertThat(requested).doesNotContain("android.permission.ACCESS_NETWORK_STATE")
     }
 }

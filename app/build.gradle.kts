@@ -70,17 +70,19 @@ android {
         }
     }
 
-    // No per-ABI split: with PDF rendering moved off Pdfium the app ships no native
-    // code at all, so one APK serves every architecture.
+    // No per-ABI split: DroidFS contributes its original gocryptfs/FFmpeg native
+    // libraries for all four Android ABIs, so the debug artifact remains one universal APK.
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        }
     }
 
     // VaultShelf's new application shell is Compose. The mature Gander browser and
@@ -88,6 +90,36 @@ android {
     // destabilise the rendering path while the new product grows around it.
     buildFeatures {
         compose = true
+    }
+
+    // Legado's original application-level packaging rules must live on the final
+    // VaultShelf application after its source is integrated as a library. Library
+    // packaging options do not define how transitive resources/native objects are
+    // merged into the APK.
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/*",
+                "tables/Transcoder_*.bin",
+                "*.proto",
+                "**/*.proto",
+                "src/**",
+                "kotlin/*.kotlin_builtins",
+                "kotlin/**/*.kotlin_builtins",
+            )
+        }
+        jniLibs {
+            // These dependency-provided objects are already stripped upstream.
+            keepDebugSymbols += setOf(
+                "**/libandroidx.graphics.path.so",
+                "**/libarchive-jni.so",
+                "**/libdatastore_shared_counter.so",
+                "**/libimage_processing_util_jni.so",
+                "**/librenderscript-toolkit.so",
+                "**/librtmp-jni.so",
+                "**/libsurface_util_jni.so",
+            )
+        }
     }
 
     lint {
@@ -145,13 +177,32 @@ android {
     }
 }
 
-// Requesting nothing is the whole promise, but permissions arrive transitively: Media3 contributes
-// ACCESS_NETWORK_STATE, stripped in the manifest. Naming one permission there does not stop the next
-// dependency bump adding another, and that would surface in the store listing rather than the build.
-// So assert the invariant on the merged manifest instead of trusting the strip.
+// VaultShelf now embeds DroidFS and Legado local-reading features, so a small reviewed permission
+// set is intentional. Permissions also arrive transitively: Media3 contributes ACCESS_NETWORK_STATE,
+// which is stripped in the manifest. Assert the final merged manifest against the explicit allowlist
+// so a dependency bump cannot silently expand the app's permissions.
 //
 // Held as suffixes on the variant's own applicationId, since a debug build carries
 // one and would otherwise fail against a hardcoded package name.
+val permissionAllowlist = setOf(
+    // Legado's original local TTS reader runs as a media foreground service.
+    // WAKE_LOCK is only used when the reader's optional "read aloud wake lock" setting is on.
+    // Phone-state access is deliberately stripped: VaultShelf keeps local TTS without
+    // asking to inspect calls. The optional upstream "pause during calls" feature is not
+    // part of VaultShelf's permission surface.
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+    "android.permission.WAKE_LOCK",
+
+    // DroidFS' original vault implementation. Biometric unlock stays available.
+    // Its optional encrypted camera/recording stack is deliberately not shipped by VaultShelf.
+    "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.USE_BIOMETRIC",
+    "android.permission.MANAGE_EXTERNAL_STORAGE",
+    "android.permission.WRITE_EXTERNAL_STORAGE",
+)
+
 val permissionAllowlistSuffixes = setOf(
     // androidx.core declares this so libraries can registerReceiver(..., RECEIVER_NOT_EXPORTED).
     // Signature level and self-granted, so it is never shown to the user as a permission.
@@ -166,6 +217,7 @@ androidComponents.onVariants { variant ->
     val checkPermissions = tasks.register("check${suffix}Permissions") {
         description = "Fails if the merged manifest requests any permission we did not sign off on."
         val manifestFile = mergedManifest
+        val allowedPermissions = permissionAllowlist
         val allowedSuffixes = permissionAllowlistSuffixes
         val applicationId = appId
         val stamp = layout.buildDirectory.file("reports/permissions/$suffix.txt")
@@ -176,12 +228,12 @@ androidComponents.onVariants { variant ->
                 .findAll(manifestFile.get().asFile.readText())
                 .map { it.groupValues[1] }
                 .toList()
-            val allowed = allowedSuffixes.map { applicationId.get() + it }.toSet()
+            val allowed = allowedPermissions + allowedSuffixes.map { applicationId.get() + it }
             val unexpected = requested.filterNot { it in allowed }
             if (unexpected.isNotEmpty()) {
                 throw GradleException(
                     buildString {
-                        appendLine("Gander ships with no permissions, but $suffix requests:")
+                        appendLine("Gander requested permissions outside the reviewed allowlist in $suffix:")
                         unexpected.forEach { appendLine("    $it") }
                         appendLine()
                         appendLine("A dependency added these. Either strip each one with")
@@ -208,23 +260,28 @@ androidComponents.onVariants { variant ->
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
-    // GPL-3.0 TXT/EPUB novel-reading core adapted from Legado / 阅读 3.0.
-    implementation(project(":legado-reader"))
+    // Original GPL-3.0 Legado / 阅读 3.0 local-reading subsystem, pinned as source.
+    implementation(project(":legado-upstream"))
 
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    // Original DroidFS hidden-volume subsystem (gocryptfs, explorer, biometric unlock).
+    implementation(project(":droidfs-upstream"))
+
+    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("com.google.android.material:material:1.14.0")
+    implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")
+    implementation("androidx.documentfile:documentfile:1.1.0")
     implementation("androidx.webkit:webkit:1.16.0")
     // Zoomable image view that tiles huge bitmaps
     implementation("com.davemorrissey.labs:subsampling-scale-image-view-androidx:3.10.0")
     // EXIF orientation for photos opened via SAF content URIs
-    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation("androidx.exifinterface:exifinterface:1.4.2")
     // Video and audio playback
-    implementation("androidx.media3:media3-exoplayer:1.5.1")
-    implementation("androidx.media3:media3-ui:1.5.1")
+    implementation("androidx.media3:media3-exoplayer:1.10.1")
+    implementation("androidx.media3:media3-ui:1.10.1")
 
     // Keep this milestone on the Compose 1.11 generation. Compose 1.12 requires
     // compileSdk 37 / AGP 9, while Gander currently builds on SDK 36 / AGP 8.11.

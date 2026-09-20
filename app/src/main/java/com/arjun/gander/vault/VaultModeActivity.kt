@@ -1,0 +1,155 @@
+package com.arjun.gander.vault
+
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import com.arjun.gander.R
+import com.arjun.gander.VaultShelfActivity
+import com.arjun.gander.files.VaultExplorerActivity
+import com.arjun.gander.ui.theme.VaultShelfTheme
+import com.vaultshelf.droidfs.VaultShelfFileRouter
+import java.util.ArrayList
+import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
+import sushi.hardcore.droidfs.VolumeManagerApp
+import sushi.hardcore.droidfs.util.finishOnClose
+
+class VaultModeActivity : AppCompatActivity() {
+
+    private var libraryRevision by mutableIntStateOf(0)
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        VaultScreenshotPolicy.apply(this)
+
+        val volumeId = intent.getIntExtra(EXTRA_VOLUME_ID, -1)
+        val volumeName = intent.getStringExtra(EXTRA_VOLUME_NAME).orEmpty()
+        val volumeManager = (application as VolumeManagerApp).volumeManager
+        val volume = volumeManager.getVolume(volumeId)
+        if (volumeId < 0 || volume == null) {
+            finish()
+            return
+        }
+        finishOnClose(volume)
+
+        val fileRepository = VaultFileRepository(applicationContext, volumeId)
+        val libraryStore = VaultLibraryStore(applicationContext, fileRepository)
+        val initialDestination =
+            intent.getStringExtra(EXTRA_INITIAL_DESTINATION).orEmpty().ifBlank { "HOME" }
+        val returnToFiles = intent.getBooleanExtra(EXTRA_RETURN_TO_FILES, false)
+
+        val root = ComposeView(this).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                VaultShelfTheme {
+                    VaultModeShell(
+                        volumeName = volumeName,
+                        fileRepository = fileRepository,
+                        libraryStore = libraryStore,
+                        externalRevision = libraryRevision,
+                        initialDestinationName = initialDestination,
+                        onOpenFile = { item ->
+                            if (!VaultShelfFileRouter.openAny(
+                                    this@VaultModeActivity,
+                                    item.path,
+                                    item.sizeBytes,
+                                    volumeId,
+                                )
+                            ) {
+                                Toast.makeText(
+                                    this@VaultModeActivity,
+                                    R.string.vault_open_failed,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        },
+                        onOpenFiles = {
+                            if (returnToFiles) {
+                                finish()
+                                overridePendingTransition(0, 0)
+                            } else {
+                                startActivity(
+                                    Intent(
+                                        this@VaultModeActivity,
+                                        VaultExplorerActivity::class.java,
+                                    )
+                                        .putExtra("volumeId", volumeId)
+                                        .putExtra("volumeName", volumeName)
+                                        .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                                )
+                                overridePendingTransition(0, 0)
+                            }
+                        },
+                        onExportLibraryToVaultFiles = { entries ->
+                            startActivity(
+                                Intent(
+                                    this@VaultModeActivity,
+                                    VaultImportTargetActivity::class.java,
+                                )
+                                    .putExtra("volumeId", volumeId)
+                                    .putExtra("volumeName", volumeName)
+                                    .putStringArrayListExtra(
+                                        VaultImportTargetActivity.EXTRA_SOURCE_VAULT_LIBRARY_IDS,
+                                        ArrayList(entries.map { it.id }),
+                                    )
+                                    .putExtra(
+                                        VaultImportTargetActivity.EXTRA_TARGET_LIBRARY,
+                                        false,
+                                    ),
+                            )
+                        },
+                        onOpenVaultSettings = {
+                            startActivity(
+                                Intent(this@VaultModeActivity, DroidFsSettingsActivity::class.java),
+                            )
+                        },
+                        onOpenVaultBackup = {
+                            startActivity(
+                                Intent(this@VaultModeActivity, VaultBackupActivity::class.java),
+                            )
+                        },
+                        onLockVault = {
+                            volumeManager.closeVolume(volumeId)
+                        },
+                        onExitVault = {
+                            startActivity(
+                                Intent(this@VaultModeActivity, VaultShelfActivity::class.java)
+                                    .putExtra(
+                                        VaultShelfActivity.EXTRA_INITIAL_DESTINATION,
+                                        "HOME",
+                                    )
+                                    .addFlags(
+                                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                            Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                                    ),
+                            )
+                            overridePendingTransition(0, 0)
+                        },
+                        modifier = Modifier.safeDrawingPadding(),
+                    )
+                }
+            }
+        }
+        setContentView(root)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        VaultScreenshotPolicy.apply(this)
+        libraryRevision += 1
+    }
+
+    companion object {
+        const val EXTRA_VOLUME_ID = "vaultshelf.mode.volume_id"
+        const val EXTRA_VOLUME_NAME = "vaultshelf.mode.volume_name"
+        const val EXTRA_INITIAL_DESTINATION = "vaultshelf.mode.initial_destination"
+        const val EXTRA_RETURN_TO_FILES = "vaultshelf.mode.return_to_files"
+    }
+}
