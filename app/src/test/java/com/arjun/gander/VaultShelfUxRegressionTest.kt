@@ -1314,4 +1314,32 @@ class VaultShelfUxRegressionTest {
         assertThat(explorerPatch).contains("menu.findItem(R.id.rename).isVisible = !searchActive")
     }
 
+    @Test
+    fun explorerBottomBarIsNotLiftedBySystemNavigationInset() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val explorerPatch = patch.substringAfter(
+            "diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt",
+        )
+
+        assertThat(explorerPatch).contains("if (ime.bottom > 0) ime.bottom else 0")
+        assertThat(explorerPatch).doesNotContain("if (ime.bottom > 0) ime.bottom else bars.bottom")
+    }
+
+    @Test
+    fun vaultCanReturnDirectlyToExternalHomeFromHomeAndSettings() {
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+        val activity = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
+
+        assertThat(shell).contains("vault_return_external_home")
+        assertThat(shell.split("vault_return_external_home").size - 1).isAtLeast(2)
+        assertThat(activity).contains("VaultShelfActivity.EXTRA_INITIAL_DESTINATION")
+        assertThat(activity).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
+    }
+
 }

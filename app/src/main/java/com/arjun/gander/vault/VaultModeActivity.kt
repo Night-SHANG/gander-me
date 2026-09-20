@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.arjun.gander.R
+import com.arjun.gander.VaultShelfActivity
 import com.arjun.gander.files.VaultExplorerActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.vaultshelf.droidfs.VaultShelfFileRouter
@@ -116,6 +117,20 @@ class VaultModeActivity : AppCompatActivity() {
                         },
                         onLockVault = {
                             volumeManager.closeVolume(volumeId)
+                        },
+                        onExitVault = {
+                            startActivity(
+                                Intent(this@VaultModeActivity, VaultShelfActivity::class.java)
+                                    .putExtra(
+                                        VaultShelfActivity.EXTRA_INITIAL_DESTINATION,
+                                        "HOME",
+                                    )
+                                    .addFlags(
+                                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                            Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                                    ),
+                            )
+                            overridePendingTransition(0, 0)
                         },
                         modifier = Modifier.safeDrawingPadding(),
                     )

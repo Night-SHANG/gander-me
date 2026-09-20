@@ -173,6 +173,7 @@
     <string name="vault_settings_security">Security and vault behavior</string>
     <string name="vault_settings_backup">Export / restore backup</string>
     <string name="vault_settings_lock">Lock vault</string>
+    <string name="vault_return_external_home">Return to external home</string>
     <string name="vault_open_failed">This file cannot be opened.</string>
 
 

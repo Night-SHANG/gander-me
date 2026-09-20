@@ -92,6 +92,7 @@ fun VaultModeShell(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
+    onExitVault: () -> Unit,
     modifier: Modifier = Modifier,
     initialDestinationName: String = VaultModeDestination.HOME.name,
 ) {
@@ -155,6 +156,7 @@ fun VaultModeShell(
                 revision = revision + externalRevision,
                 onOpenLibrary = { selectedName = VaultModeDestination.LIBRARY.name },
                 onOpenFiles = onOpenFiles,
+                onExitVault = onExitVault,
                 onOpenBook = { entry ->
                     libraryStore.markOpened(entry.id)
                     fileRepository.volume.getAttr(entry.path)?.let { stat ->
@@ -203,6 +205,7 @@ fun VaultModeShell(
                 onOpenVaultSettings = onOpenVaultSettings,
                 onOpenVaultBackup = onOpenVaultBackup,
                 onLockVault = onLockVault,
+                onExitVault = onExitVault,
                 modifier = contentModifier,
             )
         }
@@ -260,6 +263,7 @@ private fun VaultHomeScreen(
     revision: Int,
     onOpenLibrary: () -> Unit,
     onOpenFiles: () -> Unit,
+    onExitVault: () -> Unit,
     onOpenBook: (VaultLibraryEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -302,6 +306,14 @@ private fun VaultHomeScreen(
             Button(onClick = onOpenFiles, modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.vaultshelf_nav_files))
             }
+        }
+        TextButton(
+            onClick = onExitVault,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        ) {
+            Text(stringResource(R.string.vault_return_external_home))
         }
         Text(
             text = stringResource(R.string.vault_home_recent),
@@ -951,6 +963,7 @@ private fun VaultSettingsScreen(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
+    onExitVault: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -973,6 +986,9 @@ private fun VaultSettingsScreen(
         }
         Button(onClick = onOpenVaultBackup, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.vault_settings_backup))
+        }
+        TextButton(onClick = onExitVault, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.vault_return_external_home))
         }
         TextButton(onClick = onLockVault, modifier = Modifier.fillMaxWidth()) {
             Text(
