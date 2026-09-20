@@ -14,7 +14,9 @@
     android:paddingStart="8dp"
     android:paddingTop="8dp"
     android:paddingEnd="12dp"
-    android:paddingBottom="8dp">
+    android:paddingBottom="8dp"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedResources">
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/icon_element"

@@ -6,7 +6,9 @@
     android:layout_margin="6dp"
     android:background="@drawable/vaultshelf_explorer_item_background"
     android:orientation="vertical"
-    android:padding="10dp">
+    android:padding="10dp"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedResources">
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/icon_element"

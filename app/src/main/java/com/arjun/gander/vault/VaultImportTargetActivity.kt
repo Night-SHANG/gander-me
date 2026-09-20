@@ -137,8 +137,9 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
             val message = if (matchedBooks.isEmpty()) {
                 getString(R.string.vault_file_import_done_message)
             } else {
-                getString(
-                    R.string.vault_file_import_done_with_library,
+                resources.getQuantityString(
+                    R.plurals.vault_file_import_done_with_library,
+                    matchedBooks.size,
                     matchedBooks.size,
                 )
             }

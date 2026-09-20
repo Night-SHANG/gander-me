@@ -179,7 +179,7 @@ class VaultModeActivity : AppCompatActivity() {
             if (failed > 0) {
                 Toast.makeText(
                     this@VaultModeActivity,
-                    getString(R.string.vault_external_import_partial, failed),
+                    resources.getQuantityString(R.plurals.vault_external_import_partial, failed, failed),
                     Toast.LENGTH_LONG,
                 ).show()
             }
@@ -187,8 +187,9 @@ class VaultModeActivity : AppCompatActivity() {
             MaterialAlertDialogBuilder(this@VaultModeActivity)
                 .setTitle(R.string.vault_external_import_done_title)
                 .setMessage(
-                    getString(
-                        R.string.vault_external_import_done_message,
+                    resources.getQuantityString(
+                        R.plurals.vault_external_import_done_message,
+                        importedIds.size,
                         importedIds.size,
                     ),
                 )

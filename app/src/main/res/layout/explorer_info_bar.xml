@@ -12,7 +12,9 @@
     app:cardCornerRadius="16dp"
     app:cardElevation="0dp"
     app:strokeColor="?attr/colorOutlineVariant"
-    app:strokeWidth="1dp">
+    app:strokeWidth="1dp"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedResources">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
@@ -83,7 +85,7 @@
             android:padding="10dp"
             android:scaleType="centerInside"
             android:src="@drawable/icon_view_grid"
-            android:tint="?attr/colorOnPrimaryContainer"
+            app:tint="?attr/colorOnPrimaryContainer"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />

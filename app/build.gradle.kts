@@ -272,6 +272,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("com.google.android.material:material:1.14.0")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")
     implementation("androidx.webkit:webkit:1.16.0")
     // Zoomable image view that tiles huge bitmaps
     implementation("com.davemorrissey.labs:subsampling-scale-image-view-androidx:3.10.0")

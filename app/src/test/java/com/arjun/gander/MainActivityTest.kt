@@ -316,33 +316,31 @@ class MainActivityTest {
         assertThat(titles).contains("Documents")
     }
 
-    /** Directories first, then files by name, and dotfiles nowhere. */
+    /** Folder browsing is delegated to the shared DroidFS Explorer engine. */
     @Test
-    fun openingAFolderListsItInOrderWithDotfilesHidden() {
+    fun openingAFolderLaunchesTheSharedExplorer() {
         grantedFolder()
         val controller = home()
         controller.clickRow("Documents")
 
-        val titles = controller.rowTitles()
-
-        assertThat(titles).containsAtLeast("Leases", "alpha.pdf", "zeta.pdf").inOrder()
-        assertThat(titles).doesNotContain(".hidden.pdf")
+        val started = shadowOf(controller.get()).nextStartedActivity
+        assertThat(started.component!!.className)
+            .isEqualTo(com.arjun.gander.files.ExternalExplorerActivity::class.java.name)
+        assertThat(started.getStringExtra("volumeName")).isEqualTo("Documents")
+        assertThat(started.getIntExtra("volumeId", -1)).isAtLeast(0)
     }
 
-    /** Inside a folder the toolbar names it, and the wordmark stands down. */
+    /** Launching Explorer leaves the VaultShelf files root intact underneath it. */
     @Test
-    fun theToolbarNamesTheFolderYouAreIn() {
+    fun launchingAFolderDoesNotMutateTheRootScreen() {
         grantedFolder()
         val controller = home()
+        controller.clickRow("Documents")
+
+        assertThat(controller.rowTitles()).contains("Documents")
         val toolbar = controller.get()
             .findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.toolbar)
         assertThat(toolbar.title.isNullOrEmpty()).isTrue()
-
-        controller.clickRow("Documents")
-
-        assertThat(toolbar.title.toString()).isEqualTo("Documents")
-        assertThat(controller.get().findViewById<View>(R.id.lockup).visibility)
-            .isEqualTo(View.GONE)
     }
 
     @Test
@@ -357,27 +355,17 @@ class MainActivityTest {
         assertThat(controller.rowTitles()).contains(context.getString(R.string.folders))
     }
 
-    /**
-     * A tablet is rotated constantly, and losing your place three folders deep
-     * on every turn is where this was found.
-     */
+    /** Persisted folder grants remain visible after the VaultShelf root is recreated. */
     @Test
-    fun theFolderYouAreInSurvivesARotation() {
+    fun grantedFoldersSurviveARotation() {
         grantedFolder()
         val first = home()
-        first.clickRow("Documents")
 
         val state = Bundle()
         first.saveInstanceState(state)
-        assertThat(state.getStringArrayList("stack.treeUris")).hasSize(1)
-        assertThat(state.getStringArrayList("stack.labels")).containsExactly("Documents")
-
         val second = home(state)
 
-        val toolbar = second.get()
-            .findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.toolbar)
-        assertThat(toolbar.title.toString()).isEqualTo("Documents")
-        assertThat(second.rowTitles()).contains("alpha.pdf")
+        assertThat(second.rowTitles()).contains("Documents")
     }
 
     /**

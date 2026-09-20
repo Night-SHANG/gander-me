@@ -94,8 +94,8 @@ private enum class ShelfSort(@StringRes val labelRes: Int) {
 @Composable
 fun LibraryScreen(
     repository: LibraryRepository,
-    onImportToVault: ((List<LibraryBook>) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onImportToVault: ((List<LibraryBook>) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
