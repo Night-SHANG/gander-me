@@ -6,13 +6,18 @@ import android.view.Menu
 import android.view.MenuItem
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.arjun.gander.R
 import com.arjun.gander.VaultShelfActivity
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.ui.shell.VaultShelfBottomBar
+import com.arjun.gander.ui.shell.VaultShelfDestination
+import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
+import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.VaultImportTargetActivity
-import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.SafVolume
 import java.security.MessageDigest
@@ -32,8 +37,6 @@ import sushi.hardcore.droidfs.explorers.ExplorerElement
  * its persistent product navigation without replacing copy/move/sort/thumbnail behavior.
  */
 class ExternalExplorerActivity : ExplorerActivity() {
-
-    private var bottomNavigation: BottomNavigationView? = null
 
     private var volumeClosed = false
 
@@ -337,34 +340,32 @@ class ExternalExplorerActivity : ExplorerActivity() {
     }
 
     private fun configureBottomNavigation() {
-        val nav = findViewById<BottomNavigationView>(R.id.vaultshelf_explorer_bottom_nav)
-        bottomNavigation = nav
+        val nav = findViewById<ComposeView>(R.id.vaultshelf_explorer_bottom_nav)
         nav.isVisible = true
-        nav.selectedItemId = R.id.vaultshelf_nav_files_item
-        nav.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.vaultshelf_nav_files_item -> true
-                R.id.vaultshelf_nav_home_item -> {
-                    openShell("HOME")
-                    false
-                }
-                R.id.vaultshelf_nav_library_item -> {
-                    openShell("LIBRARY")
-                    false
-                }
-                R.id.vaultshelf_nav_vault_item -> {
-                    startActivity(
-                        Intent(this, DroidFsMainActivity::class.java)
-                            .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
-                    )
-                    overridePendingTransition(0, 0)
-                    false
-                }
-                R.id.vaultshelf_nav_settings_item -> {
-                    openShell("SETTINGS")
-                    false
-                }
-                else -> false
+        nav.setViewCompositionStrategy(
+            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
+        )
+        nav.setContent {
+            VaultShelfTheme {
+                VaultShelfBottomBar(
+                    destinations = VaultShelfExternalDestinations,
+                    selected = VaultShelfDestination.FILES,
+                    onSelected = { destination ->
+                        when (destination) {
+                            VaultShelfDestination.HOME -> openShell("HOME")
+                            VaultShelfDestination.LIBRARY -> openShell("LIBRARY")
+                            VaultShelfDestination.FILES -> Unit
+                            VaultShelfDestination.VAULT -> {
+                                startActivity(
+                                    Intent(this@ExternalExplorerActivity, DroidFsMainActivity::class.java)
+                                        .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                                )
+                                overridePendingTransition(0, 0)
+                            }
+                            VaultShelfDestination.SETTINGS -> openShell("SETTINGS")
+                        }
+                    },
+                )
             }
         }
     }
@@ -377,13 +378,6 @@ class ExternalExplorerActivity : ExplorerActivity() {
                 .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
         )
         overridePendingTransition(0, 0)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        bottomNavigation?.menu
-            ?.findItem(R.id.vaultshelf_nav_files_item)
-            ?.isChecked = true
     }
 
     override fun onDestroy() {

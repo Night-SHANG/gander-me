@@ -8,18 +8,23 @@ import android.view.MenuItem
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.arjun.gander.BookReadingPositions
 import com.arjun.gander.Positions
 import com.arjun.gander.R
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.ui.shell.VaultShelfBottomBar
+import com.arjun.gander.ui.shell.VaultShelfDestination
+import com.arjun.gander.ui.shell.VaultShelfVaultDestinations
+import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.EncryptedVolumeInputStream
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultLibraryEntry
 import com.arjun.gander.vault.VaultLibraryStore
 import com.arjun.gander.vault.VaultModeActivity
 import com.arjun.gander.vault.VaultFileRepository
-import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfProgressStore
 import java.util.ArrayList
@@ -35,8 +40,6 @@ import sushi.hardcore.droidfs.file_operations.TaskResult
  * Vault-file variant of DroidFS Explorer with VaultShelf navigation and four-zone transfers.
  */
 class VaultExplorerActivity : ExplorerActivity() {
-
-    private var bottomNavigation: BottomNavigationView? = null
 
     private lateinit var vaultFiles: VaultFileRepository
     private lateinit var vaultLibrary: VaultLibraryStore
@@ -386,36 +389,28 @@ class VaultExplorerActivity : ExplorerActivity() {
     }
 
     private fun configureBottomNavigation() {
-        val nav = findViewById<BottomNavigationView>(R.id.vaultshelf_explorer_bottom_nav)
-        bottomNavigation = nav
+        val nav = findViewById<ComposeView>(R.id.vaultshelf_explorer_bottom_nav)
         nav.isVisible = true
-        nav.menu.findItem(R.id.vaultshelf_nav_vault_item)?.isVisible = false
-        nav.selectedItemId = R.id.vaultshelf_nav_files_item
-        nav.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.vaultshelf_nav_files_item -> true
-                R.id.vaultshelf_nav_home_item -> {
-                    openVaultShell("HOME")
-                    false
-                }
-                R.id.vaultshelf_nav_library_item -> {
-                    openVaultShell("LIBRARY")
-                    false
-                }
-                R.id.vaultshelf_nav_settings_item -> {
-                    openVaultShell("SETTINGS")
-                    false
-                }
-                else -> false
+        nav.setViewCompositionStrategy(
+            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
+        )
+        nav.setContent {
+            VaultShelfTheme {
+                VaultShelfBottomBar(
+                    destinations = VaultShelfVaultDestinations,
+                    selected = VaultShelfDestination.FILES,
+                    onSelected = { destination ->
+                        when (destination) {
+                            VaultShelfDestination.HOME -> openVaultShell("HOME")
+                            VaultShelfDestination.LIBRARY -> openVaultShell("LIBRARY")
+                            VaultShelfDestination.FILES -> Unit
+                            VaultShelfDestination.SETTINGS -> openVaultShell("SETTINGS")
+                            VaultShelfDestination.VAULT -> Unit
+                        }
+                    },
+                )
             }
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        bottomNavigation?.menu
-            ?.findItem(R.id.vaultshelf_nav_files_item)
-            ?.isChecked = true
     }
 
     private fun openVaultShell(destination: String) {

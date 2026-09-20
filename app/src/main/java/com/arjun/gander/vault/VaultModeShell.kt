@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,7 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -52,7 +50,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,17 +60,14 @@ import com.arjun.gander.R
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.ui.shell.VaultShelfBottomBar
+import com.arjun.gander.ui.shell.VaultShelfDestination
+import com.arjun.gander.ui.shell.VaultShelfVaultDestinations
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.ArrayList
-
-private enum class VaultModeDestination {
-    HOME,
-    LIBRARY,
-    SETTINGS,
-}
 
 private enum class VaultLibraryCompletedTransfer {
     EXTERNAL_FILES,
@@ -94,67 +88,51 @@ fun VaultModeShell(
     onLockVault: () -> Unit,
     onExitVault: () -> Unit,
     modifier: Modifier = Modifier,
-    initialDestinationName: String = VaultModeDestination.HOME.name,
+    initialDestinationName: String = VaultShelfDestination.HOME.name,
 ) {
     var selectedName by rememberSaveable {
         mutableStateOf(
-            VaultModeDestination.entries
-                .firstOrNull { it.name == initialDestinationName }
+            VaultShelfVaultDestinations
+                .firstOrNull {
+                    it.name == initialDestinationName &&
+                        it != VaultShelfDestination.FILES
+                }
                 ?.name
-                ?: VaultModeDestination.HOME.name,
+                ?: VaultShelfDestination.HOME.name,
         )
     }
     var revision by remember { mutableIntStateOf(0) }
-    val selected = VaultModeDestination.entries
-        .firstOrNull { it.name == selectedName }
-        ?: VaultModeDestination.HOME
+    val selected = VaultShelfVaultDestinations
+        .firstOrNull {
+            it.name == selectedName &&
+                it != VaultShelfDestination.FILES
+        }
+        ?: VaultShelfDestination.HOME
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 6.dp,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    VaultNavItem(
-                        selected == VaultModeDestination.HOME,
-                        R.drawable.ic_vaultshelf_home,
-                        R.string.vaultshelf_nav_home,
-                    ) { selectedName = VaultModeDestination.HOME.name }
-                    VaultNavItem(
-                        selected == VaultModeDestination.LIBRARY,
-                        R.drawable.ic_vaultshelf_library,
-                        R.string.vaultshelf_nav_library,
-                    ) { selectedName = VaultModeDestination.LIBRARY.name }
-                    VaultNavItem(
-                        false,
-                        R.drawable.ic_vaultshelf_files,
-                        R.string.vaultshelf_nav_files,
-                    ) { onOpenFiles() }
-                    VaultNavItem(
-                        selected == VaultModeDestination.SETTINGS,
-                        R.drawable.ic_vaultshelf_settings,
-                        R.string.vaultshelf_nav_settings,
-                    ) { selectedName = VaultModeDestination.SETTINGS.name }
-                }
-            }
+            VaultShelfBottomBar(
+                destinations = VaultShelfVaultDestinations,
+                selected = selected,
+                onSelected = { destination ->
+                    when (destination) {
+                        VaultShelfDestination.FILES -> onOpenFiles()
+                        VaultShelfDestination.VAULT -> Unit
+                        else -> selectedName = destination.name
+                    }
+                },
+            )
         },
     ) { innerPadding ->
         val contentModifier = Modifier.padding(innerPadding)
         when (selected) {
-            VaultModeDestination.HOME -> VaultHomeScreen(
+            VaultShelfDestination.HOME -> VaultHomeScreen(
                 volumeName = volumeName,
                 libraryStore = libraryStore,
                 revision = revision + externalRevision,
-                onOpenLibrary = { selectedName = VaultModeDestination.LIBRARY.name },
+                onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
                 onOpenFiles = onOpenFiles,
                 onExitVault = onExitVault,
                 onOpenBook = { entry ->
@@ -175,7 +153,7 @@ fun VaultModeShell(
                 modifier = contentModifier,
             )
 
-            VaultModeDestination.LIBRARY -> VaultLibraryScreen(
+            VaultShelfDestination.LIBRARY -> VaultLibraryScreen(
                 fileRepository = fileRepository,
                 libraryStore = libraryStore,
                 revision = revision + externalRevision,
@@ -200,7 +178,10 @@ fun VaultModeShell(
                 modifier = contentModifier,
             )
 
-            VaultModeDestination.SETTINGS -> VaultSettingsScreen(
+            VaultShelfDestination.FILES,
+            VaultShelfDestination.VAULT -> Unit
+
+            VaultShelfDestination.SETTINGS -> VaultSettingsScreen(
                 volumeName = volumeName,
                 onOpenVaultSettings = onOpenVaultSettings,
                 onOpenVaultBackup = onOpenVaultBackup,
@@ -209,50 +190,6 @@ fun VaultModeShell(
                 modifier = contentModifier,
             )
         }
-    }
-}
-
-@Composable
-private fun RowScope.VaultNavItem(
-    selected: Boolean,
-    iconRes: Int,
-    labelRes: Int,
-    onClick: () -> Unit,
-) {
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Column(
-        modifier = Modifier
-            .weight(1f)
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                else Color.Transparent,
-            )
-            .selectable(
-                selected = selected,
-                onClick = onClick,
-                role = Role.Tab,
-            )
-            .padding(horizontal = 3.dp, vertical = 7.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = contentColor,
-            modifier = Modifier.size(22.dp),
-        )
-        Text(
-            text = stringResource(labelRes),
-            style = MaterialTheme.typography.labelSmall,
-            color = contentColor,
-            maxLines = 1,
-        )
     }
 }
 

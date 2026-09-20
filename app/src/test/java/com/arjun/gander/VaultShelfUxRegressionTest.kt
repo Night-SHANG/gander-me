@@ -1274,7 +1274,19 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun explorerBottomNavigationReturnsToFilesState() {
+    fun shellsAndExplorersUseTheSameComposeBottomBar() {
+        val shared = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfBottomBar.kt",
+        ).readText()
+        val mainShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+        val vaultShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
         val external = File(
             repo,
             "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
@@ -1285,13 +1297,17 @@ class VaultShelfUxRegressionTest {
         ).readText()
         val layout = File(repo, "app/src/main/res/layout/activity_explorer.xml").readText()
 
-        listOf(external, vault).forEach { source ->
-            assertThat(source).contains("bottomNavigation?.menu")
-            assertThat(source).contains("vaultshelf_nav_files_item")
-            assertThat(source).contains("?.isChecked = true")
+        assertThat(shared).contains("fun VaultShelfBottomBar(")
+        listOf(mainShell, vaultShell, external, vault).forEach { source ->
+            assertThat(source).contains("VaultShelfBottomBar(")
         }
-        assertThat(layout).contains("@color/gander_surface_container_low")
-        assertThat(layout).contains("@color/vaultshelf_explorer_nav_item_tint")
+        listOf(external, vault).forEach { source ->
+            assertThat(source).contains("ComposeView")
+            assertThat(source).contains("selected = VaultShelfDestination.FILES")
+        }
+        assertThat(layout).contains("androidx.compose.ui.platform.ComposeView")
+        assertThat(layout).doesNotContain("BottomNavigationView")
+        assertThat(layout).doesNotContain("vaultshelf_explorer_nav_item_tint")
     }
 
     @Test
@@ -1315,14 +1331,18 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun explorerBottomBarIsNotLiftedBySystemNavigationInset() {
+    fun sharedComposeExplorerBottomBarHasOneSystemBottomInsetOwner() {
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val layout = File(repo, "app/src/main/res/layout/activity_explorer.xml").readText()
         val explorerPatch = patch.substringAfter(
             "diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt",
         )
 
-        assertThat(explorerPatch).contains("if (ime.bottom > 0) ime.bottom else 0")
-        assertThat(explorerPatch).doesNotContain("if (ime.bottom > 0) ime.bottom else bars.bottom")
+        assertThat(layout).contains("androidx.compose.ui.platform.ComposeView")
+        assertThat(layout).doesNotContain("BottomNavigationView")
+        assertThat(explorerPatch).contains(
+            "if (ime.bottom > 0) ime.bottom else bars.bottom",
+        )
     }
 
     @Test

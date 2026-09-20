@@ -1706,7 +1706,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +                bars.left,
 +                bars.top,
 +                bars.right,
-+                if (ime.bottom > 0) ime.bottom else 0,
++                if (ime.bottom > 0) ime.bottom else bars.bottom,
 +            )
 +            insets
 +        }
