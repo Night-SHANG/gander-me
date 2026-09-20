@@ -928,3 +928,56 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity
 -    private val proposeWipe by lazy { sharedPrefs.getBoolean("propose_wipe_imported_files", true) }
 +    private val proposeWipe: Boolean
 +        get() = sharedPrefs.getBoolean("propose_wipe_imported_files", true)
+
+# /* VaultShelf file-operation notifications are optional */
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt b/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/file_operations/FileOperationService.kt
+@@ -109,4 +109,7 @@
+     private var serviceScope = MainScope()
+     private val notificationPermissionHelpers = ArrayDeque<AndroidUtils.NotificationPermissionHelper<BaseActivity>>(2)
+-    private var askForNotificationPermission = true
++    // Android 13+ does not require POST_NOTIFICATIONS for the data-sync foreground
++    // service itself. VaultShelf therefore never blocks or nags file import/export
++    // for this optional permission; denied notifications simply stay out of the drawer.
++    private var askForNotificationPermission = false
+     private lateinit var notificationManager: NotificationManagerCompat
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt b/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/FileShare.kt
+@@ -28,4 +28,6 @@
+ 
+-    private val usfSafWrite = PreferenceManager.getDefaultSharedPreferences(context).getBoolean("usf_saf_write", false)
++    private val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(context)
++    private val usfSafWrite: Boolean
++        get() = sharedPrefs.getBoolean("usf_saf_write", false)
+ 
+     private fun exportFile(exportedFile: EncryptedFileProvider.ExportedFile, size: Long, volumeId: Int, previousContentType: String? = null): Pair<Uri, String>? {
+
+# /* VaultShelf removes obsolete DroidFS theme controls */
+diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
+--- a/app/src/main/res/xml/root_preferences.xml
++++ b/app/src/main/res/xml/root_preferences.xml
+@@ -4,22 +4,2 @@
+ 
+-    <PreferenceCategory android:title="@string/theme">
+-
+-        <sushi.hardcore.droidfs.widgets.MaterialListPreference
+-            android:defaultValue="green"
+-            android:entries="@array/color_names"
+-            android:entryValues="@array/color_values"
+-            android:key="color"
+-            android:title="@string/theme_color"
+-            android:summary="@string/theme_color_summary"
+-            android:icon="@drawable/icon_palette"/>
+-
+-        <SwitchPreferenceCompat
+-            android:defaultValue="false"
+-            android:icon="@drawable/icon_night"
+-            android:key="black_theme"
+-            android:title="@string/black_theme"
+-            app:widgetLayout="@layout/preference_widget_material_switch"/>
+-
+-    </PreferenceCategory>
+-
+     <PreferenceCategory android:title="@string/explorer">

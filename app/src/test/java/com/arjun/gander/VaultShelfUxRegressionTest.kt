@@ -689,6 +689,31 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun fileOperationsDoNotRequireNotificationPermission() {
+        val patch = File(
+            repo,
+            "patches/droidfs-vaultshelf-file-routing.patch",
+        ).readText()
+
+        assertThat(patch).contains("private var askForNotificationPermission = false")
+        assertThat(patch).contains("Android 13+ does not require POST_NOTIFICATIONS")
+        assertThat(patch).contains("private val usfSafWrite: Boolean")
+        assertThat(patch).contains("get() = sharedPrefs.getBoolean(\"usf_saf_write\", false)")
+    }
+
+    @Test
+    fun vaultSettingsDoNotExposeObsoleteDroidFsThemeControls() {
+        val patch = File(
+            repo,
+            "patches/droidfs-vaultshelf-file-routing.patch",
+        ).readText()
+
+        assertThat(patch).contains("VaultShelf removes obsolete DroidFS theme controls")
+        assertThat(patch).contains("-    <PreferenceCategory android:title=\"@string/theme\">")
+        assertThat(patch).contains("applyCustomTheme = false")
+    }
+
+    @Test
     fun fileImportToVaultPreservesExistingLibraryIdentity() {
         val target = File(
             repo,
