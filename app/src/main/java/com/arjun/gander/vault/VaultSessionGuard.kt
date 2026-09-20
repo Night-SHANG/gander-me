@@ -2,10 +2,10 @@ package com.arjun.gander.vault
 
 import android.app.Activity
 import android.app.Application
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.WindowManager
 import androidx.core.net.toUri
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import io.legado.app.model.ReadAloud
@@ -23,7 +23,7 @@ import sushi.hardcore.droidfs.VolumeManagerApp
  * This guard only makes sure plaintext-capable activities already opened for a
  * vault session cannot remain visible after that upstream close event.
  */
-object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager.Observer {
+object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager.Observer, SharedPreferences.OnSharedPreferenceChangeListener {
 
     private data class Session(
         val volumeId: Int,
@@ -37,12 +37,16 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
     @Volatile
     private var initialized = false
     private var application: VolumeManagerApp? = null
+    private var preferences: SharedPreferences? = null
 
     @Synchronized
     private fun initialize(application: VolumeManagerApp) {
         if (initialized) return
         initialized = true
         this.application = application
+        preferences = VaultScreenshotPolicy.preferences(application).also {
+            it.registerOnSharedPreferenceChangeListener(this)
+        }
         application.volumeManager.observe(this)
         application.registerActivityLifecycleCallbacks(this)
     }
@@ -62,6 +66,22 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
 
     fun unregister(token: String) {
         sessions.remove(token)
+    }
+
+    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
+        if (key != VaultScreenshotPolicy.PREF_ALLOW_SCREENSHOTS) return
+        main.post {
+            sessions.values.forEach { session ->
+                session.activities.entries.toList().forEach { (id, reference) ->
+                    val activity = reference.get()
+                    if (activity == null || activity.isDestroyed) {
+                        session.activities.remove(id)
+                    } else {
+                        VaultScreenshotPolicy.apply(activity)
+                    }
+                }
+            }
+        }
     }
 
     override fun onVolumeStateChanged(volume: VolumeData) {
@@ -106,7 +126,7 @@ object VaultSessionGuard : Application.ActivityLifecycleCallbacks, VolumeManager
     }
 
     private fun remember(session: Session, activity: Activity) {
-        activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        VaultScreenshotPolicy.apply(activity)
         session.taskIds.add(activity.taskId)
         session.activities[System.identityHashCode(activity)] = WeakReference(activity)
     }

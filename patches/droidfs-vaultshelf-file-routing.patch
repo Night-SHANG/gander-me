@@ -811,3 +811,120 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
      private lateinit var sortOrderEntries: Array<String>
      private lateinit var sortOrderValues: Array<String>
      private var foldersFirst = true
+
+
+# /* VaultShelf live security preferences */
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt
+@@ -25,3 +25,7 @@
+     protected lateinit var sharedPrefs: SharedPreferences
+     protected var applyCustomTheme: Boolean = true
+     lateinit var theme: Theme
++    private val screenshotPreferenceListener =
++        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
++            if (key == "usf_screenshot") applyScreenshotPolicy()
++        }
+@@ -40,6 +44,23 @@
+-        if (!sharedPrefs.getBoolean("usf_screenshot", false)) {
+-            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+-        }
++        applyScreenshotPolicy()
++    }
++
++    private fun applyScreenshotPolicy() {
++        if (sharedPrefs.getBoolean("usf_screenshot", false)) {
++            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
++        } else {
++            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
++        }
++    }
++
++    override fun onStart() {
++        super.onStart()
++        sharedPrefs.registerOnSharedPreferenceChangeListener(screenshotPreferenceListener)
++        applyScreenshotPolicy()
++    }
++
++    override fun onStop() {
++        sharedPrefs.unregisterOnSharedPreferenceChangeListener(screenshotPreferenceListener)
++        super.onStop()
+     }
+ 
+     override fun onPostCreate(savedInstanceState: Bundle?) {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
+@@ -21,2 +21,6 @@
+ class SettingsActivity : BaseActivity() {
++    init {
++        applyCustomTheme = false
++    }
++
+     override val contentAreaId = R.id.settings
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
+@@ -31,2 +31,6 @@
+ class MainActivity : BaseActivity(), VolumeAdapter.Listener {
++    init {
++        applyCustomTheme = false
++    }
++
+     companion object {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
+@@ -10,2 +10,6 @@
+ class AddVolumeActivity: BaseActivity() {
++    init {
++        applyCustomTheme = false
++    }
++
+     companion object {
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/ChangePasswordActivity.kt
+@@ -22,2 +22,6 @@
+ class ChangePasswordActivity: BaseActivity() {
++    init {
++        applyCustomTheme = false
++    }
++
+     private lateinit var binding: ActivityChangePasswordBinding
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt
+@@ -115,9 +115,5 @@
+         explorerAdapter = ExplorerElementAdapter(
+             this,
+-            if (sharedPrefs.getBoolean("thumbnails", true)) {
+-                app.volumeManager.getImageLoader(volumeId)
+-            } else {
+-                null
+-            },
++            app.volumeManager.getImageLoader(volumeId),
+             this,
+-        )
++        ).apply { loadThumbnails = sharedPrefs.getBoolean("thumbnails", true) }
+@@ -716,5 +712,13 @@
+     override fun onResume() {
+         super.onResume()
++        foldersFirst = sharedPrefs.getBoolean("folders_first", true)
++        mapFolders = sharedPrefs.getBoolean("map_folders", true)
++        loadUnsafeFeatures()
++        currentSortOrderIndex = sortOrderValues.indexOf(
++            sharedPrefs.getString(Constants.SORT_ORDER_KEY, "name"),
++        ).coerceAtLeast(0)
++        explorerAdapter.loadThumbnails = sharedPrefs.getBoolean("thumbnails", true)
++        invalidateOptionsMenu()
+         if (app.isStartingExternalApp) {
+             TemporaryFileProvider.instance.wipe()
+         }
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
+@@ -34 +34,2 @@
+-    private val proposeWipe by lazy { sharedPrefs.getBoolean("propose_wipe_imported_files", true) }
++    private val proposeWipe: Boolean
++        get() = sharedPrefs.getBoolean("propose_wipe_imported_files", true)

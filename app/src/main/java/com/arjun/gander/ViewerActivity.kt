@@ -1,5 +1,6 @@
 package com.arjun.gander
 
+import com.arjun.gander.vault.VaultScreenshotPolicy
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -20,7 +21,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewConfiguration
-import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import android.webkit.MimeTypeMap
 import android.webkit.WebResourceRequest
@@ -211,7 +211,7 @@ class ViewerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         secureVaultSession = intent.getBooleanExtra(EXTRA_SECURE_VAULT, false)
         if (secureVaultSession) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            VaultScreenshotPolicy.apply(this)
         }
 
         setContentView(R.layout.activity_viewer)

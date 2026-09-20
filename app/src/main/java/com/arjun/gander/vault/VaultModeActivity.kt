@@ -2,7 +2,6 @@ package com.arjun.gander.vault
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -36,7 +35,7 @@ class VaultModeActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        VaultScreenshotPolicy.apply(this)
 
         val volumeId = intent.getIntExtra(EXTRA_VOLUME_ID, -1)
         val volumeName = intent.getStringExtra(EXTRA_VOLUME_NAME).orEmpty()
@@ -115,6 +114,7 @@ class VaultModeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        VaultScreenshotPolicy.apply(this)
         libraryRevision += 1
     }
 

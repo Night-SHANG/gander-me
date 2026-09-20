@@ -3,7 +3,6 @@ package com.arjun.gander.vault
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.view.WindowManager
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
@@ -40,9 +39,9 @@ class VaultContentActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // This bridge is translucent while it owns a decrypted vault URI. Protect the
-        // bridge window immediately; child viewers are protected again by VaultSessionGuard.
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // This bridge owns a decrypted vault URI, so use the same user-selected screenshot
+        // policy as Explorer and every child reader instead of hard-forcing FLAG_SECURE.
+        VaultScreenshotPolicy.apply(this)
 
         val uri = intent.data
         val token = intent.getStringExtra(VaultShelfFileRouter.EXTRA_SESSION_TOKEN)
@@ -86,6 +85,7 @@ class VaultContentActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        VaultScreenshotPolicy.apply(this)
         bridgeResumed = true
         if (childActive && !cleanupStarted.get()) {
             childActive = false

@@ -11,6 +11,7 @@ import androidx.webkit.WebViewStartUpResult
 import com.vaultshelf.legado.LegadoReaderBridge
 import androidx.webkit.WebViewStartupException
 import java.util.concurrent.Executor
+import sushi.hardcore.droidfs.FingerprintProtector
 
 /**
  * Keeps Gander's WebView warm-up without replacing DroidFS' original VolumeManagerApp.
@@ -19,6 +20,16 @@ class GanderStartupProvider : ContentProvider() {
 
     override fun onCreate(): Boolean {
         val appContext = context?.applicationContext ?: return true
+        val preferences = appContext.getSharedPreferences(
+            appContext.packageName + "_preferences",
+            android.content.Context.MODE_PRIVATE,
+        )
+        if (!preferences.contains("usf_fingerprint") &&
+            FingerprintProtector.canAuthenticate(appContext) == 0
+        ) {
+            preferences.edit().putBoolean("usf_fingerprint", true).apply()
+        }
+
         LegadoReaderBridge.initialize(appContext)
 
         val executor = Executor { runnable ->

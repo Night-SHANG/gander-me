@@ -519,9 +519,76 @@ class VaultShelfUxRegressionTest {
         assertThat(guard).contains("activity.javaClass.name.startsWith")
         assertThat(guard).contains("current.activities.entries.toList().forEach")
         assertThat(guard).contains("activity.finish()")
-        assertThat(guard).contains("WindowManager.LayoutParams.FLAG_SECURE")
+        assertThat(guard).contains("VaultScreenshotPolicy.apply(activity)")
     }
 
+
+
+    @Test
+    fun vaultScreenshotSettingIsLiveAcrossAllVaultSurfaces() {
+        val policy = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultScreenshotPolicy.kt",
+        ).readText()
+        val mode = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
+        val bridge = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultContentActivity.kt",
+        ).readText()
+        val guard = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultSessionGuard.kt",
+        ).readText()
+        val viewer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ViewerActivity.kt",
+        ).readText()
+        val patch = File(
+            repo,
+            "patches/droidfs-vaultshelf-file-routing.patch",
+        ).readText()
+
+        assertThat(policy).contains("PREF_ALLOW_SCREENSHOTS")
+        assertThat(policy).contains("window.clearFlags")
+        assertThat(policy).contains("window.addFlags")
+        assertThat(mode).contains("VaultScreenshotPolicy.apply(this)")
+        assertThat(bridge).contains("VaultScreenshotPolicy.apply(this)")
+        assertThat(guard).contains("OnSharedPreferenceChangeListener")
+        assertThat(guard).contains("VaultScreenshotPolicy.apply(activity)")
+        assertThat(viewer).contains("VaultScreenshotPolicy.apply(this)")
+        assertThat(patch).contains("registerOnSharedPreferenceChangeListener")
+        assertThat(patch).contains("window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)")
+        assertThat(patch).contains("loadUnsafeFeatures()")
+        assertThat(patch).contains("explorerAdapter.loadThumbnails")
+    }
+
+    @Test
+    fun newInstallEnablesFingerprintOnlyWhenStrongBiometricsAreUsable() {
+        val startup = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/GanderStartupProvider.kt",
+        ).readText()
+
+        assertThat(startup).contains("!preferences.contains(\"usf_fingerprint\")")
+        assertThat(startup).contains("FingerprintProtector.canAuthenticate(appContext) == 0")
+        assertThat(startup).contains("putBoolean(\"usf_fingerprint\", true)")
+    }
+
+    @Test
+    fun droidFsManagementScreensUseVaultShelfTheme() {
+        val patch = File(
+            repo,
+            "patches/droidfs-vaultshelf-file-routing.patch",
+        ).readText()
+
+        assertThat(patch).contains("class SettingsActivity : BaseActivity()")
+        assertThat(patch).contains("class AddVolumeActivity: BaseActivity()")
+        assertThat(patch).contains("class ChangePasswordActivity: BaseActivity()")
+        assertThat(patch).contains("applyCustomTheme = false")
+    }
 
 
     @Test
