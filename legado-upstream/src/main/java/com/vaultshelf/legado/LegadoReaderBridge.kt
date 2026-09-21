@@ -88,8 +88,8 @@ object LegadoReaderBridge {
     private const val TXT_TOC_RULE_VERSION_KEY = "txtTocRuleVersion"
     private const val TXT_TOC_RULE_VERSION = 3
     private const val VAULTSHELF_SOFT_WHITE_PRESET = "VaultShelf 柔和白"
-    private const val VAULTSHELF_SOFT_WHITE_DEFAULT_MIGRATED =
-        "vaultshelf.reader.soft_white_default_migrated"
+    private const val VAULTSHELF_SOFT_WHITE_DEFAULT_INITIALIZED =
+        "vaultshelf.reader.soft_white_default_v2"
 
     data class TransientBookSession(
         val bookUrl: String,
@@ -217,8 +217,9 @@ object LegadoReaderBridge {
     }
 
     /**
-     * Add VaultShelf's softer light reading palette without shifting Legado's persisted
-     * preset indexes. Existing users keep their current style; the extra preset is appended.
+     * Keep VaultShelf's softer light reading palette available without shifting Legado's
+     * persisted preset indexes. VaultShelf selects this preset as its one-time initial default;
+     * after that, any style the user chooses inside Legado is preserved.
      */
     private fun ensureVaultShelfReadingPreset(context: Context) {
         var index = ReadBookConfig.configList.indexOfFirst {
@@ -243,15 +244,10 @@ object LegadoReaderBridge {
         }
 
         val preferences = context.defaultSharedPreferences
-        if (!preferences.getBoolean(VAULTSHELF_SOFT_WHITE_DEFAULT_MIGRATED, false)) {
-            val selectedName = ReadBookConfig.configList
-                .getOrNull(ReadBookConfig.readStyleSelect)
-                ?.name
-            if (selectedName == "微信读书") {
-                ReadBookConfig.readStyleSelect = index
-            }
+        if (!preferences.getBoolean(VAULTSHELF_SOFT_WHITE_DEFAULT_INITIALIZED, false)) {
+            ReadBookConfig.readStyleSelect = index
             preferences.edit {
-                putBoolean(VAULTSHELF_SOFT_WHITE_DEFAULT_MIGRATED, true)
+                putBoolean(VAULTSHELF_SOFT_WHITE_DEFAULT_INITIALIZED, true)
             }
         }
     }

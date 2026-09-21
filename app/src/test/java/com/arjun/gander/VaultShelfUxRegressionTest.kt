@@ -1632,7 +1632,7 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun existingVaultShelfSoftWhitePresetBecomesDefaultWithoutMutatingStockPresets() {
+    fun vaultShelfSoftWhiteIsTheOneTimeDefaultWithoutMutatingStockPresets() {
         val bridge = File(
             repo,
             "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
@@ -1641,9 +1641,9 @@ class VaultShelfUxRegressionTest {
 
         assertThat(bridge).contains("VAULTSHELF_SOFT_WHITE_PRESET = \"VaultShelf 柔和白\"")
         assertThat(bridge).contains("configList.indexOfFirst")
-        assertThat(bridge).contains("selectedName == \"微信读书\"")
         assertThat(bridge).contains("ReadBookConfig.readStyleSelect = index")
-        assertThat(bridge).contains("soft_white_default_migrated")
+        assertThat(bridge).contains("soft_white_default_v2")
+        assertThat(bridge).doesNotContain("selectedName == \"微信读书\"")
         assertThat(patch).doesNotContain("defaultData/readConfig.json")
         assertThat(patch).doesNotContain("VaultShelf 柔和白")
     }
