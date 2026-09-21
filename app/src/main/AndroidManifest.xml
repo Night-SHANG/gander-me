@@ -115,10 +115,6 @@
             android:exported="false" />
 
         <activity
-            android:name=".vault.VaultSettingsActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".reader.ReaderAppearanceSettingsActivity"
             android:exported="false" />
 
