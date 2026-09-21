@@ -12,13 +12,13 @@ import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.AtomicFile
-import androidx.core.content.edit
 import com.github.liuyueyi.quick.transfer.constants.TransType
 import com.jeremyliao.liveeventbus.LiveEventBus
 import com.script.rhino.ReadOnlyJavaObject
 import com.script.rhino.RhinoScriptEngine
 import com.script.rhino.RhinoWrapFactory
 import io.legado.app.constant.AppConst
+import io.legado.app.constant.PreferKey
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
@@ -88,8 +88,6 @@ object LegadoReaderBridge {
     private const val TXT_TOC_RULE_VERSION_KEY = "txtTocRuleVersion"
     private const val TXT_TOC_RULE_VERSION = 3
     private const val VAULTSHELF_SOFT_WHITE_PRESET = "VaultShelf 柔和白"
-    private const val VAULTSHELF_SOFT_WHITE_DEFAULT_INITIALIZED =
-        "vaultshelf.reader.soft_white_default_v2"
 
     data class TransientBookSession(
         val bookUrl: String,
@@ -218,8 +216,8 @@ object LegadoReaderBridge {
 
     /**
      * Keep VaultShelf's softer light reading palette available without shifting Legado's
-     * persisted preset indexes. VaultShelf selects this preset as its one-time initial default;
-     * after that, any style the user chooses inside Legado is preserved.
+     * persisted preset indexes. When Legado has no saved reading-style preference yet,
+     * VaultShelf uses this existing preset as the product default.
      */
     private fun ensureVaultShelfReadingPreset(context: Context) {
         var index = ReadBookConfig.configList.indexOfFirst {
@@ -244,11 +242,8 @@ object LegadoReaderBridge {
         }
 
         val preferences = context.defaultSharedPreferences
-        if (!preferences.getBoolean(VAULTSHELF_SOFT_WHITE_DEFAULT_INITIALIZED, false)) {
+        if (!preferences.contains(PreferKey.readStyleSelect)) {
             ReadBookConfig.readStyleSelect = index
-            preferences.edit {
-                putBoolean(VAULTSHELF_SOFT_WHITE_DEFAULT_INITIALIZED, true)
-            }
         }
     }
 
