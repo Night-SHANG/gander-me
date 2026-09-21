@@ -1,8 +1,8 @@
 package com.arjun.gander.reader
 
 import android.content.Context
-import android.graphics.Color
 import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 import java.util.Locale
 
 object ReaderChromePreferences {
@@ -19,7 +19,7 @@ object ReaderChromePreferences {
     }
 
     fun isValid(value: String): Boolean =
-        normalizeHex(value)?.let { runCatching { Color.parseColor(it) }.isSuccess } == true
+        normalizeHex(value)?.let { runCatching { it.toColorInt() }.isSuccess } == true
 
     fun load(context: Context): String =
         normalizeHex(prefs(context).getString(KEY_PRIMARY, null).orEmpty())
