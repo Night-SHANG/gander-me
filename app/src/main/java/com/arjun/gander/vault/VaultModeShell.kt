@@ -108,6 +108,7 @@ fun VaultModeShell(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
+    onOpenVaultSwitcher: () -> Unit,
     onOpenExternalDestination: (String) -> Unit,
     modifier: Modifier = Modifier,
     initialDestinationName: String = VaultModeDestination.HOME.name,
@@ -1224,7 +1225,6 @@ private fun VaultSettingsScreen(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
-    onOpenVaultSwitcher: () -> Unit,
     onOpenExternalDestination: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
