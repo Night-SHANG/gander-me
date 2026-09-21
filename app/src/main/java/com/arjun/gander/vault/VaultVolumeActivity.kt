@@ -13,8 +13,6 @@ import com.arjun.gander.VaultShelfActivity
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
-import com.arjun.gander.ui.shell.VaultShelfVaultDestinations
-import com.arjun.gander.ui.shell.VaultShelfVaultLabelOverrides
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import sushi.hardcore.droidfs.MainActivity
 import sushi.hardcore.droidfs.R as DroidFsR
@@ -61,28 +59,27 @@ class VaultVolumeActivity : MainActivity() {
                 )
                 setContent {
                     VaultShelfTheme {
-                        VaultShelfBottomBar(
-                            destinations = if (switchingMode) {
-                                VaultShelfVaultDestinations
-                            } else {
-                                VaultShelfExternalDestinations
-                            },
-                            selected = VaultShelfDestination.VAULT,
-                            onSelected = { destination ->
-                                if (destination != VaultShelfDestination.VAULT) {
-                                    if (switchingMode) {
-                                        openCurrentVaultDestination(destination.name)
-                                    } else {
+                        if (switchingMode) {
+                            VaultBottomBar(
+                                selected = VaultBottomDestination.SWITCH,
+                                onSelected = { destination ->
+                                    when (destination) {
+                                        VaultBottomDestination.SWITCH -> Unit
+                                        else -> openCurrentVaultDestination(destination)
+                                    }
+                                },
+                            )
+                        } else {
+                            VaultShelfBottomBar(
+                                destinations = VaultShelfExternalDestinations,
+                                selected = VaultShelfDestination.VAULT,
+                                onSelected = { destination ->
+                                    if (destination != VaultShelfDestination.VAULT) {
                                         openExternalDestination(destination.name)
                                     }
-                                }
-                            },
-                            labelOverrides = if (switchingMode) {
-                                VaultShelfVaultLabelOverrides
-                            } else {
-                                emptyMap()
-                            },
-                        )
+                                },
+                            )
+                        }
                     }
                 }
             },
@@ -100,26 +97,35 @@ class VaultVolumeActivity : MainActivity() {
         switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)
     }
 
-    private fun openCurrentVaultDestination(destination: String) {
+    private fun openCurrentVaultDestination(destination: VaultBottomDestination) {
         val currentUuid = intent.getStringExtra(EXTRA_CURRENT_VOLUME_UUID)
         val current = (application as VolumeManagerApp)
             .volumeManager
             .listVolumes()
             .firstOrNull { it.second.uuid == currentUuid }
         if (current == null) {
-            openExternalDestination(destination)
+            openExternalDestination(destination.name)
             return
         }
 
         switchingMode = false
         intent.putExtra(EXTRA_SWITCHING_VAULT, false)
-        startActivity(
-            Intent(this, VaultModeActivity::class.java)
+        val target = when (destination) {
+            VaultBottomDestination.FILES -> Intent(
+                this,
+                com.arjun.gander.files.VaultExplorerActivity::class.java,
+            )
+                .putExtra("volumeId", current.first)
+                .putExtra("volumeName", current.second.shortName)
+            VaultBottomDestination.HOME,
+            VaultBottomDestination.LIBRARY,
+            VaultBottomDestination.SETTINGS -> Intent(this, VaultModeActivity::class.java)
                 .putExtra(VaultModeActivity.EXTRA_VOLUME_ID, current.first)
                 .putExtra(VaultModeActivity.EXTRA_VOLUME_NAME, current.second.shortName)
-                .putExtra(VaultModeActivity.EXTRA_INITIAL_DESTINATION, destination)
-                .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
-        )
+                .putExtra(VaultModeActivity.EXTRA_INITIAL_DESTINATION, destination.name)
+            VaultBottomDestination.SWITCH -> return
+        }.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        startActivity(target)
         overridePendingTransition(0, 0)
     }
 
