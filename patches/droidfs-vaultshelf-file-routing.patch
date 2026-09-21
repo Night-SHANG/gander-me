@@ -379,7 +379,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumePr
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
-@@ -1,506 +1,526 @@
+@@ -1,506 +1,527 @@
 -package sushi.hardcore.droidfs
 -
 -import android.content.Intent
