@@ -256,7 +256,8 @@ class VaultShelfUxRegressionTest {
         assertThat(activity).doesNotContain("readerSettingsIntent")
         assertThat(shell).contains("onOpenAbout")
         assertThat(shell).doesNotContain("FoundationScreen")
-        assertThat(activity).contains("VaultSettingsActivity")
+        assertThat(activity).contains("DroidFsSettingsActivity::class.java")
+        assertThat(activity).doesNotContain("VaultSettingsActivity")
         assertThat(main).contains("EXTRA_SHOW_ABOUT")
     }
 
@@ -634,6 +635,7 @@ class VaultShelfUxRegressionTest {
         assertThat(policy).contains("window.clearFlags")
         assertThat(policy).contains("window.addFlags")
         assertThat(mode).contains("VaultScreenshotPolicy.apply(this)")
+        assertThat(mode).contains("override fun onWindowFocusChanged(hasFocus: Boolean)")
         assertThat(bridge).contains("VaultScreenshotPolicy.apply(this)")
         assertThat(guard).contains("OnSharedPreferenceChangeListener")
         assertThat(guard).contains("VaultScreenshotPolicy.apply(activity)")
@@ -853,7 +855,8 @@ class VaultShelfUxRegressionTest {
         assertThat(mode).contains("VaultModeShell")
         assertThat(mode).contains("VaultExplorerActivity::class.java")
         assertThat(explorer).contains("VaultShelfBottomBar")
-        assertThat(explorer).contains("selected = VaultShelfDestination.VAULT")
+        assertThat(explorer).contains("destinations = VaultShelfVaultDestinations")
+        assertThat(explorer).contains("selected = VaultShelfDestination.FILES")
         assertThat(storage).contains("METADATA_FILE = \"/.vaultshelf/library.json\"")
         assertThat(storage).contains("LIBRARY_FILES_DIRECTORY = \"/.vaultshelf/library-files\"")
         assertThat(storage).contains("fun addPath")
@@ -1320,8 +1323,10 @@ class VaultShelfUxRegressionTest {
             assertThat(source).contains("ComposeView")
         }
         assertThat(external).contains("selected = VaultShelfDestination.FILES")
-        assertThat(vault).contains("selected = VaultShelfDestination.VAULT")
-        assertThat(vaultShell).contains("selected = VaultShelfDestination.VAULT")
+        assertThat(vault).contains("destinations = VaultShelfVaultDestinations")
+        assertThat(vault).contains("selected = VaultShelfDestination.FILES")
+        assertThat(vaultShell).contains("destinations = VaultShelfVaultDestinations")
+        assertThat(vaultShell).contains("bottomDestination")
         assertThat(layout).contains("androidx.compose.ui.platform.ComposeView")
         assertThat(layout).doesNotContain("BottomNavigationView")
         assertThat(layout).doesNotContain("vaultshelf_explorer_nav_item_tint")
@@ -1506,8 +1511,10 @@ class VaultShelfUxRegressionTest {
         assertThat(activity).contains("VaultVolumeActivity::class.java")
         assertThat(chooser).contains("VaultShelfBottomBar(")
         assertThat(chooser).contains("selected = VaultShelfDestination.VAULT")
-        assertThat(vaultShell).contains("destinations = VaultShelfExternalDestinations")
-        assertThat(vaultShell).contains("selected = VaultShelfDestination.VAULT")
+        assertThat(vaultShell).contains("destinations = VaultShelfVaultDestinations")
+        assertThat(vaultShell).contains("VaultModeDestination.HOME -> VaultShelfDestination.HOME")
+        assertThat(vaultShell).contains("VaultModeDestination.LIBRARY -> VaultShelfDestination.LIBRARY")
+        assertThat(vaultShell).contains("VaultModeDestination.SETTINGS -> VaultShelfDestination.SETTINGS")
         assertThat(patch).contains("volumeManager.getVolumeId(volumeData)?.let")
         assertThat(patch).contains("explorerRouter.importTargetMode")
         assertThat(patch).contains("intent.getBooleanExtra(\"vaultshelf.shell_entry\", false)")
@@ -1561,29 +1568,31 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun defaultVaultUsesUuidAndKeepsAllThreeControlSurfacesInSync() {
+    fun defaultVaultUsesUuidAndLivesInUnifiedDroidFsSettings() {
         val preference = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultDefaultVolumePreference.kt",
         ).readText()
-        val settings = File(
+        val activity = File(
             repo,
-            "app/src/main/java/com/arjun/gander/vault/VaultSettingsActivity.kt",
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
         ).readText()
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
 
         assertThat(preference).contains("volume.uuid")
         assertThat(preference).contains("it.name == stored")
         assertThat(preference).contains("Constants.DEFAULT_VOLUME_KEY")
-        assertThat(settings).contains("vault_default_volume_none")
+        assertThat(activity).contains("DroidFsSettingsActivity::class.java")
+        assertThat(patch).contains("findPreference<ListPreference>(Constants.DEFAULT_VOLUME_KEY)")
+        assertThat(patch).contains("vaultshelf_default_volume_title")
+        assertThat(patch).contains("volumes.map { it.uuid }")
         assertThat(patch).contains("putString(DEFAULT_VOLUME_KEY, volume.uuid)")
         assertThat(patch).contains("dialogBinding!!.checkboxDefaultOpen.isChecked = isDefaultVolume(volume)")
         assertThat(patch).contains("setDefaultVolumeMenuId")
-        assertThat(patch).contains("vaultshelf_default_volume_label")
     }
 
     @Test
-    fun vaultTabReopensChooserAndSwitchingDoesNotReturnToPreviousVault() {
+    fun vaultNavigationStaysInsideVaultAndSwitcherIsExplicit() {
         val vaultShell = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
@@ -1598,13 +1607,16 @@ class VaultShelfUxRegressionTest {
         ).readText()
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
 
-        assertThat(vaultShell).contains("destination == VaultShelfDestination.VAULT")
-        assertThat(vaultMode).contains("EXTRA_SWITCHING_VAULT")
-        assertThat(vaultFiles).contains("EXTRA_SWITCHING_VAULT")
+        assertThat(vaultShell).contains("destinations = VaultShelfVaultDestinations")
+        assertThat(vaultShell).contains("VaultShelfDestination.FILES -> onOpenFiles()")
+        assertThat(vaultShell).contains("Button(onClick = onOpenVaultSwitcher")
+        assertThat(vaultFiles).contains("openVaultShell(destination.name)")
+        assertThat(vaultFiles).doesNotContain("openExternalShell(destination.name)")
+        assertThat(vaultMode).contains("override fun onNewIntent(intent: Intent)")
+        assertThat(vaultMode).contains("applyNavigationIntent(intent)")
         assertThat(patch).contains(
             "if (!intent.getBooleanExtra(\"vaultshelf.switching_vault\", false))",
         )
-        assertThat(patch).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
     }
 
     @Test
@@ -1632,6 +1644,32 @@ class VaultShelfUxRegressionTest {
         assertThat(patch).doesNotContain(
             "explorerIntent.putExtra(\"vaultshelf.mode.initial_destination\", \"FILES\")",
         )
+    }
+
+    @Test
+    fun reusedShellActivitiesApplyRequestedDestinationImmediately() {
+        val external = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
+        ).readText()
+        val externalShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+        val vaultMode = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
+        val vaultShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+
+        assertThat(external).contains("override fun onNewIntent(intent: Intent)")
+        assertThat(external).contains("applyNavigationIntent(intent)")
+        assertThat(externalShell).contains("LaunchedEffect(initialDestinationName)")
+        assertThat(vaultMode).contains("override fun onNewIntent(intent: Intent)")
+        assertThat(vaultShell).contains("LaunchedEffect(initialDestinationName)")
     }
 
     @Test
