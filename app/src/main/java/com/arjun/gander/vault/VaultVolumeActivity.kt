@@ -18,6 +18,7 @@ import com.arjun.gander.ui.shell.VaultShelfVaultLabelOverrides
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import sushi.hardcore.droidfs.MainActivity
 import sushi.hardcore.droidfs.R as DroidFsR
+import sushi.hardcore.droidfs.VolumeManagerApp
 
 /**
  * VaultShelf wrapper around DroidFS' mature volume chooser.
@@ -69,7 +70,11 @@ class VaultVolumeActivity : MainActivity() {
                             selected = VaultShelfDestination.VAULT,
                             onSelected = { destination ->
                                 if (destination != VaultShelfDestination.VAULT) {
-                                    openExternalDestination(destination.name)
+                                    if (switchingMode) {
+                                        openCurrentVaultDestination(destination.name)
+                                    } else {
+                                        openExternalDestination(destination.name)
+                                    }
                                 }
                             },
                             labelOverrides = if (switchingMode) {
@@ -88,6 +93,34 @@ class VaultVolumeActivity : MainActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)
+    }
+
+    private fun openCurrentVaultDestination(destination: String) {
+        val currentUuid = intent.getStringExtra(EXTRA_CURRENT_VOLUME_UUID)
+        val current = (application as VolumeManagerApp)
+            .volumeManager
+            .listVolumes()
+            .firstOrNull { it.second.uuid == currentUuid }
+        if (current == null) {
+            openExternalDestination(destination)
+            return
+        }
+
+        switchingMode = false
+        intent.putExtra(EXTRA_SWITCHING_VAULT, false)
+        startActivity(
+            Intent(this, VaultModeActivity::class.java)
+                .putExtra(VaultModeActivity.EXTRA_VOLUME_ID, current.first)
+                .putExtra(VaultModeActivity.EXTRA_VOLUME_NAME, current.second.shortName)
+                .putExtra(VaultModeActivity.EXTRA_INITIAL_DESTINATION, destination)
+                .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+        )
+        overridePendingTransition(0, 0)
     }
 
     private fun openExternalDestination(destination: String) {
