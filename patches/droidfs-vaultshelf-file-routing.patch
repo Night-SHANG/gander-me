@@ -4532,7 +4532,7 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
 --- a/app/src/main/res/values/strings.xml
 +++ b/app/src/main/res/values/strings.xml
-@@ -301,5 +301,8 @@
+@@ -301,4 +301,7 @@
      <string name="propose_wipe_imported_files_summary">After importing files, ask whether to wipe them from the source</string>
      <string name="vaultshelf_current_volume_label">Current</string>
      <string name="vaultshelf_default_volume_label">Default</string>
@@ -4540,12 +4540,11 @@ diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strin
 +    <string name="vaultshelf_default_volume_title">Default vault</string>
 +    <string name="vaultshelf_default_volume_none">None</string>
  </resources>
- 
 
 diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
 --- a/app/src/main/res/values-zh-rCN/strings.xml
 +++ b/app/src/main/res/values-zh-rCN/strings.xml
-@@ -270,5 +270,8 @@
+@@ -270,4 +270,7 @@
      <string name="export_disk">导出至磁盘</string>
      <string name="vaultshelf_current_volume_label">当前</string>
      <string name="vaultshelf_default_volume_label">默认</string>
