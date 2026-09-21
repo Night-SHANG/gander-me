@@ -24,6 +24,7 @@ import com.arjun.gander.transfer.TransferSourceDecision
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfVaultDestinations
+import com.arjun.gander.ui.shell.VaultShelfVaultLabelOverrides
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.EncryptedVolumeInputStream
 import com.arjun.gander.vault.VaultImportTargetActivity
@@ -31,6 +32,7 @@ import com.arjun.gander.vault.VaultLibraryEntry
 import com.arjun.gander.vault.VaultLibraryStore
 import com.arjun.gander.vault.VaultSecurityPolicy
 import com.arjun.gander.vault.VaultModeActivity
+import com.arjun.gander.vault.VaultVolumeActivity
 import com.arjun.gander.vault.VaultFileRepository
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfProgressStore
@@ -451,12 +453,28 @@ class VaultExplorerActivity : ExplorerActivity() {
                             VaultShelfDestination.HOME,
                             VaultShelfDestination.LIBRARY,
                             VaultShelfDestination.SETTINGS -> openVaultShell(destination.name)
-                            VaultShelfDestination.VAULT -> Unit
+                            VaultShelfDestination.VAULT -> openVaultSwitcher()
                         }
                     },
+                    labelOverrides = VaultShelfVaultLabelOverrides,
                 )
             }
         }
+    }
+
+    private fun openVaultSwitcher() {
+        startActivity(
+            Intent(this, VaultVolumeActivity::class.java)
+                .putExtra(com.arjun.gander.VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY, true)
+                .putExtra(VaultVolumeActivity.EXTRA_SWITCHING_VAULT, true)
+                .addFlags(
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                ),
+        )
+        overridePendingTransition(0, 0)
+        finish()
     }
 
     private fun openVaultShell(destination: String) {
