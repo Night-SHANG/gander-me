@@ -41,12 +41,10 @@ internal val VaultShelfExternalDestinations: List<VaultShelfDestination> =
     VaultShelfDestination.entries
 
 internal val VaultShelfVaultDestinations: List<VaultShelfDestination> =
-    listOf(
-        VaultShelfDestination.HOME,
-        VaultShelfDestination.LIBRARY,
-        VaultShelfDestination.FILES,
-        VaultShelfDestination.SETTINGS,
-    )
+    VaultShelfDestination.entries
+
+internal val VaultShelfVaultLabelOverrides: Map<VaultShelfDestination, Int> =
+    mapOf(VaultShelfDestination.VAULT to R.string.vaultshelf_nav_switch)
 
 @Composable
 internal fun VaultShelfBottomBar(
@@ -54,6 +52,7 @@ internal fun VaultShelfBottomBar(
     selected: VaultShelfDestination,
     onSelected: (VaultShelfDestination) -> Unit,
     modifier: Modifier = Modifier,
+    labelOverrides: Map<VaultShelfDestination, Int> = emptyMap(),
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -100,7 +99,7 @@ internal fun VaultShelfBottomBar(
                         modifier = Modifier.size(22.dp),
                     )
                     Text(
-                        text = stringResource(destination.labelRes),
+                        text = stringResource(labelOverrides[destination] ?: destination.labelRes),
                         style = MaterialTheme.typography.labelSmall,
                         color = contentColor,
                         maxLines = 1,
