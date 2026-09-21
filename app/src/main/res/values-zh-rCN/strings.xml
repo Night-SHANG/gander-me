@@ -259,8 +259,6 @@
 
     <string name="vault_default_volume_title">默认卷</string>
     <string name="vault_default_volume_none">无</string>
-    <string name="vault_default_volume_value">默认卷：%1$s</string>
-    <string name="vault_current_volume">当前卷</string>
     <string name="vault_switch_volume">切换保险库卷</string>
 
     <string name="vault_default_volume_selected">已设为默认卷</string>
