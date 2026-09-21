@@ -4,6 +4,7 @@ package com.arjun.gander.vault
 
 import android.content.Context
 import android.net.Uri
+import android.text.format.Formatter
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -74,6 +75,11 @@ import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.transfer.TransferBehaviorPreferences
 import com.arjun.gander.transfer.TransferRoute
 import com.arjun.gander.transfer.TransferSourceDecision
+import com.arjun.gander.ui.library.BookMenuButton
+import com.arjun.gander.ui.library.ShelfHeader
+import com.arjun.gander.ui.library.ShelfSort
+import com.arjun.gander.ui.library.ShelfViewMode
+import com.arjun.gander.ui.library.filterAndSortShelfItems
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
@@ -92,14 +98,6 @@ private enum class VaultModeDestination {
 private enum class VaultLibraryCompletedTransfer {
     EXTERNAL_FILES,
     EXTERNAL_LIBRARY,
-}
-
-private enum class VaultLibraryViewMode { GRID, LIST }
-
-private enum class VaultLibrarySort(@StringRes val labelRes: Int) {
-    LAST_ACTIVITY(R.string.vaultshelf_library_sort_recent),
-    TITLE(R.string.vaultshelf_library_sort_title),
-    ADDED(R.string.vaultshelf_library_sort_added),
 }
 
 private const val VAULT_LIBRARY_UI_PREFERENCES = "vaultshelf_vault_library_ui"
@@ -358,8 +356,8 @@ private fun VaultLibraryScreen(
     }
     var books by remember { mutableStateOf<List<VaultLibraryEntry>>(emptyList()) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var sortName by rememberSaveable { mutableStateOf(VaultLibrarySort.LAST_ACTIVITY.name) }
-    var viewModeName by rememberSaveable { mutableStateOf(VaultLibraryViewMode.GRID.name) }
+    var sortName by rememberSaveable { mutableStateOf(ShelfSort.LAST_ACTIVITY.name) }
+    var viewModeName by rememberSaveable { mutableStateOf(ShelfViewMode.GRID.name) }
     var gridColumns by rememberSaveable(fileRepository.volumeUuid) {
         mutableIntStateOf(
             shelfPreferences.getInt(
@@ -373,13 +371,23 @@ private fun VaultLibraryScreen(
     var completedTransfer by remember { mutableStateOf<VaultLibraryCompletedTransfer?>(null) }
     var completedSourceIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var entryToRename by remember { mutableStateOf<VaultLibraryEntry?>(null) }
+    var entryToInspect by remember { mutableStateOf<VaultLibraryEntry?>(null) }
 
-    val sort = runCatching { VaultLibrarySort.valueOf(sortName) }
-        .getOrDefault(VaultLibrarySort.LAST_ACTIVITY)
-    val viewMode = runCatching { VaultLibraryViewMode.valueOf(viewModeName) }
-        .getOrDefault(VaultLibraryViewMode.GRID)
+    val sort = runCatching { ShelfSort.valueOf(sortName) }
+        .getOrDefault(ShelfSort.LAST_ACTIVITY)
+    val viewMode = runCatching { ShelfViewMode.valueOf(viewModeName) }
+        .getOrDefault(ShelfViewMode.GRID)
     val visibleBooks = remember(books, searchQuery, sort) {
-        filterAndSortVaultBooks(books, searchQuery, sort)
+        filterAndSortShelfItems(
+            items = books,
+            query = searchQuery,
+            sort = sort,
+            title = { it.title },
+            addedAtEpochMillis = { it.addedAtEpochMillis },
+            lastOpenedAtEpochMillis = { it.lastOpenedAtEpochMillis },
+            progressFraction = { 0f },
+        )
     }
 
     fun refresh() {
@@ -503,8 +511,8 @@ private fun VaultLibraryScreen(
                 onDelete = { confirmDelete = true },
             )
         } else {
-            VaultLibraryHeader(
-                itemCount = books.size,
+            ShelfHeader(
+                bookCount = books.size,
                 visibleCount = visibleBooks.size,
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
@@ -512,10 +520,10 @@ private fun VaultLibraryScreen(
                 onSortChange = { sortName = it.name },
                 viewMode = viewMode,
                 onViewModeChange = {
-                    viewModeName = if (viewMode == VaultLibraryViewMode.GRID) {
-                        VaultLibraryViewMode.LIST.name
+                    viewModeName = if (viewMode == ShelfViewMode.GRID) {
+                        ShelfViewMode.LIST.name
                     } else {
-                        VaultLibraryViewMode.GRID.name
+                        ShelfViewMode.GRID.name
                     }
                 },
                 gridColumns = gridColumns,
@@ -525,7 +533,24 @@ private fun VaultLibraryScreen(
                         putInt(VAULT_LIBRARY_GRID_COLUMNS, gridColumns)
                     }
                 },
-                onOpenFiles = onOpenFiles,
+                onImport = onOpenFiles,
+                titleOverride = stringResource(R.string.vault_library_title),
+                countOverride = if (searchQuery.isBlank()) {
+                    pluralStringResource(R.plurals.vault_library_count, books.size, books.size)
+                } else {
+                    pluralStringResource(
+                        R.plurals.vaultshelf_library_search_result_count,
+                        books.size,
+                        visibleBooks.size,
+                        books.size,
+                    )
+                },
+                actionOverride = stringResource(R.string.vault_library_add_from_files),
+                availableSorts = listOf(
+                    ShelfSort.LAST_ACTIVITY,
+                    ShelfSort.TITLE,
+                    ShelfSort.ADDED,
+                ),
             )
         }
 
@@ -584,7 +609,7 @@ private fun VaultLibraryScreen(
                 }
             }
 
-            viewMode == VaultLibraryViewMode.GRID -> {
+            viewMode == ShelfViewMode.GRID -> {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(gridColumns),
                     modifier = Modifier.fillMaxSize(),
@@ -616,6 +641,10 @@ private fun VaultLibraryScreen(
                                     if (!add(entry.id)) remove(entry.id)
                                 }
                             },
+                            onRename = { entryToRename = entry },
+                            onInfo = { entryToInspect = entry },
+                            onRename = { entryToRename = entry },
+                            onInfo = { entryToInspect = entry },
                             onRemove = {
                                 selectedIds = setOf(entry.id)
                                 confirmDelete = true
@@ -664,6 +693,68 @@ private fun VaultLibraryScreen(
                 }
             }
         }
+    }
+
+    entryToRename?.let { entry ->
+        var title by remember(entry.id) { mutableStateOf(entry.title) }
+        AlertDialog(
+            onDismissRequest = { entryToRename = null },
+            title = { Text(stringResource(R.string.vaultshelf_library_rename_title)) },
+            text = {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    singleLine = false,
+                    maxLines = 3,
+                    label = { Text(stringResource(R.string.vaultshelf_library_rename_label)) },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = title.isNotBlank(),
+                    onClick = {
+                        val newTitle = title
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                libraryStore.rename(entry.id, newTitle)
+                            }
+                            entryToRename = null
+                            refresh()
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.vaultshelf_library_rename_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { entryToRename = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+
+    entryToInspect?.let { entry ->
+        AlertDialog(
+            onDismissRequest = { entryToInspect = null },
+            title = { Text(entry.title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.vaultshelf_library_info_format, entry.format.name))
+                    Text(
+                        stringResource(
+                            R.string.vaultshelf_library_info_size,
+                            Formatter.formatShortFileSize(context, entry.sizeBytes),
+                        ),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { entryToInspect = null }) {
+                    Text(stringResource(R.string.about_close))
+                }
+            },
+        )
     }
 
     if (confirmDelete) {
@@ -780,169 +871,6 @@ private fun VaultLibraryScreen(
     }
 }
 
-private fun filterAndSortVaultBooks(
-    books: List<VaultLibraryEntry>,
-    query: String,
-    sort: VaultLibrarySort,
-): List<VaultLibraryEntry> {
-    val normalizedQuery = query.trim()
-    val filtered = if (normalizedQuery.isEmpty()) {
-        books
-    } else {
-        books.filter { it.title.contains(normalizedQuery, ignoreCase = true) }
-    }
-    return when (sort) {
-        VaultLibrarySort.LAST_ACTIVITY -> filtered.sortedWith(
-            compareByDescending<VaultLibraryEntry> {
-                if (it.lastOpenedAtEpochMillis > 0L) it.lastOpenedAtEpochMillis else it.addedAtEpochMillis
-            }.thenBy { it.title.lowercase() },
-        )
-        VaultLibrarySort.TITLE -> filtered.sortedBy { it.title.lowercase() }
-        VaultLibrarySort.ADDED -> filtered.sortedByDescending { it.addedAtEpochMillis }
-    }
-}
-
-@Composable
-private fun VaultLibraryHeader(
-    itemCount: Int,
-    visibleCount: Int,
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
-    sort: VaultLibrarySort,
-    onSortChange: (VaultLibrarySort) -> Unit,
-    viewMode: VaultLibraryViewMode,
-    onViewModeChange: () -> Unit,
-    gridColumns: Int,
-    onGridColumnsChange: (Int) -> Unit,
-    onOpenFiles: () -> Unit,
-) {
-    var sortExpanded by remember { mutableStateOf(false) }
-    var gridExpanded by remember { mutableStateOf(false) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = stringResource(R.string.vault_library_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = if (searchQuery.isBlank()) {
-                        pluralStringResource(R.plurals.vault_library_count, itemCount, itemCount)
-                    } else {
-                        pluralStringResource(
-                            R.plurals.vaultshelf_library_search_result_count,
-                            itemCount,
-                            visibleCount,
-                            itemCount,
-                        )
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            TextButton(onClick = onOpenFiles) {
-                Text(stringResource(R.string.vault_library_add_from_files))
-            }
-        }
-
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(stringResource(R.string.vaultshelf_library_search_hint)) },
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box {
-                TextButton(onClick = { sortExpanded = true }) {
-                    Text(
-                        stringResource(
-                            R.string.vaultshelf_library_sort_button,
-                            stringResource(sort.labelRes),
-                        ),
-                    )
-                }
-                DropdownMenu(
-                    expanded = sortExpanded,
-                    onDismissRequest = { sortExpanded = false },
-                ) {
-                    VaultLibrarySort.entries.forEach { item ->
-                        DropdownMenuItem(
-                            text = { Text(stringResource(item.labelRes)) },
-                            onClick = {
-                                sortExpanded = false
-                                onSortChange(item)
-                            },
-                        )
-                    }
-                }
-            }
-            TextButton(onClick = onViewModeChange) {
-                Text(
-                    stringResource(
-                        if (viewMode == VaultLibraryViewMode.GRID) {
-                            R.string.vaultshelf_library_view_list
-                        } else {
-                            R.string.vaultshelf_library_view_grid
-                        },
-                    ),
-                )
-            }
-            if (viewMode == VaultLibraryViewMode.GRID) {
-                Box {
-                    TextButton(onClick = { gridExpanded = true }) {
-                        Text(
-                            pluralStringResource(
-                                R.plurals.vaultshelf_library_grid_columns,
-                                gridColumns,
-                                gridColumns,
-                            ),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = gridExpanded,
-                        onDismissRequest = { gridExpanded = false },
-                    ) {
-                        (2..6).forEach { columns ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        pluralStringResource(
-                                            R.plurals.vaultshelf_library_grid_columns,
-                                            columns,
-                                            columns,
-                                        ),
-                                    )
-                                },
-                                onClick = {
-                                    gridExpanded = false
-                                    onGridColumnsChange(columns)
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 @Composable
 private fun VaultLibrarySelectionHeader(
     selectedCount: Int,
@@ -1052,6 +980,8 @@ private fun VaultBookCard(
     selectionMode: Boolean,
     onOpen: () -> Unit,
     onLongPress: () -> Unit,
+    onRename: () -> Unit,
+    onInfo: () -> Unit,
     onRemove: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1092,17 +1022,13 @@ private fun VaultBookCard(
                     )
                 }
             } else if (!selectionMode) {
-                TextButton(
-                    onClick = onRemove,
+                BookMenuButton(
+                    onOpen = onOpen,
+                    onRename = onRename,
+                    onDelete = onRemove,
+                    onInfo = onInfo,
                     modifier = Modifier.align(Alignment.TopEnd),
-                    contentPadding = PaddingValues(horizontal = 7.dp, vertical = 3.dp),
-                ) {
-                    Text(
-                        text = "⋯",
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                }
+                )
             }
         }
         Text(
@@ -1133,6 +1059,8 @@ private fun VaultBookListItem(
     selectionMode: Boolean,
     onOpen: () -> Unit,
     onLongPress: () -> Unit,
+    onRename: () -> Unit,
+    onInfo: () -> Unit,
     onRemove: () -> Unit,
 ) {
     Surface(
@@ -1182,9 +1110,12 @@ private fun VaultBookListItem(
                     style = MaterialTheme.typography.titleLarge,
                 )
             } else if (!selectionMode) {
-                TextButton(onClick = onRemove) {
-                    Text("⋯", style = MaterialTheme.typography.titleLarge)
-                }
+                BookMenuButton(
+                    onOpen = onOpen,
+                    onRename = onRename,
+                    onDelete = onRemove,
+                    onInfo = onInfo,
+                )
             }
         }
     }
