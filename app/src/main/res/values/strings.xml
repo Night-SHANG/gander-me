@@ -281,7 +281,6 @@
     <string name="vault_export_blocked">Vault plaintext export is disabled. Enable “Allow exporting files” in Vault security settings first.</string>
     <string name="vaultshelf_files_remove_access_title">Remove folder access?</string>
     <string name="vaultshelf_files_remove_access_message">VaultShelf will stop showing the authorized folder “%1$s”. The files themselves will not be deleted.</string>
-    <string name="vault_switch_volume">Switch vault</string>
 
     <string name="reader_appearance_title">Reader interface color</string>
     <string name="reader_appearance_entry_detail">Change the reader UI color that used to be brown. Reading text and page background remain controlled inside the reader.</string>
