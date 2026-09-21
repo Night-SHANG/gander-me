@@ -40,11 +40,6 @@ internal enum class VaultShelfDestination(
 internal val VaultShelfExternalDestinations: List<VaultShelfDestination> =
     VaultShelfDestination.entries
 
-internal val VaultShelfVaultDestinations: List<VaultShelfDestination> =
-    VaultShelfDestination.entries
-
-internal val VaultShelfVaultLabelOverrides: Map<VaultShelfDestination, Int> =
-    mapOf(VaultShelfDestination.VAULT to R.string.vaultshelf_nav_switch)
 
 @Composable
 internal fun VaultShelfBottomBar(
