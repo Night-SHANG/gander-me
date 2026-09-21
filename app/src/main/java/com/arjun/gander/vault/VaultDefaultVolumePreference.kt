@@ -1,6 +1,7 @@
 package com.arjun.gander.vault
 
 import android.content.Context
+import androidx.core.content.edit
 import sushi.hardcore.droidfs.Constants
 import sushi.hardcore.droidfs.VolumeData
 import sushi.hardcore.droidfs.VolumeDatabase
@@ -40,15 +41,15 @@ object VaultDefaultVolumePreference {
     }
 
     fun set(context: Context, volume: VolumeData) {
-        prefs(context).edit()
-            .putString(Constants.DEFAULT_VOLUME_KEY, volume.uuid)
-            .apply()
+        prefs(context).edit {
+            putString(Constants.DEFAULT_VOLUME_KEY, volume.uuid)
+        }
     }
 
     fun clear(context: Context) {
-        prefs(context).edit()
-            .remove(Constants.DEFAULT_VOLUME_KEY)
-            .apply()
+        prefs(context).edit {
+            remove(Constants.DEFAULT_VOLUME_KEY)
+        }
     }
 
     fun isDefault(context: Context, volume: VolumeData): Boolean =

@@ -12,6 +12,7 @@ import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.AtomicFile
+import androidx.core.content.edit
 import com.github.liuyueyi.quick.transfer.constants.TransType
 import com.jeremyliao.liveeventbus.LiveEventBus
 import com.script.rhino.ReadOnlyJavaObject
@@ -87,6 +88,8 @@ object LegadoReaderBridge {
     private const val TXT_TOC_RULE_VERSION_KEY = "txtTocRuleVersion"
     private const val TXT_TOC_RULE_VERSION = 3
     private const val VAULTSHELF_SOFT_WHITE_PRESET = "VaultShelf 柔和白"
+    private const val VAULTSHELF_SOFT_WHITE_DEFAULT_MIGRATED =
+        "vaultshelf.reader.soft_white_default_migrated"
 
     data class TransientBookSession(
         val bookUrl: String,
@@ -130,7 +133,7 @@ object LegadoReaderBridge {
         appContext.injectAsAppCtx()
 
         if (!initialized.compareAndSet(false, true)) return
-        ensureVaultShelfReadingPreset()
+        ensureVaultShelfReadingPreset(appContext)
         val configuration = Configuration(appContext.resources.configuration)
         var observedNightMode = configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
 
@@ -217,22 +220,40 @@ object LegadoReaderBridge {
      * Add VaultShelf's softer light reading palette without shifting Legado's persisted
      * preset indexes. Existing users keep their current style; the extra preset is appended.
      */
-    private fun ensureVaultShelfReadingPreset() {
-        if (ReadBookConfig.configList.any { it.name == VAULTSHELF_SOFT_WHITE_PRESET }) return
-        ReadBookConfig.configList.add(
-            ReadBookConfig.Config(
-                name = VAULTSHELF_SOFT_WHITE_PRESET,
-                bgStr = "#F3F3F3",
-                bgStrNight = "#202020",
-                textColor = "#1B1B1B",
-                textColorNight = "#F5F5F5",
-                textAccentColor = "#005FB8",
-                textAccentColorNight = "#60CDFF",
-                bgType = 0,
-                bgTypeNight = 0,
-            ),
-        )
-        ReadBookConfig.save()
+    private fun ensureVaultShelfReadingPreset(context: Context) {
+        var index = ReadBookConfig.configList.indexOfFirst {
+            it.name == VAULTSHELF_SOFT_WHITE_PRESET
+        }
+        if (index < 0) {
+            ReadBookConfig.configList.add(
+                ReadBookConfig.Config(
+                    name = VAULTSHELF_SOFT_WHITE_PRESET,
+                    bgStr = "#F3F3F3",
+                    bgStrNight = "#202020",
+                    textColor = "#1B1B1B",
+                    textColorNight = "#F5F5F5",
+                    textAccentColor = "#005FB8",
+                    textAccentColorNight = "#60CDFF",
+                    bgType = 0,
+                    bgTypeNight = 0,
+                ),
+            )
+            index = ReadBookConfig.configList.lastIndex
+            ReadBookConfig.save()
+        }
+
+        val preferences = context.defaultSharedPreferences
+        if (!preferences.getBoolean(VAULTSHELF_SOFT_WHITE_DEFAULT_MIGRATED, false)) {
+            val selectedName = ReadBookConfig.configList
+                .getOrNull(ReadBookConfig.readStyleSelect)
+                ?.name
+            if (selectedName == "微信读书") {
+                ReadBookConfig.readStyleSelect = index
+            }
+            preferences.edit {
+                putBoolean(VAULTSHELF_SOFT_WHITE_DEFAULT_MIGRATED, true)
+            }
+        }
     }
 
     private fun createReadAloudChannel(context: Context) {

@@ -228,7 +228,7 @@ class VaultShelfUxRegressionTest {
 
         assertThat(gitmodules).contains("third_party/droidfs")
         assertThat(gitmodules).contains("https://github.com/hardcore-sushi/DroidFS.git")
-        assertThat(activity).contains("DroidFsMainActivity")
+        assertThat(activity).contains("VaultVolumeActivity")
         assertThat(shell).contains("VaultShelfDestination.VAULT -> onOpenVault()")
         assertThat(droidFsBuild).contains("../third_party/droidfs/app/src/main/java")
         assertThat(droidFsBuild).contains("\"CRYFS_DISABLED\", \"true\"")
@@ -256,7 +256,7 @@ class VaultShelfUxRegressionTest {
         assertThat(activity).doesNotContain("readerSettingsIntent")
         assertThat(shell).contains("onOpenAbout")
         assertThat(shell).doesNotContain("FoundationScreen")
-        assertThat(activity).contains("DroidFsSettingsActivity")
+        assertThat(activity).contains("VaultSettingsActivity")
         assertThat(main).contains("EXTRA_SHOW_ABOUT")
     }
 
@@ -837,8 +837,8 @@ class VaultShelfUxRegressionTest {
         assertThat(patch).contains("com.arjun.gander.vault.VaultModeActivity")
         assertThat(mode).contains("VaultModeShell")
         assertThat(mode).contains("VaultExplorerActivity::class.java")
-        assertThat(explorer).contains("vaultshelf_explorer_bottom_nav")
-        assertThat(explorer).contains("EXTRA_RETURN_TO_FILES")
+        assertThat(explorer).contains("VaultShelfBottomBar")
+        assertThat(explorer).contains("selected = VaultShelfDestination.VAULT")
         assertThat(storage).contains("METADATA_FILE = \"/.vaultshelf/library.json\"")
         assertThat(storage).contains("LIBRARY_FILES_DIRECTORY = \"/.vaultshelf/library-files\"")
         assertThat(storage).contains("fun addPath")
@@ -1449,7 +1449,9 @@ class VaultShelfUxRegressionTest {
             "third_party/droidfs/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt",
         ).readText()
 
-        listOf("sort_order", "folders_first", "thumbnails", "map_folders").forEach {
+        assertThat(rootPreferences).contains("key=\"sort_order\"")
+        assertThat(baseExplorer).contains("Constants.SORT_ORDER_KEY")
+        listOf("folders_first", "thumbnails", "map_folders").forEach {
             assertThat(rootPreferences).contains("key=\"$it\"")
             assertThat(baseExplorer).contains("\"$it\"")
         }
@@ -1626,21 +1628,24 @@ class VaultShelfUxRegressionTest {
         assertThat(patch).contains("applyVaultShelfReaderChrome")
         assertThat(patch).contains("ColorUtils.isColorLight(primaryColor)")
         assertThat(patch).doesNotContain("#005FB8")
+        assertThat(patch).contains("accent, progress, button")
     }
 
     @Test
-    fun vaultShelfSoftWhiteIsDefaultWithoutMutatingWechatReadingPreset() {
+    fun existingVaultShelfSoftWhitePresetBecomesDefaultWithoutMutatingStockPresets() {
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
         val patch = File(repo, "patches/legado-vaultshelf-runtime.patch").readText()
 
-        assertThat(patch).contains(
-            "VAULTSHELF_SOFT_WHITE_STYLE = \"VaultShelf 柔和白\"",
-        )
-        assertThat(patch).contains("configList.indexOfFirst")
-        assertThat(patch).contains("base.copy(")
-        assertThat(patch).contains("bgStr = \"#FBFBFB\"")
-        assertThat(patch).contains("appCtx.putPrefInt(PreferKey.readStyleSelect, index)")
+        assertThat(bridge).contains("VAULTSHELF_SOFT_WHITE_PRESET = \"VaultShelf 柔和白\"")
+        assertThat(bridge).contains("configList.indexOfFirst")
+        assertThat(bridge).contains("selectedName == \"微信读书\"")
+        assertThat(bridge).contains("ReadBookConfig.readStyleSelect = index")
+        assertThat(bridge).contains("soft_white_default_migrated")
         assertThat(patch).doesNotContain("defaultData/readConfig.json")
-        assertThat(patch).doesNotContain("name == \"微信读书\"")
+        assertThat(patch).doesNotContain("VaultShelf 柔和白")
     }
 
 }

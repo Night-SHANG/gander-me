@@ -2,6 +2,8 @@ package com.arjun.gander.reader
 
 import android.content.Context
 import android.graphics.Color
+import androidx.core.content.edit
+import java.util.Locale
 
 object ReaderChromePreferences {
     const val KEY_PRIMARY = "vaultshelf_reader_chrome_primary"
@@ -13,7 +15,7 @@ object ReaderChromePreferences {
     fun normalizeHex(value: String): String? {
         val body = value.trim().removePrefix("#")
         if (!body.matches(Regex("[0-9A-Fa-f]{6}"))) return null
-        return "#" + body.uppercase()
+        return "#" + body.uppercase(Locale.ROOT)
     }
 
     fun isValid(value: String): Boolean =
@@ -24,12 +26,14 @@ object ReaderChromePreferences {
             ?: DEFAULT_PRIMARY
 
     fun save(context: Context, color: String) {
-        prefs(context).edit()
-            .putString(KEY_PRIMARY, normalizeHex(color) ?: DEFAULT_PRIMARY)
-            .apply()
+        prefs(context).edit {
+            putString(KEY_PRIMARY, normalizeHex(color) ?: DEFAULT_PRIMARY)
+        }
     }
 
     fun reset(context: Context) {
-        prefs(context).edit().remove(KEY_PRIMARY).apply()
+        prefs(context).edit {
+            remove(KEY_PRIMARY)
+        }
     }
 }

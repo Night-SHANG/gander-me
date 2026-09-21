@@ -1,6 +1,7 @@
 package com.arjun.gander.transfer
 
 import android.content.Context
+import androidx.core.content.edit
 
 enum class TransferRoute(val key: String) {
     EXTERNAL_FILES_TO_EXTERNAL_LIBRARY("external_files_to_external_library"),
@@ -32,10 +33,9 @@ object TransferBehaviorPreferences {
             .getBoolean(KEY_AUTOMATIC, false)
 
     fun setAutomatic(context: Context, enabled: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_AUTOMATIC, enabled)
-            .apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_AUTOMATIC, enabled)
+        }
     }
 
     fun decision(context: Context, route: TransferRoute): TransferSourceDecision {
@@ -50,10 +50,9 @@ object TransferBehaviorPreferences {
         route: TransferRoute,
         decision: TransferSourceDecision,
     ) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(ROUTE_PREFIX + route.key, decision.name)
-            .apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(ROUTE_PREFIX + route.key, decision.name)
+        }
     }
 
     /**
