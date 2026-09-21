@@ -1684,7 +1684,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt b/app/
 +    }
 +
      override val contentAreaId = R.id.settings
-@@ -75,6 +75,25 @@
+@@ -71,6 +75,25 @@
          override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
              setPreferencesFromResource(R.xml.root_preferences, rootKey)
              sharedPrefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
@@ -3154,7 +3154,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity
 diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
 --- a/app/src/main/res/xml/root_preferences.xml
 +++ b/app/src/main/res/xml/root_preferences.xml
-@@ -4,22 +4,2 @@
+@@ -4,22 +13,2 @@
  
 -    <PreferenceCategory android:title="@string/theme">
 -
@@ -3177,7 +3177,7 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 -    </PreferenceCategory>
 -
      <PreferenceCategory android:title="@string/explorer">
-@@ -103,37 +83,4 @@
+@@ -103,37 +92,4 @@
  
      </PreferenceCategory>
  
@@ -3215,7 +3215,7 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 -    </PreferenceCategory>
 -
  </PreferenceScreen>
-@@ -1,5 +1,14 @@
+@@ -1,3 +1,12 @@
  <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
      xmlns:android="http://schemas.android.com/apk/res/android">
 +
@@ -3227,8 +3227,6 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 +            android:summary="@string/vaultshelf_default_volume_none"/>
 +
 +    </PreferenceCategory>
- 
-     <PreferenceCategory android:title="@string/explorer">
  
 
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt b/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt
@@ -3364,7 +3362,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/adapters/VolumeAdapter.kt 
 diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
 --- a/app/src/main/res/values/strings.xml
 +++ b/app/src/main/res/values/strings.xml
-@@ -1,302 +1,304 @@
+@@ -1,302 +1,307 @@
 -<resources>
 -    <string name="app_name">DroidFS</string>
 -    <string name="create_volume">Create volume</string>
@@ -3970,20 +3968,15 @@ diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strin
 +    <string name="propose_wipe_imported_files_summary">After importing files, ask whether to wipe them from the source</string>
 +    <string name="vaultshelf_current_volume_label">Current</string>
 +    <string name="vaultshelf_default_volume_label">Default</string>
-+</resources>
-@@ -301,4 +301,7 @@
-     <string name="propose_wipe_imported_files_summary">After importing files, ask whether to wipe them from the source</string>
-     <string name="vaultshelf_current_volume_label">Current</string>
-     <string name="vaultshelf_default_volume_label">Default</string>
 +    <string name="vaultshelf_vault_category">Vault</string>
 +    <string name="vaultshelf_default_volume_title">Default vault</string>
 +    <string name="vaultshelf_default_volume_none">None</string>
- </resources>
++</resources>
 
 diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
 --- a/app/src/main/res/values-zh-rCN/strings.xml
 +++ b/app/src/main/res/values-zh-rCN/strings.xml
-@@ -1,271 +1,273 @@
+@@ -1,271 +1,276 @@
 -<?xml version="1.0" encoding="utf-8"?>
 -<resources>
 -    <string name="app_name">DroidFS</string>
@@ -4527,12 +4520,7 @@ diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/value
 +    <string name="export_disk">导出至磁盘</string>
 +    <string name="vaultshelf_current_volume_label">当前</string>
 +    <string name="vaultshelf_default_volume_label">默认</string>
-+</resources>
-@@ -270,4 +270,7 @@
-     <string name="export_disk">导出至磁盘</string>
-     <string name="vaultshelf_current_volume_label">当前</string>
-     <string name="vaultshelf_default_volume_label">默认</string>
 +    <string name="vaultshelf_vault_category">保险库</string>
 +    <string name="vaultshelf_default_volume_title">默认卷</string>
 +    <string name="vaultshelf_default_volume_none">无</string>
- </resources>
++</resources>
