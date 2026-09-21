@@ -84,25 +84,25 @@
     <string name="vaultshelf_action_browse_files">Browse files</string>
 
     <string name="vaultshelf_library_title">Library</string>
-    <string name="vaultshelf_library_import_book">Import book</string>
+    <string name="vaultshelf_library_import_book">Add file</string>
     <string name="vaultshelf_library_import_short">Import</string>
-    <string name="vaultshelf_library_import_failed">This book could not be imported. VaultShelf currently accepts TXT, EPUB, UMD, PDF, MOBI, AZW3, AZW, and Markdown.</string>
+    <string name="vaultshelf_library_import_failed">This file could not be added to the library. VaultShelf accepts its supported ebooks and documents, including TXT, EPUB, UMD, PDF, MOBI, AZW3, AZW, Markdown, DOCX, PPTX, XLSX, XLS, XLSM, XLSB, CSV, and ODS.</string>
     <string name="vaultshelf_library_empty_title">Your library is empty</string>
-    <string name="vaultshelf_library_empty_detail">Import a supported local ebook or Markdown file to start a private on-device reading shelf.</string>
+    <string name="vaultshelf_library_empty_detail">Add any supported local ebook or document to build a searchable on-device library.</string>
     <string name="vaultshelf_library_progress">Read %1$d%%</string>
-    <string name="vaultshelf_library_continue_reading">Continue reading</string>
-    <string name="vaultshelf_library_book_count">Books · %1$d</string>
+    <string name="vaultshelf_library_continue_reading">Open / continue</string>
+    <string name="vaultshelf_library_book_count">Items · %1$d</string>
     <string name="vaultshelf_library_view_grid">Grid</string>
     <plurals name="vaultshelf_library_grid_columns">
         <item quantity="one">%1$d column</item>
         <item quantity="other">%1$d columns</item>
     </plurals>
     <string name="vaultshelf_library_view_list">List</string>
-    <string name="vaultshelf_library_rename">Rename</string>
+    <string name="vaultshelf_library_rename">Rename item</string>
     <string name="vaultshelf_library_rename_title">Rename book</string>
     <string name="vaultshelf_library_rename_label">Book title</string>
     <string name="vaultshelf_library_rename_confirm">Save</string>
-    <string name="vaultshelf_library_info">Book info</string>
+    <string name="vaultshelf_library_info">Details</string>
     <string name="vaultshelf_library_info_format">Format: %1$s</string>
     <string name="vaultshelf_library_info_size">Size: %1$s</string>
     <string name="vaultshelf_library_delete">Delete from library</string>
@@ -164,10 +164,10 @@
 
     <string name="vault_mode_title">Encrypted vault</string>
     <string name="vault_home_recent">Recently read</string>
-    <string name="vault_home_recent_empty">Books you open from the vault will appear here.</string>
+    <string name="vault_home_recent_empty">Items you open from the vault library will appear here.</string>
     <string name="vault_library_title">Vault library</string>
-    <string name="vault_library_empty">No books in this vault library</string>
-    <string name="vault_library_empty_detail">Files in the vault are not added automatically. Add a supported document from the Files tab.</string>
+    <string name="vault_library_empty">No items in this vault library</string>
+    <string name="vault_library_empty_detail">Supported ebooks and documents in the vault are not added automatically. Add them from the Files tab.</string>
     <string name="vault_library_add_from_files">Add from vault files</string>
     <string name="vault_settings_title">Vault settings</string>
     <string name="vault_settings_security">Security and vault behavior</string>
@@ -179,8 +179,8 @@
 
 
     <plurals name="vault_library_count">
-        <item quantity="one">%1$d book</item>
-        <item quantity="other">%1$d books</item>
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
     </plurals>
 
     <string name="vaultshelf_files_title">Files</string>

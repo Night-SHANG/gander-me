@@ -342,7 +342,10 @@ class VaultShelfUxRegressionTest {
             "app/src/main/java/com/arjun/gander/library/LibraryReaderRouter.kt",
         ).readText()
 
-        listOf("TXT", "EPUB", "UMD", "PDF", "MOBI", "AZW3", "AZW", "MARKDOWN")
+        listOf(
+            "TXT", "EPUB", "UMD", "PDF", "MOBI", "AZW3", "AZW", "MARKDOWN",
+            "DOCX", "XLSX", "XLS", "XLSM", "XLSB", "CSV", "ODS", "PPTX",
+        )
             .forEach { format ->
                 assertThat(bookModel).contains("BookFormat.$format")
                 assertThat(library).contains("BookFormat.$format")
@@ -351,6 +354,10 @@ class VaultShelfUxRegressionTest {
         listOf("TXT", "EPUB", "UMD", "MOBI", "AZW3", "AZW").forEach { format ->
             assertThat(router).contains("BookFormat.$format")
         }
+        listOf("DOCX", "XLSX", "XLS", "XLSM", "XLSB", "CSV", "ODS", "PPTX")
+            .forEach { format ->
+                assertThat(router).contains("BookFormat.$format")
+            }
 
         assertThat(library).contains("\"md\", \"markdown\"")
         assertThat(library).contains("\"mobi\"")
@@ -358,6 +365,14 @@ class VaultShelfUxRegressionTest {
         assertThat(library).contains("\"azw\"")
         assertThat(library).contains("\"umd\"")
         assertThat(library).contains("\"pdf\"")
+        assertThat(library).contains("\"docx\"")
+        assertThat(library).contains("\"pptx\"")
+        assertThat(library).contains("\"xlsx\"")
+        assertThat(library).contains("\"xls\"")
+        assertThat(library).contains("\"xlsm\"")
+        assertThat(library).contains("\"xlsb\"")
+        assertThat(library).contains("\"csv\"")
+        assertThat(library).contains("\"ods\"")
     }
 
     @Test
@@ -1342,7 +1357,8 @@ class VaultShelfUxRegressionTest {
 
         assertThat(layout).contains("androidx.compose.ui.platform.ComposeView")
         assertThat(layout).doesNotContain("BottomNavigationView")
-        assertThat(explorerPatch).contains(
+        assertThat(explorerPatch).contains("bars.bottom")
+        assertThat(explorerPatch).doesNotContain(
             "if (ime.bottom > 0) ime.bottom else bars.bottom",
         )
     }
@@ -1668,6 +1684,121 @@ class VaultShelfUxRegressionTest {
         assertThat(library).contains("dismissTransientMessage()")
         assertThat(strings).contains("部分文件导入失败")
         assertThat(strings).contains("部分书籍导出失败")
+    }
+
+    @Test
+    fun searchImeHidesGlobalBottomNavigationAcrossLibrariesAndExplorers() {
+        val externalShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+        val vaultShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+        val externalExplorer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
+        ).readText()
+        val vaultExplorer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
+        ).readText()
+
+        listOf(externalShell, vaultShell).forEach { source ->
+            assertThat(source).contains("WindowInsets.ime.getBottom")
+            assertThat(source).contains("if (!imeVisible)")
+        }
+        listOf(externalExplorer, vaultExplorer).forEach { source ->
+            assertThat(source).contains("WindowInsetsCompat.Type.ime()")
+            assertThat(source).contains("view.isVisible = !insets.isVisible")
+        }
+    }
+
+    @Test
+    fun vaultLibraryMatchesExternalLibraryDiscoveryControls() {
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+
+        assertThat(shell).contains("VaultLibraryHeader")
+        assertThat(shell).contains("OutlinedTextField")
+        assertThat(shell).contains("VaultLibrarySort.LAST_ACTIVITY")
+        assertThat(shell).contains("VaultLibrarySort.TITLE")
+        assertThat(shell).contains("VaultLibrarySort.ADDED")
+        assertThat(shell).contains("VaultLibraryViewMode.GRID")
+        assertThat(shell).contains("VaultLibraryViewMode.LIST")
+        assertThat(shell).contains("GridCells.Fixed(gridColumns)")
+        assertThat(shell).contains("(2..6).forEach")
+        assertThat(shell).contains("filterAndSortVaultBooks")
+    }
+
+    @Test
+    fun fileExplorerPromotesSearchAndCloseAndKeepsImeOffBottomInset() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val explorerPatch = patch.substringAfter(
+            "diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt",
+        )
+
+        assertThat(explorerPatch).contains("searchMenuItemId")
+        assertThat(explorerPatch).contains("MenuItem.SHOW_AS_ACTION_ALWAYS")
+        assertThat(explorerPatch).contains("menu.findItem(R.id.close).apply")
+        assertThat(explorerPatch).contains("bars.bottom")
+        assertThat(explorerPatch).doesNotContain(
+            "if (ime.bottom > 0) ime.bottom else bars.bottom",
+        )
+    }
+
+    @Test
+    fun homeQuickAccessOrdersLibraryThenFilesThenVault() {
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+        val quick = shell.substringAfter("vaultshelf_quick_access")
+
+        val library = quick.indexOf("vaultshelf_library_card")
+        val files = quick.indexOf("vaultshelf_open_documents")
+        val vault = quick.indexOf("vaultshelf_vault_card")
+        assertThat(library).isAtLeast(0)
+        assertThat(files).isGreaterThan(library)
+        assertThat(vault).isGreaterThan(files)
+    }
+
+    @Test
+    fun bothLibrariesAcceptEveryDocumentFormatSupportedByBundledDocumentViewers() {
+        val format = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/library/LibraryBook.kt",
+        ).readText()
+        val local = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/library/LocalLibraryRepository.kt",
+        ).readText()
+        val vault = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultStorage.kt",
+        ).readText()
+        val viewer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/FileKind.kt",
+        ).readText()
+
+        listOf("DOCX", "XLSX", "XLS", "XLSM", "XLSB", "CSV", "ODS", "PPTX")
+            .forEach { name ->
+                assertThat(format).contains(name)
+                assertThat(local).contains("BookFormat.$name")
+            }
+        listOf("docx", "xlsx", "xls", "xlsm", "xlsb", "csv", "ods", "pptx")
+            .forEach { extension ->
+                assertThat(format).contains("\"$extension\"")
+            }
+        assertThat(local).contains("override suspend fun importDocument")
+        assertThat(vault).contains("BookFormat.fromFileName")
+        assertThat(viewer).contains("DOCX")
+        assertThat(viewer).contains("XLSX")
+        assertThat(viewer).contains("PPTX")
     }
 
 }

@@ -274,6 +274,14 @@ fun LibraryScreen(
                             BookFormat.UMD -> repository.importUmd(uri)
                             BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
                                 repository.importMobi(uri, format)
+                            BookFormat.DOCX,
+                            BookFormat.XLSX,
+                            BookFormat.XLS,
+                            BookFormat.XLSM,
+                            BookFormat.XLSB,
+                            BookFormat.CSV,
+                            BookFormat.ODS,
+                            BookFormat.PPTX -> repository.importDocument(uri, format)
                             null -> error("Unsupported library format")
                         }
                     }.onFailure { failedCount += 1 }
@@ -635,7 +643,9 @@ fun LibraryScreen(
                             Formatter.formatShortFileSize(context, book.sizeBytes),
                         ),
                     )
-                    Text(stringResource(R.string.vaultshelf_library_progress, book.progressPercent))
+                    if (book.showsReadingProgress) {
+                        Text(stringResource(R.string.vaultshelf_library_progress, book.progressPercent))
+                    }
                 }
             },
             confirmButton = {
@@ -1064,12 +1074,14 @@ private fun BookGridItem(
                     modifier = Modifier.align(Alignment.TopEnd),
                 )
             }
-            LinearProgressIndicator(
-                progress = { book.progressFraction },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter),
-            )
+            if (book.showsReadingProgress) {
+                LinearProgressIndicator(
+                    progress = { book.progressFraction },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter),
+                )
+            }
         }
         Text(
             text = book.title,
@@ -1082,11 +1094,15 @@ private fun BookGridItem(
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            text = stringResource(
-                R.string.vaultshelf_library_grid_meta,
-                book.format.name,
-                book.progressPercent,
-            ),
+            text = if (book.showsReadingProgress) {
+                stringResource(
+                    R.string.vaultshelf_library_grid_meta,
+                    book.format.name,
+                    book.progressPercent,
+                )
+            } else {
+                book.format.name
+            },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -1157,19 +1173,25 @@ private fun BookListItem(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = stringResource(
-                        R.string.vaultshelf_library_list_meta,
-                        book.format.name,
-                        sizeLabel,
-                        book.progressPercent,
-                    ),
+                    text = if (book.showsReadingProgress) {
+                        stringResource(
+                            R.string.vaultshelf_library_list_meta,
+                            book.format.name,
+                            sizeLabel,
+                            book.progressPercent,
+                        )
+                    } else {
+                        "${book.format.name} · $sizeLabel"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                LinearProgressIndicator(
-                    progress = { book.progressFraction },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (book.showsReadingProgress) {
+                    LinearProgressIndicator(
+                        progress = { book.progressFraction },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             if (selected) {
                 Text(
@@ -1405,6 +1427,14 @@ private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
         "mobi" -> return BookFormat.MOBI
         "azw3" -> return BookFormat.AZW3
         "azw" -> return BookFormat.AZW
+        "docx" -> return BookFormat.DOCX
+        "xlsx" -> return BookFormat.XLSX
+        "xls" -> return BookFormat.XLS
+        "xlsm" -> return BookFormat.XLSM
+        "xlsb" -> return BookFormat.XLSB
+        "csv" -> return BookFormat.CSV
+        "ods" -> return BookFormat.ODS
+        "pptx" -> return BookFormat.PPTX
     }
 
     return when (context.contentResolver.getType(uri)?.lowercase()) {
@@ -1414,6 +1444,14 @@ private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
         "application/mobi", "application/x-mobipocket-ebook" -> BookFormat.MOBI
         "application/azw3", "application/x-mobi8-ebook" -> BookFormat.AZW3
         "application/azw" -> BookFormat.AZW
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> BookFormat.DOCX
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> BookFormat.XLSX
+        "application/vnd.ms-excel" -> BookFormat.XLS
+        "application/vnd.ms-excel.sheet.macroenabled.12" -> BookFormat.XLSM
+        "application/vnd.ms-excel.sheet.binary.macroenabled.12" -> BookFormat.XLSB
+        "text/csv" -> BookFormat.CSV
+        "application/vnd.oasis.opendocument.spreadsheet" -> BookFormat.ODS
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> BookFormat.PPTX
         "text/plain" -> BookFormat.TXT
         else -> null
     }

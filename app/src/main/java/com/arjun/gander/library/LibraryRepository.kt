@@ -20,6 +20,9 @@ interface LibraryRepository {
 
     suspend fun importMobi(uri: Uri, format: BookFormat): LibraryBook
 
+    suspend fun importDocument(uri: Uri, format: BookFormat): LibraryBook =
+        throw UnsupportedOperationException("Document import is not supported by this repository")
+
     suspend fun readText(id: String): String
 
     suspend fun bookFile(id: String): File

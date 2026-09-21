@@ -4,6 +4,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.platform.ComposeView
@@ -373,6 +375,11 @@ class ExternalExplorerActivity : ExplorerActivity() {
     private fun configureBottomNavigation() {
         val nav = findViewById<ComposeView>(R.id.vaultshelf_explorer_bottom_nav)
         nav.isVisible = true
+        ViewCompat.setOnApplyWindowInsetsListener(nav) { view, insets ->
+            view.isVisible = !insets.isVisible(WindowInsetsCompat.Type.ime())
+            insets
+        }
+        ViewCompat.requestApplyInsets(nav)
         nav.setViewCompositionStrategy(
             ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
         )

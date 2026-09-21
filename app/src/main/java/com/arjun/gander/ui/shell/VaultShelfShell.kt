@@ -18,12 +18,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.getBottom
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -55,6 +58,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -103,25 +107,28 @@ fun VaultShelfShell(
     val selected = VaultShelfDestination.entries
         .firstOrNull { it.name == selectedName }
         ?: VaultShelfDestination.HOME
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            VaultShelfBottomBar(
-                destinations = VaultShelfExternalDestinations,
-                selected = selected,
-                onSelected = { destination ->
-                    when (destination) {
-                        VaultShelfDestination.FILES -> {
-                            if (returnToFiles) onReturnToFiles()
-                            else selectedName = destination.name
+            if (!imeVisible) {
+                VaultShelfBottomBar(
+                    destinations = VaultShelfExternalDestinations,
+                    selected = selected,
+                    onSelected = { destination ->
+                        when (destination) {
+                            VaultShelfDestination.FILES -> {
+                                if (returnToFiles) onReturnToFiles()
+                                else selectedName = destination.name
+                            }
+                            VaultShelfDestination.VAULT -> onOpenVault()
+                            else -> selectedName = destination.name
                         }
-                        VaultShelfDestination.VAULT -> onOpenVault()
-                        else -> selectedName = destination.name
-                    }
-                },
-            )
+                    },
+                )
+            }
         },
     ) { innerPadding ->
         when (selected) {
@@ -530,15 +537,15 @@ private fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 QuickActionTile(
-                    titleRes = R.string.vaultshelf_open_documents,
-                    iconRes = R.drawable.ic_vaultshelf_files,
-                    onClick = onOpenFiles,
-                    modifier = Modifier.weight(1f),
-                )
-                QuickActionTile(
                     titleRes = R.string.vaultshelf_library_card,
                     iconRes = R.drawable.ic_vaultshelf_library,
                     onClick = onOpenLibrary,
+                    modifier = Modifier.weight(1f),
+                )
+                QuickActionTile(
+                    titleRes = R.string.vaultshelf_open_documents,
+                    iconRes = R.drawable.ic_vaultshelf_files,
+                    onClick = onOpenFiles,
                     modifier = Modifier.weight(1f),
                 )
                 QuickActionTile(
@@ -625,11 +632,13 @@ private fun RecentBookCard(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
-            text = stringResource(R.string.vaultshelf_reader_progress, book.progressPercent),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (book.showsReadingProgress) {
+            Text(
+                text = stringResource(R.string.vaultshelf_reader_progress, book.progressPercent),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
