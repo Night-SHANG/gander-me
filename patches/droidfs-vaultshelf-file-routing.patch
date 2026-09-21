@@ -3154,20 +3154,10 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity
 diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
 --- a/app/src/main/res/xml/root_preferences.xml
 +++ b/app/src/main/res/xml/root_preferences.xml
-@@ -1,2 +1,11 @@
- <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
-     xmlns:android="http://schemas.android.com/apk/res/android">
-+
-+    <PreferenceCategory android:title="@string/vaultshelf_vault_category">
-+
-+        <sushi.hardcore.droidfs.widgets.MaterialListPreference
-+            android:key="default_volume"
-+            android:title="@string/vaultshelf_default_volume_title"
-+            android:summary="@string/vaultshelf_default_volume_none"/>
-+
-+    </PreferenceCategory>
-@@ -3,22 +12,2 @@
- 
+@@ -1,139 +1,95 @@
+-<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
+-    xmlns:android="http://schemas.android.com/apk/res/android">
+-
 -    <PreferenceCategory android:title="@string/theme">
 -
 -        <sushi.hardcore.droidfs.widgets.MaterialListPreference
@@ -3188,11 +3178,88 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 -
 -    </PreferenceCategory>
 -
-     <PreferenceCategory android:title="@string/explorer">
-@@ -103,37 +92,4 @@
- 
-     </PreferenceCategory>
- 
+-    <PreferenceCategory android:title="@string/explorer">
+-
+-        <sushi.hardcore.droidfs.widgets.MaterialListPreference
+-            app:defaultValue="name"
+-            app:entries="@array/sort_orders_entries"
+-            app:entryValues="@array/sort_orders_values"
+-            app:key="sort_order"
+-            android:title="@string/settings_title_sort_order"
+-            android:icon="@drawable/icon_sort"/>
+-
+-        <SwitchPreferenceCompat
+-            android:defaultValue="true"
+-            app:icon="@drawable/icon_folder"
+-            android:key="folders_first"
+-            android:title="@string/folders_first"
+-            android:summary="@string/folders_first_summary"
+-            app:widgetLayout="@layout/preference_widget_material_switch"/>
+-
+-        <SwitchPreferenceCompat
+-            android:defaultValue="true"
+-            android:icon="@drawable/icon_image"
+-            android:key="thumbnails"
+-            android:title="@string/thumbnails"
+-            android:summary="@string/thumbnails_summary"
+-            app:widgetLayout="@layout/preference_widget_material_switch"/>
+-
+-        <SwitchPreferenceCompat
+-            android:defaultValue="true"
+-            app:icon="@drawable/icon_folder_search"
+-            android:key="map_folders"
+-            android:title="@string/map_folders"
+-            android:summary="@string/map_folders_summary"
+-            app:widgetLayout="@layout/preference_widget_material_switch"/>
+-
+-    </PreferenceCategory>
+-
+-    <PreferenceCategory android:title="@string/ux">
+-
+-        <SwitchPreferenceCompat
+-            android:title="@string/propose_wipe_imported_files"
+-            android:summary="@string/propose_wipe_imported_files_summary"
+-            android:key="propose_wipe_imported_files"
+-            android:defaultValue="true"
+-            android:icon="@drawable/icon_wipe"
+-            app:widgetLayout="@layout/preference_widget_material_switch"/>
+-
+-        <SwitchPreferenceCompat
+-            android:title="@string/auto_fit_title"
+-            android:summary="@string/auto_fit_summary"
+-            android:key="autoFit"
+-            android:defaultValue="false"
+-            android:icon="@drawable/icon_screen_rotation"
+-            app:widgetLayout="@layout/preference_widget_material_switch"/>
+-
+-        <SwitchPreferenceCompat
+-            android:title="@string/password_fallback"
+-            android:summary="@string/password_fallback_summary"
+-            android:key="passwordFallback"
+-            android:defaultValue="true"
+-            android:icon="@drawable/icon_password"
+-            app:widgetLayout="@layout/preference_widget_material_switch"/>
+-
+-        <SwitchPreferenceCompat
+-            android:title="@string/pin_passwords_title"
+-            android:summary="@string/pin_passwords_summary"
+-            android:key="pin_passwords"
+-            android:defaultValue="false"
+-            android:icon="@drawable/icon_num_pad"
+-            app:widgetLayout="@layout/preference_widget_material_switch"/>
+-
+-    </PreferenceCategory>
+-
+-    <PreferenceCategory android:title="@string/unsafe_features">
+-
+-        <Preference
+-            android:title="@string/manage_unsafe_features"
+-            android:summary="@string/manage_unsafe_features_summary"
+-            android:icon="@drawable/icon_warning"
+-            android:fragment="sushi.hardcore.droidfs.SettingsActivity$UnsafeFeaturesSettingsFragment"/>
+-
+-    </PreferenceCategory>
+-
 -    <PreferenceCategory android:title="@string/debug">
 -
 -        <Preference
@@ -3226,7 +3293,102 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 -
 -    </PreferenceCategory>
 -
- </PreferenceScreen>
+-</PreferenceScreen>
++<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
++    xmlns:android="http://schemas.android.com/apk/res/android">
++
++    <PreferenceCategory android:title="@string/vaultshelf_vault_category">
++
++        <sushi.hardcore.droidfs.widgets.MaterialListPreference
++            android:key="default_volume"
++            android:title="@string/vaultshelf_default_volume_title"
++            android:summary="@string/vaultshelf_default_volume_none"/>
++
++    </PreferenceCategory>
++
++    <PreferenceCategory android:title="@string/explorer">
++
++        <sushi.hardcore.droidfs.widgets.MaterialListPreference
++            app:defaultValue="name"
++            app:entries="@array/sort_orders_entries"
++            app:entryValues="@array/sort_orders_values"
++            app:key="sort_order"
++            android:title="@string/settings_title_sort_order"
++            android:icon="@drawable/icon_sort"/>
++
++        <SwitchPreferenceCompat
++            android:defaultValue="true"
++            app:icon="@drawable/icon_folder"
++            android:key="folders_first"
++            android:title="@string/folders_first"
++            android:summary="@string/folders_first_summary"
++            app:widgetLayout="@layout/preference_widget_material_switch"/>
++
++        <SwitchPreferenceCompat
++            android:defaultValue="true"
++            android:icon="@drawable/icon_image"
++            android:key="thumbnails"
++            android:title="@string/thumbnails"
++            android:summary="@string/thumbnails_summary"
++            app:widgetLayout="@layout/preference_widget_material_switch"/>
++
++        <SwitchPreferenceCompat
++            android:defaultValue="true"
++            app:icon="@drawable/icon_folder_search"
++            android:key="map_folders"
++            android:title="@string/map_folders"
++            android:summary="@string/map_folders_summary"
++            app:widgetLayout="@layout/preference_widget_material_switch"/>
++
++    </PreferenceCategory>
++
++    <PreferenceCategory android:title="@string/ux">
++
++        <SwitchPreferenceCompat
++            android:title="@string/propose_wipe_imported_files"
++            android:summary="@string/propose_wipe_imported_files_summary"
++            android:key="propose_wipe_imported_files"
++            android:defaultValue="true"
++            android:icon="@drawable/icon_wipe"
++            app:widgetLayout="@layout/preference_widget_material_switch"/>
++
++        <SwitchPreferenceCompat
++            android:title="@string/auto_fit_title"
++            android:summary="@string/auto_fit_summary"
++            android:key="autoFit"
++            android:defaultValue="false"
++            android:icon="@drawable/icon_screen_rotation"
++            app:widgetLayout="@layout/preference_widget_material_switch"/>
++
++        <SwitchPreferenceCompat
++            android:title="@string/password_fallback"
++            android:summary="@string/password_fallback_summary"
++            android:key="passwordFallback"
++            android:defaultValue="true"
++            android:icon="@drawable/icon_password"
++            app:widgetLayout="@layout/preference_widget_material_switch"/>
++
++        <SwitchPreferenceCompat
++            android:title="@string/pin_passwords_title"
++            android:summary="@string/pin_passwords_summary"
++            android:key="pin_passwords"
++            android:defaultValue="false"
++            android:icon="@drawable/icon_num_pad"
++            app:widgetLayout="@layout/preference_widget_material_switch"/>
++
++    </PreferenceCategory>
++
++    <PreferenceCategory android:title="@string/unsafe_features">
++
++        <Preference
++            android:title="@string/manage_unsafe_features"
++            android:summary="@string/manage_unsafe_features_summary"
++            android:icon="@drawable/icon_warning"
++            android:fragment="sushi.hardcore.droidfs.SettingsActivity$UnsafeFeaturesSettingsFragment"/>
++
++    </PreferenceCategory>
++
++</PreferenceScreen>
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt b/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt
