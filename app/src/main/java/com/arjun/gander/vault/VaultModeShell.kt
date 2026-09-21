@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.getBottom
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.ime
@@ -639,8 +638,6 @@ private fun VaultLibraryScreen(
                             },
                             onRename = { entryToRename = entry },
                             onInfo = { entryToInspect = entry },
-                            onRename = { entryToRename = entry },
-                            onInfo = { entryToInspect = entry },
                             onRemove = {
                                 selectedIds = setOf(entry.id)
                                 confirmDelete = true
@@ -680,6 +677,8 @@ private fun VaultLibraryScreen(
                                     if (!add(entry.id)) remove(entry.id)
                                 }
                             },
+                            onRename = { entryToRename = entry },
+                            onInfo = { entryToInspect = entry },
                             onRemove = {
                                 selectedIds = setOf(entry.id)
                                 confirmDelete = true
