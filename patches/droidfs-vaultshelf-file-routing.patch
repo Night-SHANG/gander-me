@@ -378,7 +378,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumePr
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
-@@ -1,506 +1,527 @@
+@@ -1,506 +1,562 @@
 -package sushi.hardcore.droidfs
 -
 -import android.content.Intent
@@ -923,6 +923,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +    }
 +
 +    private val setDefaultVolumeMenuId = View.generateViewId()
++    private val addFingerprintMenuId = View.generateViewId()
 +
 +    private lateinit var binding: DroidfsActivityMainBinding
 +    private lateinit var volumeDatabase: VolumeDatabase
@@ -1172,6 +1173,27 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +                unselectAll(false)
 +                true
 +            }
++            addFingerprintMenuId -> {
++                volumeAdapter.selectedItems.firstOrNull()?.let { index ->
++                    val volume = volumeAdapter.volumes[index]
++                    volumeOpener.requestSaveFingerprint(
++                        volume,
++                        object : VolumeOpener.VolumeOpenerCallbacks {
++                            override fun onHashStorageReset() {
++                                volumeAdapter.refresh()
++                                invalidateOptionsMenu()
++                            }
++
++                            override fun onVolumeOpened(id: Int) {
++                                volumeManager.closeVolume(id)
++                                volumeAdapter.refresh()
++                                unselect(index)
++                            }
++                        },
++                    )
++                }
++                true
++            }
 +            R.id.change_password -> {
 +                selectedVolumePosition = volumeAdapter.selectedItems.elementAt(0)
 +                changePassword.launch(Intent(this, ChangePasswordActivity::class.java).apply {
@@ -1260,6 +1282,19 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +        } else {
 +            null
 +        }
++        val addFingerprintItem = menu.findItem(addFingerprintMenuId)
++            ?: menu.add(
++                Menu.NONE,
++                addFingerprintMenuId,
++                Menu.NONE,
++                R.string.add_fingerprint,
++            )
++        addFingerprintItem.isVisible =
++            selectedVolume != null &&
++            selectedVolume.encryptedHash == null &&
++            !volumeManager.isOpen(selectedVolume) &&
++            sharedPrefs.getBoolean("usf_fingerprint", false) &&
++            FingerprintProtector.canAuthenticate(this) == 0
 +        val selectedIsDefault = selectedVolume?.let(volumeOpener::isDefaultVolume) == true
 +        menu.findItem(R.id.remove_default_open).isVisible = selectedIsDefault
 +        val setDefaultItem = menu.findItem(setDefaultVolumeMenuId)
@@ -1539,6 +1574,14 @@ diff --git a/app/src/main/res/xml/unsafe_features_preferences.xml b/app/src/main
      <PreferenceCategory android:title="@string/ux">
  
          <SwitchPreferenceCompat
+@@ -49,6 +36,7 @@
+             android:defaultValue="false"
+             android:icon="@drawable/icon_fingerprint"
+             android:key="usf_fingerprint"
+             android:title="@string/usf_fingerprint"
++            android:summary="@string/usf_fingerprint_summary"
+             app:widgetLayout="@layout/preference_widget_material_switch" />
+ 
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt.vaultshelf-disabled
 similarity index 100%
 rename from app/src/main/java/sushi/hardcore/droidfs/CameraActivity.kt
@@ -3465,7 +3508,20 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt b/app/src/
              }
          }
          val password = UIUtils.encodeEditTextContent(dialogBinding!!.editPassword)
-@@ -144,7 +180,7 @@
+@@ -137,5 +173,12 @@
+     }
+ 
++    fun requestSaveFingerprint(
++        volume: VolumeData,
++        callbacks: VolumeOpenerCallbacks,
++    ) {
++        askForPassword(volume, true, callbacks, savePasswordHash = true)
++    }
++
+     private fun askForPassword(volume: VolumeData, isVolumeSaved: Boolean, callbacks: VolumeOpenerCallbacks, savePasswordHash: Boolean = false) {
+         dialogBinding = DialogOpenVolumeBinding.inflate(activity.layoutInflater)
+         if (isVolumeSaved) {
+@@ -144,7 +187,7 @@
              } else {
                  dialogBinding!!.checkboxSavePassword.isChecked = savePasswordHash
              }
@@ -3522,7 +3578,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/adapters/VolumeAdapter.kt 
 diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
 --- a/app/src/main/res/values/strings.xml
 +++ b/app/src/main/res/values/strings.xml
-@@ -1,302 +1,307 @@
+@@ -1,302 +1,309 @@
 -<resources>
 -    <string name="app_name">DroidFS</string>
 -    <string name="create_volume">Create volume</string>
@@ -3883,7 +3939,7 @@ diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strin
 +    <string name="share_menu_label">Encrypt with DroidFS</string>
 +    <string name="share_intent_parsing_failed">Failed to handle the share request.</string>
 +    <string name="listdir_null_error_msg">Unable to access this directory</string>
-+    <string name="fingerprint_save_checkbox_text">Save password hash using fingerprint</string>
++    <string name="fingerprint_save_checkbox_text">Add fingerprint unlock</string>
 +    <string name="fingerprint_instruction">Please touch the fingerprint sensor</string>
 +    <string name="illegal_block_size_exception">IllegalBlockSizeException</string>
 +    <string name="illegal_block_size_exception_msg">This can happen if you have added a new fingerprint. Resetting hash storage can solve this problem.</string>
@@ -3899,7 +3955,8 @@ diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strin
 +    <string name="usf_share">Allow sharing files via the android share menu</string>
 +    <string name="usf_open">Allow opening files with other applications</string>
 +    <string name="usf_screenshot">Allow screenshots</string>
-+    <string name="usf_fingerprint">Allow saving password hash using fingerprint</string>
++    <string name="usf_fingerprint">Allow adding fingerprint unlock</string>
++    <string name="usf_fingerprint_summary">Controls saving new fingerprint unlock credentials. Turning this off does not remove fingerprints already saved for a volume.</string>
 +    <string name="usf_volume_management">Volume Management</string>
 +    <string name="unsafe_features">Unsafe Features</string>
 +    <string name="manage_unsafe_features">Manage unsafe features</string>
@@ -4009,6 +4066,7 @@ diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strin
 +    <string name="remove">Remove</string>
 +    <string name="settings">Settings</string>
 +    <string name="select_all">Select All</string>
++    <string name="add_fingerprint">Add fingerprint</string>
 +    <string name="remove_fingerprint">Remove fingerprint</string>
 +    <string name="unrecoverable_key_exception_msg">%s. Can\'t load encryption key.</string>
 +    <string name="unrecoverable_key_exception">UnrecoverableKeyException</string>
@@ -4069,7 +4127,7 @@ diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strin
 +    <string name="volume_type_read_only">(%s, read-only)</string>
 +    <string name="volume_type_inaccessible">(%s, inaccessible)</string>
 +    <string name="io_error">I/O Error.</string>
-+    <string name="use_fingerprint">Use fingerprint instead of current password</string>
++    <string name="use_fingerprint">Use fingerprint to verify current password</string>
 +    <string name="remember_volume">Remember volume</string>
 +    <string name="open_volume">Open volume</string>
 +    <string name="choose_existing_volume">Please choose an existing volume</string>
@@ -4136,7 +4194,7 @@ diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strin
 diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
 --- a/app/src/main/res/values-zh-rCN/strings.xml
 +++ b/app/src/main/res/values-zh-rCN/strings.xml
-@@ -1,271 +1,276 @@
+@@ -1,271 +1,278 @@
 -<?xml version="1.0" encoding="utf-8"?>
 -<resources>
 -    <string name="app_name">DroidFS</string>
@@ -4467,7 +4525,7 @@ diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/value
 +    <string name="share_menu_label">使用DroidFS加密</string>
 +    <string name="share_intent_parsing_failed">处理分享请求失败</string>
 +    <string name="listdir_null_error_msg">无法访问这个文件夹</string>
-+    <string name="fingerprint_save_checkbox_text">使用指纹存储</string>
++    <string name="fingerprint_save_checkbox_text">添加指纹解锁</string>
 +    <string name="fingerprint_instruction">请使用指纹传感器</string>
 +    <string name="illegal_block_size_exception">块大小非法(illegalBlockSizeException)</string>
 +    <string name="illegal_block_size_exception_msg">在添加指纹后会出现此问题，重置保存的哈希值可解决此问题，随后你需要重新关联哈希与指纹</string>
@@ -4483,7 +4541,8 @@ diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/value
 +    <string name="usf_share">允许通过系统分享菜单分享文件</string>
 +    <string name="usf_open">允许其他应用打开文件</string>
 +    <string name="usf_screenshot">允许截屏</string>
-+    <string name="usf_fingerprint">允许通过指纹保存密码哈希</string>
++    <string name="usf_fingerprint">允许添加指纹解锁</string>
++    <string name="usf_fingerprint_summary">仅控制今后为卷保存新的指纹解锁凭据；关闭不会移除已经保存的指纹解锁。</string>
 +    <string name="usf_volume_management">加密卷管理</string>
 +    <string name="unsafe_features">以下功能会降低安全性</string>
 +    <string name="manage_unsafe_features">管理非安全功能</string>
@@ -4589,6 +4648,7 @@ diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/value
 +    <string name="remove">移除</string>
 +    <string name="settings">设置</string>
 +    <string name="select_all">全选</string>
++    <string name="add_fingerprint">添加指纹</string>
 +    <string name="remove_fingerprint">移除指纹验证</string>
 +    <string name="unrecoverable_key_exception_msg">%s. 无法加载加密密钥</string>
 +    <string name="unrecoverable_key_exception">UnrecoverableKeyException</string>
@@ -4649,7 +4709,7 @@ diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/value
 +    <string name="volume_type_read_only">(%s, 只读)</string>
 +    <string name="volume_type_inaccessible">(%s, 不可访问)</string>
 +    <string name="io_error">I/O出错</string>
-+    <string name="use_fingerprint">使用指纹替代当前密码</string>
++    <string name="use_fingerprint">使用指纹验证当前密码</string>
 +    <string name="remember_volume">记住卷</string>
 +    <string name="open_volume">打开卷</string>
 +    <string name="choose_existing_volume">请选择一个已存在的卷</string>
