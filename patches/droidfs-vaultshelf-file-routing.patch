@@ -458,13 +458,6 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
      override fun onSelectionChanged(size: Int) {
          title = if (size == 0) {
              getString(R.string.app_name)
-@@ -184,6 +165,6 @@
-     }
- 
-     private fun removeVolume(volume: VolumeData) {
-         volumeManager.getVolumeId(volume)?.let { volumeManager.closeVolume(it) }
-         volumeDatabase.removeVolume(volume)
-     }
 @@ -238,22 +222,10 @@
          }
      }
