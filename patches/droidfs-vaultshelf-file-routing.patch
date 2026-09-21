@@ -3167,8 +3167,7 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 +
 +    </PreferenceCategory>
  
-
-@@ -4,22 +13,2 @@
+@@ -3,22 +12,2 @@
  
 -    <PreferenceCategory android:title="@string/theme">
 -
