@@ -34,12 +34,10 @@ import com.arjun.gander.vault.VaultModeActivity
 import com.arjun.gander.vault.VaultFileRepository
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfProgressStore
-import java.util.ArrayList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sushi.hardcore.droidfs.R as DroidFsR
-import sushi.hardcore.droidfs.VolumeManagerApp
 import sushi.hardcore.droidfs.explorers.ExplorerActivity
 import sushi.hardcore.droidfs.explorers.ExplorerElement
 import sushi.hardcore.droidfs.file_operations.TaskResult
