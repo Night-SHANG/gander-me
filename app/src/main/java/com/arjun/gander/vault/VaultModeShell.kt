@@ -77,7 +77,7 @@ import com.arjun.gander.ui.library.ShelfViewMode
 import com.arjun.gander.ui.library.filterAndSortShelfItems
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
-import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
+import com.arjun.gander.ui.shell.VaultShelfVaultDestinations
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -125,9 +125,20 @@ fun VaultModeShell(
         )
     }
     var revision by remember { mutableIntStateOf(0) }
+    LaunchedEffect(initialDestinationName) {
+        selectedName = VaultModeDestination.entries
+            .firstOrNull { it.name == initialDestinationName }
+            ?.name
+            ?: VaultModeDestination.HOME.name
+    }
     val selected = VaultModeDestination.entries
         .firstOrNull { it.name == selectedName }
         ?: VaultModeDestination.HOME
+    val bottomDestination = when (selected) {
+        VaultModeDestination.HOME -> VaultShelfDestination.HOME
+        VaultModeDestination.LIBRARY -> VaultShelfDestination.LIBRARY
+        VaultModeDestination.SETTINGS -> VaultShelfDestination.SETTINGS
+    }
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     Scaffold(
@@ -136,13 +147,18 @@ fun VaultModeShell(
         bottomBar = {
             if (!imeVisible) {
                 VaultShelfBottomBar(
-                    destinations = VaultShelfExternalDestinations,
-                    selected = VaultShelfDestination.VAULT,
+                    destinations = VaultShelfVaultDestinations,
+                    selected = bottomDestination,
                     onSelected = { destination ->
-                        if (destination == VaultShelfDestination.VAULT) {
-                            onOpenVaultSwitcher()
-                        } else {
-                            onOpenExternalDestination(destination.name)
+                        when (destination) {
+                            VaultShelfDestination.HOME ->
+                                selectedName = VaultModeDestination.HOME.name
+                            VaultShelfDestination.LIBRARY ->
+                                selectedName = VaultModeDestination.LIBRARY.name
+                            VaultShelfDestination.FILES -> onOpenFiles()
+                            VaultShelfDestination.SETTINGS ->
+                                selectedName = VaultModeDestination.SETTINGS.name
+                            VaultShelfDestination.VAULT -> Unit
                         }
                     },
                 )
