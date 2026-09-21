@@ -4,12 +4,17 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.arjun.gander.VaultShelfActivity
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
+import com.arjun.gander.ui.shell.VaultShelfVaultDestinations
+import com.arjun.gander.ui.shell.VaultShelfVaultLabelOverrides
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import sushi.hardcore.droidfs.MainActivity
 import sushi.hardcore.droidfs.R as DroidFsR
@@ -22,12 +27,15 @@ import sushi.hardcore.droidfs.R as DroidFsR
  */
 class VaultVolumeActivity : MainActivity() {
 
+    private var switchingMode by mutableStateOf(false)
+
     companion object {
         const val EXTRA_SWITCHING_VAULT = "vaultshelf.switching_vault"
         const val EXTRA_CURRENT_VOLUME_UUID = "vaultshelf.current_volume_uuid"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)
         super.onCreate(savedInstanceState)
         if (isFinishing || !intent.getBooleanExtra(VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY, false)) {
             return
@@ -53,18 +61,33 @@ class VaultVolumeActivity : MainActivity() {
                 setContent {
                     VaultShelfTheme {
                         VaultShelfBottomBar(
-                            destinations = VaultShelfExternalDestinations,
+                            destinations = if (switchingMode) {
+                                VaultShelfVaultDestinations
+                            } else {
+                                VaultShelfExternalDestinations
+                            },
                             selected = VaultShelfDestination.VAULT,
                             onSelected = { destination ->
                                 if (destination != VaultShelfDestination.VAULT) {
                                     openExternalDestination(destination.name)
                                 }
                             },
+                            labelOverrides = if (switchingMode) {
+                                VaultShelfVaultLabelOverrides
+                            } else {
+                                emptyMap()
+                            },
                         )
                     }
                 }
             },
         )
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)
     }
 
     private fun openExternalDestination(destination: String) {
