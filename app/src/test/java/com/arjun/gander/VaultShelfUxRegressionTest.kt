@@ -1613,6 +1613,10 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
         ).readText()
+        val modeActivity = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
 
         assertThat(preference.exists()).isFalse()
@@ -1624,6 +1628,9 @@ class VaultShelfUxRegressionTest {
         assertThat(patch).contains("checkboxDefaultOpen.visibility = View.GONE")
         assertThat(vaultShell).doesNotContain("vault_switch_volume")
         assertThat(vaultShell).doesNotContain("onOpenVaultSwitcher = onOpenVaultSwitcher")
+        val externalExit = modeActivity.substringAfter("onOpenExternalDestination = {")
+            .substringBefore("modifier = Modifier.safeDrawingPadding()")
+        assertThat(externalExit).doesNotContain("closeVolume")
     }
 
     @Test
