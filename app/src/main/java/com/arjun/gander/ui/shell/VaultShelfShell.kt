@@ -103,6 +103,14 @@ fun VaultShelfShell(
                 ?: VaultShelfDestination.HOME.name,
         )
     }
+    LaunchedEffect(initialDestinationName) {
+        selectedName = VaultShelfDestination.entries
+            .firstOrNull {
+                it.name == initialDestinationName && it != VaultShelfDestination.VAULT
+            }
+            ?.name
+            ?: VaultShelfDestination.HOME.name
+    }
     val selected = VaultShelfDestination.entries
         .firstOrNull { it.name == selectedName }
         ?: VaultShelfDestination.HOME
