@@ -3154,7 +3154,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity
 diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
 --- a/app/src/main/res/xml/root_preferences.xml
 +++ b/app/src/main/res/xml/root_preferences.xml
-@@ -1,3 +1,12 @@
+@@ -1,2 +1,11 @@
  <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
      xmlns:android="http://schemas.android.com/apk/res/android">
 +
@@ -3166,7 +3166,6 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 +            android:summary="@string/vaultshelf_default_volume_none"/>
 +
 +    </PreferenceCategory>
- 
 @@ -3,22 +12,2 @@
  
 -    <PreferenceCategory android:title="@string/theme">
