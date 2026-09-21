@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -108,6 +109,7 @@ fun LibraryScreen(
     onImportToVaultLibrary: ((List<LibraryBook>) -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val shelfPreferences = remember {
         context.getSharedPreferences(SHELF_UI_PREFERENCES, Context.MODE_PRIVATE)
@@ -182,7 +184,7 @@ fun LibraryScreen(
                 }
                 if (exported.isEmpty()) {
                     showTransientMessage(
-                        context.getString(R.string.vaultshelf_library_export_failed),
+                        resources.getString(R.string.vaultshelf_library_export_failed),
                     )
                 } else {
                     when (
@@ -203,7 +205,7 @@ fun LibraryScreen(
                     }
                     if (exported.size != selectedBooks.size) {
                         showTransientMessage(
-                            context.getString(
+                            resources.getString(
                                 R.string.vaultshelf_library_export_partial,
                                 exported.size,
                                 selectedBooks.size - exported.size,
@@ -290,12 +292,12 @@ fun LibraryScreen(
                 when {
                     failedCount == uris.size -> {
                         showTransientMessage(
-                            context.getString(R.string.vaultshelf_library_import_failed),
+                            resources.getString(R.string.vaultshelf_library_import_failed),
                         )
                     }
                     failedCount > 0 -> {
                         showTransientMessage(
-                            context.getString(
+                            resources.getString(
                                 R.string.vaultshelf_library_import_partial,
                                 uris.size - failedCount,
                                 failedCount,
