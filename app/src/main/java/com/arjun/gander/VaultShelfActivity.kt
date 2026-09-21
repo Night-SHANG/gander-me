@@ -25,7 +25,6 @@ import com.arjun.gander.transfer.TransferBehaviorSettingsActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.VaultBackupActivity
 import com.arjun.gander.vault.VaultImportTargetActivity
-import com.arjun.gander.vault.VaultDefaultVolumePreference
 import com.arjun.gander.vault.VaultVolumeActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.SafVolume
@@ -153,28 +152,6 @@ class VaultShelfActivity : AppCompatActivity() {
     }
 
     private fun openVault() {
-        val app = application as VolumeManagerApp
-        val defaultVolume = VaultDefaultVolumePreference.resolve(this)
-        if (defaultVolume != null) {
-            val openId = app.volumeManager.getVolumeId(defaultVolume)
-            if (openId != null) {
-                startActivity(
-                    Intent(this, com.arjun.gander.vault.VaultModeActivity::class.java)
-                        .putExtra(
-                            com.arjun.gander.vault.VaultModeActivity.EXTRA_VOLUME_ID,
-                            openId,
-                        )
-                        .putExtra(
-                            com.arjun.gander.vault.VaultModeActivity.EXTRA_VOLUME_NAME,
-                            defaultVolume.shortName,
-                        )
-                        .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
-                )
-                overridePendingTransition(0, 0)
-                return
-            }
-        }
-
         startActivity(
             Intent(this, VaultVolumeActivity::class.java)
                 .putExtra(EXTRA_VAULT_SHELL_ENTRY, true)
