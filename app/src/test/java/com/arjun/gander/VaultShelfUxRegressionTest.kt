@@ -670,7 +670,7 @@ class VaultShelfUxRegressionTest {
         assertThat(patch).contains("volumeOpener.requestSaveFingerprint(")
         assertThat(patch).contains("fun requestSaveFingerprint(")
         assertThat(patch).contains("savePasswordHash = true")
-        assertThat(patch).contains("R.id.delete_password_hash")
+        assertThat(patch).contains("name=\"remove_fingerprint\"")
         assertThat(patch).contains("允许添加指纹解锁")
         assertThat(patch).contains("关闭不会移除已经保存的指纹解锁")
         assertThat(patch).contains("使用指纹验证当前密码")
@@ -1547,7 +1547,7 @@ class VaultShelfUxRegressionTest {
         assertThat(vaultShell).contains("VaultModeDestination.HOME -> VaultBottomDestination.HOME")
         assertThat(vaultShell).contains("VaultModeDestination.LIBRARY -> VaultBottomDestination.LIBRARY")
         assertThat(vaultShell).contains("VaultModeDestination.SETTINGS -> VaultBottomDestination.SETTINGS")
-        assertThat(patch).contains("volumeManager.getVolumeId(volumeData)?.let")
+        assertThat(patch).doesNotContain("resolveDefaultVolume")
         assertThat(patch).contains("explorerRouter.importTargetMode")
         assertThat(patch).contains("intent.getBooleanExtra(\"vaultshelf.switching_vault\", false)")
     }
