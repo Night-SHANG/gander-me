@@ -78,6 +78,7 @@ import com.arjun.gander.ui.library.filterAndSortShelfItems
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfVaultDestinations
+import com.arjun.gander.ui.shell.VaultShelfVaultLabelOverrides
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -158,9 +159,10 @@ fun VaultModeShell(
                             VaultShelfDestination.FILES -> onOpenFiles()
                             VaultShelfDestination.SETTINGS ->
                                 selectedName = VaultModeDestination.SETTINGS.name
-                            VaultShelfDestination.VAULT -> Unit
+                            VaultShelfDestination.VAULT -> onOpenVaultSwitcher()
                         }
                     },
+                    labelOverrides = VaultShelfVaultLabelOverrides,
                 )
             }
         },
