@@ -4479,3 +4479,71 @@ diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/value
 +    <string name="vaultshelf_current_volume_label">当前</string>
 +    <string name="vaultshelf_default_volume_label">默认</string>
 +</resources>
+
+diff --git a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
+--- a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
++++ b/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
+@@ -1,4 +1,23 @@
+         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+             setPreferencesFromResource(R.xml.root_preferences, rootKey)
+             sharedPrefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
++            val defaultVolumePreference =
++                findPreference<ListPreference>(Constants.DEFAULT_VOLUME_KEY)
++            val volumes = VolumeDatabase(requireContext()).use { it.getVolumes() }
++            val storedDefault = sharedPrefs.getString(Constants.DEFAULT_VOLUME_KEY, null)
++            val resolvedDefault = volumes.firstOrNull { it.uuid == storedDefault }
++                ?: volumes.firstOrNull { it.name == storedDefault }
++            when {
++                resolvedDefault != null && storedDefault != resolvedDefault.uuid ->
++                    sharedPrefs.edit().putString(Constants.DEFAULT_VOLUME_KEY, resolvedDefault.uuid).apply()
++                storedDefault != null && resolvedDefault == null ->
++                    sharedPrefs.edit().remove(Constants.DEFAULT_VOLUME_KEY).apply()
++            }
++            defaultVolumePreference?.apply {
++                entries = (listOf(getString(R.string.vaultshelf_default_volume_none)) +
++                    volumes.map { it.shortName }).toTypedArray()
++                entryValues = (listOf("") + volumes.map { it.uuid }).toTypedArray()
++                value = resolvedDefault?.uuid.orEmpty()
++                summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
++            }
+             val colorPreference = findPreference<ListPreference>("color")
+
+diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
+--- a/app/src/main/res/xml/root_preferences.xml
++++ b/app/src/main/res/xml/root_preferences.xml
+@@ -1,4 +1,13 @@
+ <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
+     xmlns:android="http://schemas.android.com/apk/res/android">
+ 
++    <PreferenceCategory android:title="@string/vaultshelf_vault_category">
++
++        <sushi.hardcore.droidfs.widgets.MaterialListPreference
++            android:key="default_volume"
++            android:title="@string/vaultshelf_default_volume_title"
++            android:summary="@string/vaultshelf_default_volume_none"/>
++
++    </PreferenceCategory>
++
+     <PreferenceCategory android:title="@string/explorer">
+
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1,3 +1,6 @@
+     <string name="vaultshelf_current_volume_label">Current</string>
+     <string name="vaultshelf_default_volume_label">Default</string>
++    <string name="vaultshelf_vault_category">Vault</string>
++    <string name="vaultshelf_default_volume_title">Default vault</string>
++    <string name="vaultshelf_default_volume_none">None</string>
+ </resources>
+
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -1,3 +1,6 @@
+     <string name="vaultshelf_current_volume_label">当前</string>
+     <string name="vaultshelf_default_volume_label">默认</string>
++    <string name="vaultshelf_vault_category">保险库</string>
++    <string name="vaultshelf_default_volume_title">默认卷</string>
++    <string name="vaultshelf_default_volume_none">无</string>
+ </resources>
