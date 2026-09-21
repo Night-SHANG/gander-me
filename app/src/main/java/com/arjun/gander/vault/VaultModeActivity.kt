@@ -119,6 +119,10 @@ class VaultModeActivity : AppCompatActivity() {
                             volumeManager.closeVolume(volumeId)
                         },
                         onOpenVaultSwitcher = {
+                            val currentUuid = volumeManager.listVolumes()
+                                .firstOrNull { it.first == volumeId }
+                                ?.second
+                                ?.uuid
                             startActivity(
                                 Intent(
                                     this@VaultModeActivity,
@@ -126,6 +130,10 @@ class VaultModeActivity : AppCompatActivity() {
                                 )
                                     .putExtra(VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY, true)
                                     .putExtra(VaultVolumeActivity.EXTRA_SWITCHING_VAULT, true)
+                                    .putExtra(
+                                        VaultVolumeActivity.EXTRA_CURRENT_VOLUME_UUID,
+                                        currentUuid,
+                                    )
                                     .addFlags(
                                         Intent.FLAG_ACTIVITY_CLEAR_TOP or
                                             Intent.FLAG_ACTIVITY_SINGLE_TOP or
@@ -133,7 +141,6 @@ class VaultModeActivity : AppCompatActivity() {
                                     ),
                             )
                             overridePendingTransition(0, 0)
-                            finish()
                         },
                         onOpenExternalDestination = { destination ->
                             startActivity(
