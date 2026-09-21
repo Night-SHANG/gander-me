@@ -1390,7 +1390,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +        explorerRouter.dropMode ||
 +            explorerRouter.pickMode ||
 +            explorerRouter.importTargetMode ||
-+            intent.getBooleanExtra("vaultshelf.shell_entry", false)
++            intent.getBooleanExtra("vaultshelf.switching_vault", false)
 +
 +    private fun openVolume(volume: VolumeData) {
 +        volumeOpener.openVolume(volume, true, object : VolumeOpener.VolumeOpenerCallbacks {
