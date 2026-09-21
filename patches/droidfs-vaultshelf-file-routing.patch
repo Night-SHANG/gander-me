@@ -1574,7 +1574,7 @@ diff --git a/app/src/main/res/xml/unsafe_features_preferences.xml b/app/src/main
      <PreferenceCategory android:title="@string/ux">
  
          <SwitchPreferenceCompat
-@@ -49,6 +36,7 @@
+@@ -50,6 +37,7 @@
              android:defaultValue="false"
              android:icon="@drawable/icon_fingerprint"
              android:key="usf_fingerprint"
