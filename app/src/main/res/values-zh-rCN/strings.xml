@@ -257,7 +257,6 @@
     <string name="vault_export_blocked">当前禁止将保险库明文导出。请先在“保险库安全设置”中开启“允许导出文件”。</string>
     <string name="vaultshelf_files_remove_access_title">移除文件夹授权？</string>
     <string name="vaultshelf_files_remove_access_message">VaultShelf 将不再显示已授权文件夹“%1$s”，但不会删除文件夹中的任何文件。</string>
-    <string name="vault_switch_volume">切换保险库卷</string>
 
     <string name="reader_appearance_title">阅读器界面颜色</string>
     <string name="reader_appearance_entry_detail">修改阅读器原本棕色的界面主色；正文文字和阅读背景仍在阅读器内部设置。</string>
