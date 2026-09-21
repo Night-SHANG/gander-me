@@ -1389,8 +1389,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +    private fun shouldFinishAfterOpening(): Boolean =
 +        explorerRouter.dropMode ||
 +            explorerRouter.pickMode ||
-+            explorerRouter.importTargetMode ||
-+            intent.getBooleanExtra("vaultshelf.switching_vault", false)
++            explorerRouter.importTargetMode
 +
 +    private fun openVolume(volume: VolumeData) {
 +        volumeOpener.openVolume(volume, true, object : VolumeOpener.VolumeOpenerCallbacks {
@@ -1399,6 +1398,8 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +            }
 +
 +            override fun onVolumeOpened(id: Int) {
++                intent.putExtra("vaultshelf.current_volume_uuid", volume.uuid)
++                intent.putExtra("vaultshelf.switching_vault", false)
 +                startActivity(explorerRouter.getExplorerIntent(id, volume.shortName))
 +                if (shouldFinishAfterOpening()) {
 +                    finish()
