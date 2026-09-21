@@ -378,7 +378,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/content_providers/VolumePr
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt
-@@ -1,506 +1,562 @@
+@@ -1,506 +1,510 @@
 -package sushi.hardcore.droidfs
 -
 -import android.content.Intent
@@ -918,11 +918,6 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +    init {
 +        applyCustomTheme = false
 +    }
-+    companion object {
-+        private const val OPEN_DEFAULT_VOLUME = "openDefault"
-+    }
-+
-+    private val setDefaultVolumeMenuId = View.generateViewId()
 +    private val addFingerprintMenuId = View.generateViewId()
 +
 +    private lateinit var binding: DroidfsActivityMainBinding
@@ -1007,21 +1002,6 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +                onBackPressedDispatcher.onBackPressed()
 +            }
 +        }
-+        if (!intent.getBooleanExtra("vaultshelf.switching_vault", false)) {
-+            volumeOpener.resolveDefaultVolume(volumeAdapter.volumes)?.let { volumeData ->
-+                val state = savedInstanceState?.getBoolean(OPEN_DEFAULT_VOLUME)
-+                if (state == true || state == null) {
-+                    if (!volumeManager.isOpen(volumeData)) {
-+                        openVolume(volumeData)
-+                    } else {
-+                        volumeManager.getVolumeId(volumeData)?.let { id ->
-+                            startActivity(explorerRouter.getExplorerIntent(id, volumeData.shortName))
-+                            if (shouldFinishAfterOpening()) finish()
-+                        }
-+                    }
-+                }
-+            }
-+        }
 +        FileOperationService.bind(this) {
 +            fileOperationService = it
 +        }
@@ -1039,14 +1019,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +            if (volumeAdapter.volumes.isNotEmpty()) {
 +                binding.textNoVolumes.visibility = View.GONE
 +            }
-+            // refresh this in case another instance of MainActivity changes its value
-+            volumeOpener.refreshDefaultVolume()
 +        }
-+    }
-+
-+    override fun onSaveInstanceState(outState: Bundle) {
-+        super.onSaveInstanceState(outState)
-+        outState.putBoolean(OPEN_DEFAULT_VOLUME, false)
 +    }
 +
 +    override fun onSelectionChanged(size: Int) {
@@ -1136,10 +1109,6 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +        }
 +    }
 +
-+    private fun unsetDefaultVolume() {
-+        volumeOpener.clearDefaultVolume()
-+    }
-+
 +    override fun onOptionsItemSelected(item: MenuItem): Boolean {
 +        return when (item.itemId) {
 +            android.R.id.home -> {
@@ -1200,18 +1169,6 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +                changePassword.launch(Intent(this, ChangePasswordActivity::class.java).apply {
 +                    putExtra("volume", volumeAdapter.volumes[selectedVolumePosition!!])
 +                })
-+                true
-+            }
-+            R.id.remove_default_open -> {
-+                unsetDefaultVolume()
-+                unselect(volumeAdapter.selectedItems.first())
-+                true
-+            }
-+            setDefaultVolumeMenuId -> {
-+                volumeAdapter.selectedItems.firstOrNull()?.let { index ->
-+                    volumeOpener.setDefaultVolume(volumeAdapter.volumes[index])
-+                    unselect(index)
-+                }
 +                true
 +            }
 +            R.id.copy -> {
@@ -1295,16 +1252,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
 +            selectedVolume.encryptedHash == null &&
 +            sharedPrefs.getBoolean("usf_fingerprint", false) &&
 +            FingerprintProtector.canAuthenticate(this) == 0
-+        val selectedIsDefault = selectedVolume?.let(volumeOpener::isDefaultVolume) == true
-+        menu.findItem(R.id.remove_default_open).isVisible = selectedIsDefault
-+        val setDefaultItem = menu.findItem(setDefaultVolumeMenuId)
-+            ?: menu.add(
-+                Menu.NONE,
-+                setDefaultVolumeMenuId,
-+                Menu.NONE,
-+                R.string.default_open,
-+            )
-+        setDefaultItem.isVisible = onlyOneSelected && !selectedIsDefault
++        menu.findItem(R.id.remove_default_open).isVisible = false
 +        with(menu.findItem(R.id.copy)) {
 +            isVisible = onlyOneSelected
 +            if (isVisible) {
@@ -1720,40 +1668,415 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/BaseActivity.kt b/app/src/
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt
-@@ -21,2 +21,6 @@
- class SettingsActivity : BaseActivity() {
+@@ -1,202 +1,206 @@
+-package sushi.hardcore.droidfs
+-
+-import android.app.ActivityOptions
+-import android.content.Intent
+-import android.content.SharedPreferences
+-import android.os.Build
+-import android.os.Bundle
+-import android.view.MenuItem
+-import androidx.core.content.ContextCompat
+-import androidx.preference.ListPreference
+-import androidx.preference.Preference
+-import androidx.preference.PreferenceFragmentCompat
+-import androidx.preference.PreferenceManager
+-import androidx.preference.SwitchPreferenceCompat
+-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+-import sushi.hardcore.droidfs.content_providers.VolumeProvider
+-import sushi.hardcore.droidfs.databinding.ActivitySettingsBinding
+-import sushi.hardcore.droidfs.util.AndroidUtils
+-import sushi.hardcore.droidfs.util.Compat
+-
+-class SettingsActivity : BaseActivity() {
+-    override val contentAreaId = R.id.settings
+-
+-    private val notificationPermissionHelper = AndroidUtils.NotificationPermissionHelper(this)
+-
+-    override fun onCreate(savedInstanceState: Bundle?) {
+-        super.onCreate(savedInstanceState)
+-        val binding = ActivitySettingsBinding.inflate(layoutInflater)
+-        setContentView(binding.root)
+-        setSupportActionBar(findViewById(R.id.toolbar))
+-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+-        val screen = intent.extras?.getString("screen") ?: "main"
+-        val fragment = if (screen == "UnsafeFeaturesSettingsFragment") {
+-            UnsafeFeaturesSettingsFragment()
+-        } else {
+-            MainSettingsFragment()
+-        }
+-        supportFragmentManager
+-                .beginTransaction()
+-                .replace(R.id.settings, fragment)
+-                .commit()
+-    }
+-
+-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+-        return when (item.itemId){
+-            android.R.id.home -> {
+-                onBackPressedDispatcher.onBackPressed() //return to the previous fragment rather than the activity
+-                true
+-            }
+-            else -> super.onOptionsItemSelected(item)
+-        }
+-    }
+-
+-    class MainSettingsFragment : PreferenceFragmentCompat() {
+-        private lateinit var sharedPrefs: SharedPreferences
+-
+-        private fun refreshTheme() {
+-            with(requireActivity()) {
+-                startActivity(
+-                    Intent(this, SettingsActivity::class.java),
+-                    ActivityOptions.makeCustomAnimation(
+-                        this,
+-                        android.R.anim.fade_in,
+-                        android.R.anim.fade_out
+-                    ).toBundle()
+-                )
+-                finish()
+-            }
+-        }
+-
+-        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+-            setPreferencesFromResource(R.xml.root_preferences, rootKey)
+-            sharedPrefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+-            val colorPreference = findPreference<ListPreference>("color")
+-            val blackThemePreference = findPreference<SwitchPreferenceCompat>("black_theme")
+-            fun updateBlackThemeVisibility() {
+-                blackThemePreference?.isVisible = colorPreference?.value != "dynamic"
+-            }
+-            updateBlackThemeVisibility()
+-            colorPreference?.setOnPreferenceChangeListener { _, _ ->
+-                updateBlackThemeVisibility()
+-                refreshTheme()
+-                true
+-            }
+-            findPreference<SwitchPreferenceCompat>("black_theme")?.setOnPreferenceChangeListener { _, _ ->
+-                refreshTheme()
+-                true
+-            }
+-            findPreference<Preference>("logcat")?.setOnPreferenceClickListener { _ ->
+-                startActivity(Intent(requireContext(), LogcatActivity::class.java))
+-                true
+-            }
+-        }
+-    }
+-
+-    class UnsafeFeaturesSettingsFragment : PreferenceFragmentCompat() {
+-        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+-            setPreferencesFromResource(R.xml.unsafe_features_preferences, rootKey)
+-            findPreference<SwitchPreferenceCompat>("usf_fingerprint")?.setOnPreferenceChangeListener { _, checked ->
+-                if (checked as Boolean) {
+-                    var errorMsg: String? = null
+-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+-                        val reason = when (FingerprintProtector.canAuthenticate(requireContext())) {
+-                            0 -> null
+-                            1 -> R.string.keyguard_not_secure
+-                            2 -> R.string.no_hardware
+-                            3 -> R.string.hardware_unavailable
+-                            4 -> R.string.no_fingerprint
+-                            else -> R.string.unknown_error
+-                        }
+-                        reason?.let {
+-                            errorMsg = getString(R.string.fingerprint_error_msg, getString(it))
+-                        }
+-                    } else {
+-                        errorMsg = getString(R.string.error_marshmallow_required)
+-                    }
+-                    if (errorMsg == null) {
+-                        true
+-                    } else {
+-                        MaterialAlertDialogBuilder(requireContext())
+-                            .setTitle(R.string.error)
+-                            .setMessage(errorMsg)
+-                            .setPositiveButton(R.string.ok, null)
+-                            .show()
+-                        false
+-                    }
+-                } else {
+-                    true
+-                }
+-            }
+-            val switchBackground = findPreference<SwitchPreferenceCompat>("usf_background")!!
+-            val switchKeepOpen = findPreference<SwitchPreferenceCompat>("usf_keep_open")!!
+-            val switchLockOnScreenLock = findPreference<SwitchPreferenceCompat>("lock_on_screen_lock")!!
+-            val switchExternalOpen = findPreference<SwitchPreferenceCompat>("usf_open")!!
+-            val switchExpose = findPreference<SwitchPreferenceCompat>("usf_expose")!!
+-            val switchSafWrite = findPreference<SwitchPreferenceCompat>("usf_saf_write")!!
+-
+-            fun onUsfBackgroundChanged(usfBackground: Boolean) {
+-                fun updateSwitchPreferenceCompat(switch: SwitchPreferenceCompat) = with (switch) {
+-                    isChecked = isChecked && usfBackground
+-                    isEnabled = usfBackground
+-                    onPreferenceChangeListener?.onPreferenceChange(switch, isChecked)
+-                }
+-                updateSwitchPreferenceCompat(switchKeepOpen)
+-                updateSwitchPreferenceCompat(switchExpose)
+-                with(switchLockOnScreenLock) {
+-                    isEnabled = usfBackground
+-                    if (!usfBackground) {
+-                        isChecked = true
+-                    }
+-                }
+-            }
+-            onUsfBackgroundChanged(switchBackground.isChecked)
+-
+-            fun updateSafWrite(usfOpen: Boolean? = null, usfExpose: Boolean? = null) {
+-                switchSafWrite.isEnabled = usfOpen ?: switchExternalOpen.isChecked || usfExpose ?: switchExpose.isChecked
+-            }
+-            updateSafWrite()
+-
+-            switchBackground.setOnPreferenceChangeListener { _, checked ->
+-                onUsfBackgroundChanged(checked as Boolean)
+-                true
+-            }
+-            switchExternalOpen.setOnPreferenceChangeListener { _, checked ->
+-                updateSafWrite(usfOpen = checked as Boolean)
+-                true
+-            }
+-            switchExpose.setOnPreferenceChangeListener { _, checked ->
+-                updateSafWrite(usfExpose = checked as Boolean)
+-                VolumeProvider.notifyRootsChanged(requireContext())
+-                true
+-            }
+-
+-            switchKeepOpen.setOnPreferenceChangeListener { _, checked ->
+-                if (checked as Boolean) {
+-                    (requireActivity() as SettingsActivity).notificationPermissionHelper.askAndRun {
+-                        requireContext().let {
+-                            if (AndroidUtils.isServiceRunning(it, KeepAliveService::class.java)) {
+-                                ContextCompat.startForegroundService(it, Intent(it, KeepAliveService::class.java).apply {
+-                                    action = KeepAliveService.ACTION_FOREGROUND
+-                                })
+-                            }
+-                        }
+-                    }
+-                }
+-                true
+-            }
+-            findPreference<ListPreference>("export_method")!!.setOnPreferenceChangeListener { _, newValue ->
+-                if (newValue as String == "memory" && !Compat.isMemFileSupported()) {
+-                    MaterialAlertDialogBuilder(requireContext())
+-                        .setTitle(R.string.error)
+-                        .setMessage(getString(R.string.memfd_create_unsupported, Compat.MEMFD_CREATE_MINIMUM_KERNEL_VERSION))
+-                        .setPositiveButton(R.string.ok, null)
+-                        .show()
+-                    return@setOnPreferenceChangeListener false
+-                }
+-                EncryptedFileProvider.exportMethod = EncryptedFileProvider.ExportMethod.parse(newValue)
+-                true
+-            }
+-        }
+-    }
+-}
++package sushi.hardcore.droidfs
++
++import android.app.ActivityOptions
++import android.content.Intent
++import android.content.SharedPreferences
++import android.os.Build
++import android.os.Bundle
++import android.view.MenuItem
++import androidx.core.content.ContextCompat
++import androidx.preference.ListPreference
++import androidx.preference.Preference
++import androidx.preference.PreferenceFragmentCompat
++import androidx.preference.PreferenceManager
++import androidx.preference.SwitchPreferenceCompat
++import com.google.android.material.dialog.MaterialAlertDialogBuilder
++import sushi.hardcore.droidfs.content_providers.VolumeProvider
++import sushi.hardcore.droidfs.databinding.ActivitySettingsBinding
++import sushi.hardcore.droidfs.util.AndroidUtils
++import sushi.hardcore.droidfs.util.Compat
++
++class SettingsActivity : BaseActivity() {
 +    init {
 +        applyCustomTheme = false
 +    }
 +
-     override val contentAreaId = R.id.settings
-@@ -71,6 +75,25 @@
-         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-             setPreferencesFromResource(R.xml.root_preferences, rootKey)
-             sharedPrefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
-+            val defaultVolumePreference =
-+                findPreference<ListPreference>(Constants.DEFAULT_VOLUME_KEY)
-+            val volumes = VolumeDatabase(requireContext()).use { it.getVolumes() }
-+            val storedDefault = sharedPrefs.getString(Constants.DEFAULT_VOLUME_KEY, null)
-+            val resolvedDefault = volumes.firstOrNull { it.uuid == storedDefault }
-+                ?: volumes.firstOrNull { it.name == storedDefault }
-+            when {
-+                resolvedDefault != null && storedDefault != resolvedDefault.uuid ->
-+                    sharedPrefs.edit().putString(Constants.DEFAULT_VOLUME_KEY, resolvedDefault.uuid).apply()
-+                storedDefault != null && resolvedDefault == null ->
-+                    sharedPrefs.edit().remove(Constants.DEFAULT_VOLUME_KEY).apply()
++    override val contentAreaId = R.id.settings
++
++    private val notificationPermissionHelper = AndroidUtils.NotificationPermissionHelper(this)
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        val binding = ActivitySettingsBinding.inflate(layoutInflater)
++        setContentView(binding.root)
++        setSupportActionBar(findViewById(R.id.toolbar))
++        supportActionBar?.setDisplayHomeAsUpEnabled(true)
++        val screen = intent.extras?.getString("screen") ?: "main"
++        val fragment = if (screen == "UnsafeFeaturesSettingsFragment") {
++            UnsafeFeaturesSettingsFragment()
++        } else {
++            MainSettingsFragment()
++        }
++        supportFragmentManager
++                .beginTransaction()
++                .replace(R.id.settings, fragment)
++                .commit()
++    }
++
++    override fun onOptionsItemSelected(item: MenuItem): Boolean {
++        return when (item.itemId){
++            android.R.id.home -> {
++                onBackPressedDispatcher.onBackPressed() //return to the previous fragment rather than the activity
++                true
 +            }
-+            defaultVolumePreference?.apply {
-+                entries = (listOf(getString(R.string.vaultshelf_default_volume_none)) +
-+                    volumes.map { it.shortName }).toTypedArray()
-+                entryValues = (listOf("") + volumes.map { it.uuid }).toTypedArray()
-+                value = resolvedDefault?.uuid.orEmpty()
-+                summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
++            else -> super.onOptionsItemSelected(item)
++        }
++    }
++
++    class MainSettingsFragment : PreferenceFragmentCompat() {
++        private lateinit var sharedPrefs: SharedPreferences
++
++        private fun refreshTheme() {
++            with(requireActivity()) {
++                startActivity(
++                    Intent(this, SettingsActivity::class.java),
++                    ActivityOptions.makeCustomAnimation(
++                        this,
++                        android.R.anim.fade_in,
++                        android.R.anim.fade_out
++                    ).toBundle()
++                )
++                finish()
 +            }
-             val colorPreference = findPreference<ListPreference>("color")
-             val blackThemePreference = findPreference<SwitchPreferenceCompat>("black_theme")
-             fun updateBlackThemeVisibility() {
-
++        }
++
++        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
++            setPreferencesFromResource(R.xml.root_preferences, rootKey)
++            sharedPrefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
++            val colorPreference = findPreference<ListPreference>("color")
++            val blackThemePreference = findPreference<SwitchPreferenceCompat>("black_theme")
++            fun updateBlackThemeVisibility() {
++                blackThemePreference?.isVisible = colorPreference?.value != "dynamic"
++            }
++            updateBlackThemeVisibility()
++            colorPreference?.setOnPreferenceChangeListener { _, _ ->
++                updateBlackThemeVisibility()
++                refreshTheme()
++                true
++            }
++            findPreference<SwitchPreferenceCompat>("black_theme")?.setOnPreferenceChangeListener { _, _ ->
++                refreshTheme()
++                true
++            }
++            findPreference<Preference>("logcat")?.setOnPreferenceClickListener { _ ->
++                startActivity(Intent(requireContext(), LogcatActivity::class.java))
++                true
++            }
++        }
++    }
++
++    class UnsafeFeaturesSettingsFragment : PreferenceFragmentCompat() {
++        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
++            setPreferencesFromResource(R.xml.unsafe_features_preferences, rootKey)
++            findPreference<SwitchPreferenceCompat>("usf_fingerprint")?.setOnPreferenceChangeListener { _, checked ->
++                if (checked as Boolean) {
++                    var errorMsg: String? = null
++                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
++                        val reason = when (FingerprintProtector.canAuthenticate(requireContext())) {
++                            0 -> null
++                            1 -> R.string.keyguard_not_secure
++                            2 -> R.string.no_hardware
++                            3 -> R.string.hardware_unavailable
++                            4 -> R.string.no_fingerprint
++                            else -> R.string.unknown_error
++                        }
++                        reason?.let {
++                            errorMsg = getString(R.string.fingerprint_error_msg, getString(it))
++                        }
++                    } else {
++                        errorMsg = getString(R.string.error_marshmallow_required)
++                    }
++                    if (errorMsg == null) {
++                        true
++                    } else {
++                        MaterialAlertDialogBuilder(requireContext())
++                            .setTitle(R.string.error)
++                            .setMessage(errorMsg)
++                            .setPositiveButton(R.string.ok, null)
++                            .show()
++                        false
++                    }
++                } else {
++                    true
++                }
++            }
++            val switchBackground = findPreference<SwitchPreferenceCompat>("usf_background")!!
++            val switchKeepOpen = findPreference<SwitchPreferenceCompat>("usf_keep_open")!!
++            val switchLockOnScreenLock = findPreference<SwitchPreferenceCompat>("lock_on_screen_lock")!!
++            val switchExternalOpen = findPreference<SwitchPreferenceCompat>("usf_open")!!
++            val switchExpose = findPreference<SwitchPreferenceCompat>("usf_expose")!!
++            val switchSafWrite = findPreference<SwitchPreferenceCompat>("usf_saf_write")!!
++
++            fun onUsfBackgroundChanged(usfBackground: Boolean) {
++                fun updateSwitchPreferenceCompat(switch: SwitchPreferenceCompat) = with (switch) {
++                    isChecked = isChecked && usfBackground
++                    isEnabled = usfBackground
++                    onPreferenceChangeListener?.onPreferenceChange(switch, isChecked)
++                }
++                updateSwitchPreferenceCompat(switchKeepOpen)
++                updateSwitchPreferenceCompat(switchExpose)
++                with(switchLockOnScreenLock) {
++                    isEnabled = usfBackground
++                    if (!usfBackground) {
++                        isChecked = true
++                    }
++                }
++            }
++            onUsfBackgroundChanged(switchBackground.isChecked)
++
++            fun updateSafWrite(usfOpen: Boolean? = null, usfExpose: Boolean? = null) {
++                switchSafWrite.isEnabled = usfOpen ?: switchExternalOpen.isChecked || usfExpose ?: switchExpose.isChecked
++            }
++            updateSafWrite()
++
++            switchBackground.setOnPreferenceChangeListener { _, checked ->
++                onUsfBackgroundChanged(checked as Boolean)
++                true
++            }
++            switchExternalOpen.setOnPreferenceChangeListener { _, checked ->
++                updateSafWrite(usfOpen = checked as Boolean)
++                true
++            }
++            switchExpose.setOnPreferenceChangeListener { _, checked ->
++                updateSafWrite(usfExpose = checked as Boolean)
++                VolumeProvider.notifyRootsChanged(requireContext())
++                true
++            }
++
++            switchKeepOpen.setOnPreferenceChangeListener { _, checked ->
++                if (checked as Boolean) {
++                    (requireActivity() as SettingsActivity).notificationPermissionHelper.askAndRun {
++                        requireContext().let {
++                            if (AndroidUtils.isServiceRunning(it, KeepAliveService::class.java)) {
++                                ContextCompat.startForegroundService(it, Intent(it, KeepAliveService::class.java).apply {
++                                    action = KeepAliveService.ACTION_FOREGROUND
++                                })
++                            }
++                        }
++                    }
++                }
++                true
++            }
++            findPreference<ListPreference>("export_method")!!.setOnPreferenceChangeListener { _, newValue ->
++                if (newValue as String == "memory" && !Compat.isMemFileSupported()) {
++                    MaterialAlertDialogBuilder(requireContext())
++                        .setTitle(R.string.error)
++                        .setMessage(getString(R.string.memfd_create_unsupported, Compat.MEMFD_CREATE_MINIMUM_KERNEL_VERSION))
++                        .setPositiveButton(R.string.ok, null)
++                        .show()
++                    return@setOnPreferenceChangeListener false
++                }
++                EncryptedFileProvider.exportMethod = EncryptedFileProvider.ExportMethod.parse(newValue)
++                true
++            }
++        }
++    }
++}
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/add_volume/AddVolumeActivity.kt
@@ -3197,7 +3520,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity
 diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/root_preferences.xml
 --- a/app/src/main/res/xml/root_preferences.xml
 +++ b/app/src/main/res/xml/root_preferences.xml
-@@ -1,139 +1,95 @@
+@@ -1,139 +1,86 @@
 -<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
 -    xmlns:android="http://schemas.android.com/apk/res/android">
 -
@@ -3340,15 +3663,6 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 +<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
 +    xmlns:android="http://schemas.android.com/apk/res/android">
 +
-+    <PreferenceCategory android:title="@string/vaultshelf_vault_category">
-+
-+        <sushi.hardcore.droidfs.widgets.MaterialListPreference
-+            android:key="default_volume"
-+            android:title="@string/vaultshelf_default_volume_title"
-+            android:summary="@string/vaultshelf_default_volume_none"/>
-+
-+    </PreferenceCategory>
-+
 +    <PreferenceCategory android:title="@string/explorer">
 +
 +        <sushi.hardcore.droidfs.widgets.MaterialListPreference
@@ -3435,66 +3749,120 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt b/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt
-@@ -29,7 +29,8 @@
-     private var fingerprintProtector: FingerprintProtector? = null
-     private val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(activity)
-     private val theme = (activity as BaseActivity).theme
-+    var defaultVolumeId: String? = sharedPrefs.getString(DEFAULT_VOLUME_KEY, null)
-+        private set
+@@ -1,227 +1,220 @@
+-package sushi.hardcore.droidfs
+-
+-import android.annotation.SuppressLint
+-import android.os.Build
+-import android.text.InputType
+-import android.view.View
+-import android.view.WindowManager
+-import android.widget.Toast
+-import androidx.fragment.app.FragmentActivity
+-import androidx.lifecycle.lifecycleScope
+-import androidx.preference.PreferenceManager
+-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+-import sushi.hardcore.droidfs.Constants.DEFAULT_VOLUME_KEY
+-import sushi.hardcore.droidfs.databinding.DialogOpenVolumeBinding
+-import sushi.hardcore.droidfs.filesystems.EncryptedVolume
+-import sushi.hardcore.droidfs.util.ObjRef
+-import sushi.hardcore.droidfs.util.UIUtils
+-import java.util.*
+-
+-class VolumeOpener(
+-    private val activity: FragmentActivity,
+-) {
+-    interface VolumeOpenerCallbacks {
+-        fun onHashStorageReset() {}
+-        fun onVolumeOpened(id: Int)
+-    }
+-
+-    private val volumeDatabase = VolumeDatabase(activity)
+-    private var fingerprintProtector: FingerprintProtector? = null
+-    private val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(activity)
+-    private val theme = (activity as BaseActivity).theme
 -    var defaultVolumeName: String? = sharedPrefs.getString(DEFAULT_VOLUME_KEY, null)
-     private var dialogBinding: DialogOpenVolumeBinding? = null
-     private val volumeManager = (activity.application as VolumeManagerApp).volumeManager
- 
-@@ -110,17 +111,52 @@
-         dialogBinding?.editPassword?.text?.clear()
-     }
- 
-+    fun refreshDefaultVolume() {
-+        defaultVolumeId = sharedPrefs.getString(DEFAULT_VOLUME_KEY, null)
-+    }
-+
-+    fun resolveDefaultVolume(volumes: List<VolumeData>): VolumeData? {
-+        refreshDefaultVolume()
-+        val stored = defaultVolumeId ?: return null
-+        volumes.firstOrNull { it.uuid == stored }?.let { return it }
-+        volumes.firstOrNull { it.name == stored }?.let { legacy ->
-+            setDefaultVolume(legacy)
-+            return legacy
-+        }
-+        clearDefaultVolume()
-+        return null
-+    }
-+
-+    fun isDefaultVolume(volume: VolumeData): Boolean {
-+        val stored = defaultVolumeId ?: return false
-+        if (stored == volume.uuid) return true
-+        if (stored == volume.name) {
-+            setDefaultVolume(volume)
-+            return true
-+        }
-+        return false
-+    }
-+
-+    fun setDefaultVolume(volume: VolumeData) {
-+        sharedPrefs.edit()
-+            .putString(DEFAULT_VOLUME_KEY, volume.uuid)
-+            .apply()
-+        defaultVolumeId = volume.uuid
-+    }
-+
-+    fun clearDefaultVolume() {
-+        sharedPrefs.edit()
-+            .remove(DEFAULT_VOLUME_KEY)
-+            .apply()
-+        defaultVolumeId = null
-+    }
-+
-     private fun onPasswordSubmitted(volume: VolumeData, isVolumeSaved: Boolean, callbacks: VolumeOpenerCallbacks) {
-+        if (dialogBinding!!.checkboxDefaultOpen.isChecked xor isDefaultVolume(volume)) {
-+            if (dialogBinding!!.checkboxDefaultOpen.isChecked) {
-+                setDefaultVolume(volume)
-+            } else {
-+                clearDefaultVolume()
+-    private var dialogBinding: DialogOpenVolumeBinding? = null
+-    private val volumeManager = (activity.application as VolumeManagerApp).volumeManager
+-
+-    init {
+-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+-            fingerprintProtector = FingerprintProtector.new(activity, volumeDatabase)
+-        }
+-    }
+-
+-    private fun getErrorMsg(result: EncryptedVolume.InitResult): String {
+-        return if (result.errorStringId == 0) {
+-            activity.getString(R.string.unknown_error_code, result.errorCode)
+-        } else {
+-            activity.getString(result.errorStringId)
+-        }
+-    }
+-
+-    @SuppressLint("NewApi") // fingerprintProtector is non-null only when SDK_INT >= 23
+-    fun openVolume(volume: VolumeData, isVolumeSaved: Boolean, callbacks: VolumeOpenerCallbacks) {
+-        val volumeId = volumeManager.getVolumeId(volume)
+-        if (volumeId == null) {
+-            if (volume.type == EncryptedVolume.GOCRYPTFS_VOLUME_TYPE && BuildConfig.GOCRYPTFS_DISABLED) {
+-                Toast.makeText(activity, R.string.gocryptfs_disabled, Toast.LENGTH_SHORT).show()
+-                return
+-            } else if (volume.type == EncryptedVolume.CRYFS_VOLUME_TYPE && BuildConfig.CRYFS_DISABLED) {
+-                Toast.makeText(activity, R.string.cryfs_disabled, Toast.LENGTH_SHORT).show()
+-                return
+-            }
+-            var askForPassword = true
+-            fingerprintProtector?.let { fingerprintProtector ->
+-                volume.encryptedHash?.let { encryptedHash ->
+-                    volume.iv?.let { iv ->
+-                        askForPassword = false
+-                        fingerprintProtector.listener = object : FingerprintProtector.Listener {
+-                            override fun onHashStorageReset() {
+-                                callbacks.onHashStorageReset()
+-                            }
+-                            override fun onPasswordHashDecrypted(hash: ByteArray) {
+-                                object : LoadingTask<EncryptedVolume.InitResult>(activity, R.string.loading_msg_open) {
+-                                    override suspend fun doTask(): EncryptedVolume.InitResult {
+-                                        val result = EncryptedVolume.init(volume, activity.filesDir.path, null, hash, null)
+-                                        Arrays.fill(hash, 0)
+-                                        return result
+-                                    }
+-                                }.startTask(activity.lifecycleScope) { result ->
+-                                    val encryptedVolume = result.volume
+-                                    if (encryptedVolume == null) {
+-                                        MaterialAlertDialogBuilder(activity)
+-                                            .setTitle(R.string.open_volume_failed)
+-                                            .setMessage(getErrorMsg(result))
+-                                            .setPositiveButton(R.string.ok, null)
+-                                            .show()
+-                                    } else {
+-                                        callbacks.onVolumeOpened(volumeManager.insert(encryptedVolume, volume))
+-                                    }
+-                                }
+-                            }
+-                            override fun onPasswordHashSaved() {}
+-                            override fun onFailed(pending: Boolean) {
+-                                if (!pending && sharedPrefs.getBoolean("passwordFallback", true)) {
+-                                    askForPassword(volume, isVolumeSaved, callbacks)
+-                                }
+-                            }
+-                        }
+-                        fingerprintProtector.loadPasswordHash(volume.shortName, encryptedHash, iv)
+-                    }
+-                }
+-            }
+-            if (askForPassword) {
+-                askForPassword(volume, isVolumeSaved, callbacks)
+-            }
+-        } else {
+-            callbacks.onVolumeOpened(volumeId)
+-        }
+-    }
+-
+-    fun wipeSensitive() {
+-        dialogBinding?.editPassword?.text?.clear()
+-    }
+-
+-    private fun onPasswordSubmitted(volume: VolumeData, isVolumeSaved: Boolean, callbacks: VolumeOpenerCallbacks) {
 -        if (dialogBinding!!.checkboxDefaultOpen.isChecked xor (defaultVolumeName == volume.name)) {
 -            with (sharedPrefs.edit()) {
 -                defaultVolumeName = if (dialogBinding!!.checkboxDefaultOpen.isChecked) {
@@ -3505,12 +3873,234 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt b/app/src/
 -                    null
 -                }
 -                apply()
-             }
-         }
-         val password = UIUtils.encodeEditTextContent(dialogBinding!!.editPassword)
-@@ -137,5 +173,12 @@
-     }
- 
+-            }
+-        }
+-        val password = UIUtils.encodeEditTextContent(dialogBinding!!.editPassword)
+-        val savePasswordHash = dialogBinding!!.checkboxSavePassword.isChecked
+-        dialogBinding = null
+-        // openVolumeWithPassword is responsible for wiping the password
+-        openVolumeWithPassword(
+-            volume,
+-            password,
+-            isVolumeSaved,
+-            savePasswordHash,
+-            callbacks,
+-        )
+-    }
+-
+-    private fun askForPassword(volume: VolumeData, isVolumeSaved: Boolean, callbacks: VolumeOpenerCallbacks, savePasswordHash: Boolean = false) {
+-        dialogBinding = DialogOpenVolumeBinding.inflate(activity.layoutInflater)
+-        if (isVolumeSaved) {
+-            if (!sharedPrefs.getBoolean("usf_fingerprint", false) || fingerprintProtector == null || volume.encryptedHash != null) {
+-                dialogBinding!!.checkboxSavePassword.visibility = View.GONE
+-            } else {
+-                dialogBinding!!.checkboxSavePassword.isChecked = savePasswordHash
+-            }
+-            dialogBinding!!.checkboxDefaultOpen.isChecked = defaultVolumeName == volume.name
+-        } else {
+-            dialogBinding!!.checkboxSavePassword.visibility = View.GONE
+-            dialogBinding!!.checkboxDefaultOpen.visibility = View.GONE
+-        }
+-        val dialog = MaterialAlertDialogBuilder(activity)
+-            .setTitle(activity.getString(R.string.open_dialog_title, volume.shortName))
+-            .setView(dialogBinding!!.root)
+-            .setNegativeButton(R.string.cancel, null)
+-            .setPositiveButton(R.string.open) { _, _ ->
+-                onPasswordSubmitted(volume, isVolumeSaved, callbacks)
+-            }
+-            .create()
+-        dialogBinding!!.editPassword.apply {
+-            setOnEditorActionListener { _, _, _ ->
+-                dialog.dismiss()
+-                onPasswordSubmitted(volume, isVolumeSaved, callbacks)
+-                true
+-            }
+-            if (sharedPrefs.getBoolean(Constants.PIN_PASSWORDS_KEY, false)) {
+-                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+-            }
+-        }
+-        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
+-        dialog.show()
+-    }
+-
+-    private fun openVolumeWithPassword(volume: VolumeData, password: ByteArray, isVolumeSaved: Boolean, savePasswordHash: Boolean, callbacks: VolumeOpenerCallbacks) {
+-        val returnedHash: ObjRef<ByteArray?>? = if (savePasswordHash) {
+-            ObjRef(null)
+-        } else {
+-            null
+-        }
+-        object : LoadingTask<EncryptedVolume.InitResult>(activity, R.string.loading_msg_open) {
+-            override suspend fun doTask(): EncryptedVolume.InitResult {
+-                val result = EncryptedVolume.init(volume, activity.filesDir.path, password, null, returnedHash)
+-                Arrays.fill(password, 0)
+-                return result
+-            }
+-        }.startTask(activity.lifecycleScope) { result ->
+-            val encryptedVolume = result.volume
+-            if (encryptedVolume == null) {
+-                MaterialAlertDialogBuilder(activity)
+-                    .setTitle(R.string.open_volume_failed)
+-                    .setMessage(getErrorMsg(result))
+-                    .setPositiveButton(R.string.ok) { _, _ ->
+-                        if (result.worthRetry) {
+-                            askForPassword(volume, isVolumeSaved, callbacks, savePasswordHash)
+-                        }
+-                    }
+-                    .show()
+-            } else {
+-                val fingerprintProtector = fingerprintProtector
+-                @SuppressLint("NewApi") // fingerprintProtector is non-null only when SDK_INT >= 23
+-                if (savePasswordHash && returnedHash != null && fingerprintProtector != null) {
+-                    fingerprintProtector.listener = object : FingerprintProtector.Listener {
+-                        override fun onHashStorageReset() {
+-                            callbacks.onHashStorageReset()
+-                        }
+-                        override fun onPasswordHashDecrypted(hash: ByteArray) {}
+-                        override fun onPasswordHashSaved() {
+-                            Arrays.fill(returnedHash.value!!, 0)
+-                            callbacks.onVolumeOpened(volumeManager.insert(encryptedVolume, volume))
+-                        }
+-                        private var isClosed = false
+-                        override fun onFailed(pending: Boolean) {
+-                            if (!isClosed) {
+-                                encryptedVolume.closeVolume()
+-                                isClosed = true
+-                            }
+-                            Arrays.fill(returnedHash.value!!, 0)
+-                        }
+-                    }
+-                    fingerprintProtector.savePasswordHash(volume, returnedHash.value!!)
+-                } else {
+-                    callbacks.onVolumeOpened(volumeManager.insert(encryptedVolume, volume))
+-                }
+-            }
+-        }
+-    }
+-}
++package sushi.hardcore.droidfs
++
++import android.annotation.SuppressLint
++import android.os.Build
++import android.text.InputType
++import android.view.View
++import android.view.WindowManager
++import android.widget.Toast
++import androidx.fragment.app.FragmentActivity
++import androidx.lifecycle.lifecycleScope
++import androidx.preference.PreferenceManager
++import com.google.android.material.dialog.MaterialAlertDialogBuilder
++import sushi.hardcore.droidfs.databinding.DialogOpenVolumeBinding
++import sushi.hardcore.droidfs.filesystems.EncryptedVolume
++import sushi.hardcore.droidfs.util.ObjRef
++import sushi.hardcore.droidfs.util.UIUtils
++import java.util.*
++
++class VolumeOpener(
++    private val activity: FragmentActivity,
++) {
++    interface VolumeOpenerCallbacks {
++        fun onHashStorageReset() {}
++        fun onVolumeOpened(id: Int)
++    }
++
++    private val volumeDatabase = VolumeDatabase(activity)
++    private var fingerprintProtector: FingerprintProtector? = null
++    private val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(activity)
++    private val theme = (activity as BaseActivity).theme
++    private var dialogBinding: DialogOpenVolumeBinding? = null
++    private val volumeManager = (activity.application as VolumeManagerApp).volumeManager
++
++    init {
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
++            fingerprintProtector = FingerprintProtector.new(activity, volumeDatabase)
++        }
++    }
++
++    private fun getErrorMsg(result: EncryptedVolume.InitResult): String {
++        return if (result.errorStringId == 0) {
++            activity.getString(R.string.unknown_error_code, result.errorCode)
++        } else {
++            activity.getString(result.errorStringId)
++        }
++    }
++
++    @SuppressLint("NewApi") // fingerprintProtector is non-null only when SDK_INT >= 23
++    fun openVolume(volume: VolumeData, isVolumeSaved: Boolean, callbacks: VolumeOpenerCallbacks) {
++        val volumeId = volumeManager.getVolumeId(volume)
++        if (volumeId == null) {
++            if (volume.type == EncryptedVolume.GOCRYPTFS_VOLUME_TYPE && BuildConfig.GOCRYPTFS_DISABLED) {
++                Toast.makeText(activity, R.string.gocryptfs_disabled, Toast.LENGTH_SHORT).show()
++                return
++            } else if (volume.type == EncryptedVolume.CRYFS_VOLUME_TYPE && BuildConfig.CRYFS_DISABLED) {
++                Toast.makeText(activity, R.string.cryfs_disabled, Toast.LENGTH_SHORT).show()
++                return
++            }
++            var askForPassword = true
++            fingerprintProtector?.let { fingerprintProtector ->
++                volume.encryptedHash?.let { encryptedHash ->
++                    volume.iv?.let { iv ->
++                        askForPassword = false
++                        fingerprintProtector.listener = object : FingerprintProtector.Listener {
++                            override fun onHashStorageReset() {
++                                callbacks.onHashStorageReset()
++                            }
++                            override fun onPasswordHashDecrypted(hash: ByteArray) {
++                                object : LoadingTask<EncryptedVolume.InitResult>(activity, R.string.loading_msg_open) {
++                                    override suspend fun doTask(): EncryptedVolume.InitResult {
++                                        val result = EncryptedVolume.init(volume, activity.filesDir.path, null, hash, null)
++                                        Arrays.fill(hash, 0)
++                                        return result
++                                    }
++                                }.startTask(activity.lifecycleScope) { result ->
++                                    val encryptedVolume = result.volume
++                                    if (encryptedVolume == null) {
++                                        MaterialAlertDialogBuilder(activity)
++                                            .setTitle(R.string.open_volume_failed)
++                                            .setMessage(getErrorMsg(result))
++                                            .setPositiveButton(R.string.ok, null)
++                                            .show()
++                                    } else {
++                                        callbacks.onVolumeOpened(volumeManager.insert(encryptedVolume, volume))
++                                    }
++                                }
++                            }
++                            override fun onPasswordHashSaved() {}
++                            override fun onFailed(pending: Boolean) {
++                                if (!pending && sharedPrefs.getBoolean("passwordFallback", true)) {
++                                    askForPassword(volume, isVolumeSaved, callbacks)
++                                }
++                            }
++                        }
++                        fingerprintProtector.loadPasswordHash(volume.shortName, encryptedHash, iv)
++                    }
++                }
++            }
++            if (askForPassword) {
++                askForPassword(volume, isVolumeSaved, callbacks)
++            }
++        } else {
++            callbacks.onVolumeOpened(volumeId)
++        }
++    }
++
++    fun wipeSensitive() {
++        dialogBinding?.editPassword?.text?.clear()
++    }
++
++    private fun onPasswordSubmitted(volume: VolumeData, isVolumeSaved: Boolean, callbacks: VolumeOpenerCallbacks) {
++        val password = UIUtils.encodeEditTextContent(dialogBinding!!.editPassword)
++        val savePasswordHash = dialogBinding!!.checkboxSavePassword.isChecked
++        dialogBinding = null
++        // openVolumeWithPassword is responsible for wiping the password
++        openVolumeWithPassword(
++            volume,
++            password,
++            isVolumeSaved,
++            savePasswordHash,
++            callbacks,
++        )
++    }
++
 +    fun requestSaveFingerprint(
 +        volume: VolumeData,
 +        callbacks: VolumeOpenerCallbacks,
@@ -3518,45 +4108,322 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/VolumeOpener.kt b/app/src/
 +        askForPassword(volume, true, callbacks, savePasswordHash = true)
 +    }
 +
-     private fun askForPassword(volume: VolumeData, isVolumeSaved: Boolean, callbacks: VolumeOpenerCallbacks, savePasswordHash: Boolean = false) {
-         dialogBinding = DialogOpenVolumeBinding.inflate(activity.layoutInflater)
-         if (isVolumeSaved) {
-@@ -144,7 +187,7 @@
-             } else {
-                 dialogBinding!!.checkboxSavePassword.isChecked = savePasswordHash
-             }
-+            dialogBinding!!.checkboxDefaultOpen.isChecked = isDefaultVolume(volume)
--            dialogBinding!!.checkboxDefaultOpen.isChecked = defaultVolumeName == volume.name
-         } else {
-             dialogBinding!!.checkboxSavePassword.visibility = View.GONE
-             dialogBinding!!.checkboxDefaultOpen.visibility = View.GONE
++    private fun askForPassword(volume: VolumeData, isVolumeSaved: Boolean, callbacks: VolumeOpenerCallbacks, savePasswordHash: Boolean = false) {
++        dialogBinding = DialogOpenVolumeBinding.inflate(activity.layoutInflater)
++        if (isVolumeSaved) {
++            if (!sharedPrefs.getBoolean("usf_fingerprint", false) || fingerprintProtector == null || volume.encryptedHash != null) {
++                dialogBinding!!.checkboxSavePassword.visibility = View.GONE
++            } else {
++                dialogBinding!!.checkboxSavePassword.isChecked = savePasswordHash
++            }
++            dialogBinding!!.checkboxDefaultOpen.visibility = View.GONE
++        } else {
++            dialogBinding!!.checkboxSavePassword.visibility = View.GONE
++            dialogBinding!!.checkboxDefaultOpen.visibility = View.GONE
++        }
++        val dialog = MaterialAlertDialogBuilder(activity)
++            .setTitle(activity.getString(R.string.open_dialog_title, volume.shortName))
++            .setView(dialogBinding!!.root)
++            .setNegativeButton(R.string.cancel, null)
++            .setPositiveButton(R.string.open) { _, _ ->
++                onPasswordSubmitted(volume, isVolumeSaved, callbacks)
++            }
++            .create()
++        dialogBinding!!.editPassword.apply {
++            setOnEditorActionListener { _, _, _ ->
++                dialog.dismiss()
++                onPasswordSubmitted(volume, isVolumeSaved, callbacks)
++                true
++            }
++            if (sharedPrefs.getBoolean(Constants.PIN_PASSWORDS_KEY, false)) {
++                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
++            }
++        }
++        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
++        dialog.show()
++    }
++
++    private fun openVolumeWithPassword(volume: VolumeData, password: ByteArray, isVolumeSaved: Boolean, savePasswordHash: Boolean, callbacks: VolumeOpenerCallbacks) {
++        val returnedHash: ObjRef<ByteArray?>? = if (savePasswordHash) {
++            ObjRef(null)
++        } else {
++            null
++        }
++        object : LoadingTask<EncryptedVolume.InitResult>(activity, R.string.loading_msg_open) {
++            override suspend fun doTask(): EncryptedVolume.InitResult {
++                val result = EncryptedVolume.init(volume, activity.filesDir.path, password, null, returnedHash)
++                Arrays.fill(password, 0)
++                return result
++            }
++        }.startTask(activity.lifecycleScope) { result ->
++            val encryptedVolume = result.volume
++            if (encryptedVolume == null) {
++                MaterialAlertDialogBuilder(activity)
++                    .setTitle(R.string.open_volume_failed)
++                    .setMessage(getErrorMsg(result))
++                    .setPositiveButton(R.string.ok) { _, _ ->
++                        if (result.worthRetry) {
++                            askForPassword(volume, isVolumeSaved, callbacks, savePasswordHash)
++                        }
++                    }
++                    .show()
++            } else {
++                val fingerprintProtector = fingerprintProtector
++                @SuppressLint("NewApi") // fingerprintProtector is non-null only when SDK_INT >= 23
++                if (savePasswordHash && returnedHash != null && fingerprintProtector != null) {
++                    fingerprintProtector.listener = object : FingerprintProtector.Listener {
++                        override fun onHashStorageReset() {
++                            callbacks.onHashStorageReset()
++                        }
++                        override fun onPasswordHashDecrypted(hash: ByteArray) {}
++                        override fun onPasswordHashSaved() {
++                            Arrays.fill(returnedHash.value!!, 0)
++                            callbacks.onVolumeOpened(volumeManager.insert(encryptedVolume, volume))
++                        }
++                        private var isClosed = false
++                        override fun onFailed(pending: Boolean) {
++                            if (!isClosed) {
++                                encryptedVolume.closeVolume()
++                                isClosed = true
++                            }
++                            Arrays.fill(returnedHash.value!!, 0)
++                        }
++                    }
++                    fingerprintProtector.savePasswordHash(volume, returnedHash.value!!)
++                } else {
++                    callbacks.onVolumeOpened(volumeManager.insert(encryptedVolume, volume))
++                }
++            }
++        }
++    }
++}
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/adapters/VolumeAdapter.kt b/app/src/main/java/sushi/hardcore/droidfs/adapters/VolumeAdapter.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/adapters/VolumeAdapter.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/adapters/VolumeAdapter.kt
-@@ -1,6 +1,7 @@
- package sushi.hardcore.droidfs.adapters
- 
- import android.annotation.SuppressLint
+@@ -1,128 +1,138 @@
+-package sushi.hardcore.droidfs.adapters
+-
+-import android.annotation.SuppressLint
+-import android.content.Context
+-import android.view.LayoutInflater
+-import android.view.View
+-import android.view.ViewGroup
+-import android.widget.ImageView
+-import android.widget.LinearLayout
+-import android.widget.TextView
+-import androidx.core.view.isVisible
+-import androidx.recyclerview.widget.RecyclerView
+-import sushi.hardcore.droidfs.R
+-import sushi.hardcore.droidfs.VolumeData
+-import sushi.hardcore.droidfs.VolumeDatabase
+-import sushi.hardcore.droidfs.VolumeManager
+-import sushi.hardcore.droidfs.filesystems.EncryptedVolume
+-
+-class VolumeAdapter(
+-    private val context: Context,
+-    private val volumeDatabase: VolumeDatabase,
+-    private val volumeManager: VolumeManager,
+-    private val allowSelection: Boolean,
+-    private val showReadOnly: Boolean,
+-    private val listener: Listener,
+-) : SelectableAdapter<VolumeData>(listener::onSelectionChanged) {
+-    private val inflater: LayoutInflater = LayoutInflater.from(context)
+-    lateinit var volumes: List<VolumeData>
+-
+-    init {
+-        reloadVolumes()
+-        volumeManager.observe(object : VolumeManager.Observer {
+-            override fun onVolumeStateChanged(volume: VolumeData) {
+-                notifyItemChanged(volumes.indexOf(volume))
+-            }
+-
+-            @SuppressLint("NotifyDataSetChanged")
+-            override fun onAllVolumesClosed() {
+-                notifyDataSetChanged()
+-            }
+-        })
+-    }
+-
+-    interface Listener {
+-        fun onSelectionChanged(size: Int)
+-        fun onVolumeItemClick(volume: VolumeData, position: Int)
+-        fun onVolumeItemLongClick()
+-    }
+-
+-    override fun getItems(): List<VolumeData> {
+-        return volumes
+-    }
+-
+-    private fun reloadVolumes() {
+-        volumes = if (showReadOnly) {
+-            volumeDatabase.getVolumes()
+-        } else {
+-            volumeDatabase.getVolumes().filter { v -> v.canWrite(context.filesDir.path) }
+-        }
+-    }
+-
+-    override fun onItemClick(position: Int): Boolean {
+-        listener.onVolumeItemClick(volumes[position], position)
+-        return if (allowSelection) {
+-            super.onItemClick(position)
+-        } else {
+-            false
+-        }
+-    }
+-
+-    override fun onItemLongClick(position: Int): Boolean {
+-        listener.onVolumeItemLongClick()
+-        return if (allowSelection)
+-            super.onItemLongClick(position)
+-        else
+-            false
+-    }
+-
+-    fun onVolumeDataChanged(position: Int) {
+-        reloadVolumes()
+-        notifyItemChanged(position)
+-    }
+-
+-    @SuppressLint("NotifyDataSetChanged")
+-    fun refresh() {
+-        reloadVolumes()
+-        unSelectAll(false)
+-        notifyDataSetChanged()
+-    }
+-
+-    inner class VolumeViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+-
+-        fun bind(position: Int) {
+-            val volume = volumes[position]
+-            itemView.findViewById<TextView>(R.id.text_volume_name).text = volume.shortName
+-            itemView.findViewById<TextView>(R.id.text_path).text = if (volume.isHidden)
+-                context.getString(R.string.hidden_volume)
+-            else
+-                volume.name
+-            itemView.findViewById<ImageView>(R.id.icon_unlocked).isVisible = volumeManager.isOpen(volume)
+-            itemView.findViewById<ImageView>(R.id.icon_fingerprint).isVisible = volume.encryptedHash != null
+-            itemView.findViewById<TextView>(R.id.text_info).text = context.getString(
+-                if (volume.canWrite(context.filesDir.path)) {
+-                    R.string.volume_type
+-                } else if (volume.canRead(context.filesDir.path)) {
+-                    R.string.volume_type_read_only
+-                } else {
+-                    R.string.volume_type_inaccessible
+-                },
+-                context.getString(if (volume.type == EncryptedVolume.GOCRYPTFS_VOLUME_TYPE) {
+-                    R.string.gocryptfs
+-                } else {
+-                    R.string.cryfs
+-                })
+-            )
+-            setSelectable(itemView, layoutPosition)
+-        }
+-    }
+-
+-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+-        val view: View = inflater.inflate(R.layout.adapter_volume, parent, false)
+-        return VolumeViewHolder(view)
+-    }
+-
+-    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+-        (holder as VolumeViewHolder).bind(position)
+-    }
+-}
++package sushi.hardcore.droidfs.adapters
++
++import android.annotation.SuppressLint
 +import android.app.Activity
- import android.content.Context
- import android.view.LayoutInflater
- import android.view.View
-@@ -10,6 +11,7 @@
- import android.widget.TextView
- import androidx.core.view.isVisible
- import androidx.recyclerview.widget.RecyclerView
-+import sushi.hardcore.droidfs.Constants.DEFAULT_VOLUME_KEY
- import sushi.hardcore.droidfs.R
- import sushi.hardcore.droidfs.VolumeData
- import sushi.hardcore.droidfs.VolumeDatabase
-@@ -92,7 +94,24 @@
- 
-         fun bind(position: Int) {
-             val volume = volumes[position]
-+            val defaultId = context.getSharedPreferences(
-+                context.packageName + "_preferences",
-+                Context.MODE_PRIVATE,
-+            ).getString(DEFAULT_VOLUME_KEY, null)
++import android.content.Context
++import android.view.LayoutInflater
++import android.view.View
++import android.view.ViewGroup
++import android.widget.ImageView
++import android.widget.LinearLayout
++import android.widget.TextView
++import androidx.core.view.isVisible
++import androidx.recyclerview.widget.RecyclerView
++import sushi.hardcore.droidfs.R
++import sushi.hardcore.droidfs.VolumeData
++import sushi.hardcore.droidfs.VolumeDatabase
++import sushi.hardcore.droidfs.VolumeManager
++import sushi.hardcore.droidfs.filesystems.EncryptedVolume
++
++class VolumeAdapter(
++    private val context: Context,
++    private val volumeDatabase: VolumeDatabase,
++    private val volumeManager: VolumeManager,
++    private val allowSelection: Boolean,
++    private val showReadOnly: Boolean,
++    private val listener: Listener,
++) : SelectableAdapter<VolumeData>(listener::onSelectionChanged) {
++    private val inflater: LayoutInflater = LayoutInflater.from(context)
++    lateinit var volumes: List<VolumeData>
++
++    init {
++        reloadVolumes()
++        volumeManager.observe(object : VolumeManager.Observer {
++            override fun onVolumeStateChanged(volume: VolumeData) {
++                notifyItemChanged(volumes.indexOf(volume))
++            }
++
++            @SuppressLint("NotifyDataSetChanged")
++            override fun onAllVolumesClosed() {
++                notifyDataSetChanged()
++            }
++        })
++    }
++
++    interface Listener {
++        fun onSelectionChanged(size: Int)
++        fun onVolumeItemClick(volume: VolumeData, position: Int)
++        fun onVolumeItemLongClick()
++    }
++
++    override fun getItems(): List<VolumeData> {
++        return volumes
++    }
++
++    private fun reloadVolumes() {
++        volumes = if (showReadOnly) {
++            volumeDatabase.getVolumes()
++        } else {
++            volumeDatabase.getVolumes().filter { v -> v.canWrite(context.filesDir.path) }
++        }
++    }
++
++    override fun onItemClick(position: Int): Boolean {
++        listener.onVolumeItemClick(volumes[position], position)
++        return if (allowSelection) {
++            super.onItemClick(position)
++        } else {
++            false
++        }
++    }
++
++    override fun onItemLongClick(position: Int): Boolean {
++        listener.onVolumeItemLongClick()
++        return if (allowSelection)
++            super.onItemLongClick(position)
++        else
++            false
++    }
++
++    fun onVolumeDataChanged(position: Int) {
++        reloadVolumes()
++        notifyItemChanged(position)
++    }
++
++    @SuppressLint("NotifyDataSetChanged")
++    fun refresh() {
++        reloadVolumes()
++        unSelectAll(false)
++        notifyDataSetChanged()
++    }
++
++    inner class VolumeViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
++
++        fun bind(position: Int) {
++            val volume = volumes[position]
 +            val currentId = (context as? Activity)
 +                ?.intent
 +                ?.getStringExtra("vaultshelf.current_volume_uuid")
@@ -3566,19 +4433,44 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/adapters/VolumeAdapter.kt 
 +                    append(" · ")
 +                    append(context.getString(R.string.vaultshelf_current_volume_label))
 +                }
-+                if (defaultId == volume.uuid || defaultId == volume.name) {
-+                    append(" · ")
-+                    append(context.getString(R.string.vaultshelf_default_volume_label))
-+                }
 +            }
--            itemView.findViewById<TextView>(R.id.text_volume_name).text = volume.shortName
-             itemView.findViewById<TextView>(R.id.text_path).text = if (volume.isHidden)
-                 context.getString(R.string.hidden_volume)
-             else
++            itemView.findViewById<TextView>(R.id.text_path).text = if (volume.isHidden)
++                context.getString(R.string.hidden_volume)
++            else
++                volume.name
++            itemView.findViewById<ImageView>(R.id.icon_unlocked).isVisible = volumeManager.isOpen(volume)
++            itemView.findViewById<ImageView>(R.id.icon_fingerprint).isVisible = volume.encryptedHash != null
++            itemView.findViewById<TextView>(R.id.text_info).text = context.getString(
++                if (volume.canWrite(context.filesDir.path)) {
++                    R.string.volume_type
++                } else if (volume.canRead(context.filesDir.path)) {
++                    R.string.volume_type_read_only
++                } else {
++                    R.string.volume_type_inaccessible
++                },
++                context.getString(if (volume.type == EncryptedVolume.GOCRYPTFS_VOLUME_TYPE) {
++                    R.string.gocryptfs
++                } else {
++                    R.string.cryfs
++                })
++            )
++            setSelectable(itemView, layoutPosition)
++        }
++    }
++
++    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
++        val view: View = inflater.inflate(R.layout.adapter_volume, parent, false)
++        return VolumeViewHolder(view)
++    }
++
++    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
++        (holder as VolumeViewHolder).bind(position)
++    }
++}
 diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
 --- a/app/src/main/res/values/strings.xml
 +++ b/app/src/main/res/values/strings.xml
-@@ -1,302 +1,309 @@
+@@ -1,302 +1,305 @@
 -<resources>
 -    <string name="app_name">DroidFS</string>
 -    <string name="create_volume">Create volume</string>
@@ -4185,16 +5077,11 @@ diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strin
 +    <string name="propose_wipe_imported_files">Propose to wipe imported files</string>
 +    <string name="propose_wipe_imported_files_summary">After importing files, ask whether to wipe them from the source</string>
 +    <string name="vaultshelf_current_volume_label">Current</string>
-+    <string name="vaultshelf_default_volume_label">Default</string>
-+    <string name="vaultshelf_vault_category">Vault</string>
-+    <string name="vaultshelf_default_volume_title">Default vault</string>
-+    <string name="vaultshelf_default_volume_none">None</string>
 +</resources>
-
 diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
 --- a/app/src/main/res/values-zh-rCN/strings.xml
 +++ b/app/src/main/res/values-zh-rCN/strings.xml
-@@ -1,271 +1,278 @@
+@@ -1,271 +1,274 @@
 -<?xml version="1.0" encoding="utf-8"?>
 -<resources>
 -    <string name="app_name">DroidFS</string>
@@ -4739,8 +5626,4 @@ diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/value
 +    <string name="export_mem">导出至内存</string>
 +    <string name="export_disk">导出至磁盘</string>
 +    <string name="vaultshelf_current_volume_label">当前</string>
-+    <string name="vaultshelf_default_volume_label">默认</string>
-+    <string name="vaultshelf_vault_category">保险库</string>
-+    <string name="vaultshelf_default_volume_title">默认卷</string>
-+    <string name="vaultshelf_default_volume_none">无</string>
 +</resources>
