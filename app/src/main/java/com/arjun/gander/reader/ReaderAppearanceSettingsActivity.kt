@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.core.graphics.toColorInt
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -145,7 +146,7 @@ private fun ReaderColorField(
 ) {
     val normalized = ReaderChromePreferences.normalizeHex(value)
     val preview = normalized?.let {
-        runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull()
+        runCatching { Color(it.toColorInt()) }.getOrNull()
     } ?: Color.Transparent
 
     Row(
