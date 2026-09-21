@@ -18,6 +18,7 @@ import com.arjun.gander.files.VaultExplorerActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import java.util.ArrayList
+import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 import sushi.hardcore.droidfs.VolumeManagerApp
 import sushi.hardcore.droidfs.util.finishOnClose
 
@@ -106,7 +107,7 @@ class VaultModeActivity : AppCompatActivity() {
                         },
                         onOpenVaultSettings = {
                             startActivity(
-                                Intent(this@VaultModeActivity, VaultSettingsActivity::class.java),
+                                Intent(this@VaultModeActivity, DroidFsSettingsActivity::class.java),
                             )
                         },
                         onOpenVaultBackup = {
