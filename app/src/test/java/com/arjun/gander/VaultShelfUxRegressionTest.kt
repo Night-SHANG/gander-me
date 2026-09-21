@@ -1613,15 +1613,24 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
         ).readText()
+        val vaultMode = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
 
         assertThat(external).contains("VaultModeActivity.EXTRA_VOLUME_ID")
         assertThat(external).doesNotContain(
             "VaultModeActivity.EXTRA_INITIAL_DESTINATION, \"FILES\"",
         )
-        assertThat(patch).contains("VaultModeActivity.EXTRA_VOLUME_ID")
+        assertThat(vaultMode).contains(
+            "const val EXTRA_VOLUME_ID = \"vaultshelf.mode.volume_id\"",
+        )
+        assertThat(patch).contains(
+            "explorerIntent.putExtra(\"vaultshelf.mode.volume_id\", volumeId)",
+        )
         assertThat(patch).doesNotContain(
-            "VaultModeActivity.EXTRA_INITIAL_DESTINATION, \"FILES\"",
+            "explorerIntent.putExtra(\"vaultshelf.mode.initial_destination\", \"FILES\")",
         )
     }
 
