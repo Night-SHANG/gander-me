@@ -86,13 +86,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.ArrayList
 
-private enum class ShelfViewMode { GRID, LIST }
+internal enum class ShelfViewMode { GRID, LIST }
 
 private const val SHELF_UI_PREFERENCES = "vaultshelf_library_ui"
 private const val PREF_GRID_COLUMNS = "grid_columns"
 private const val DEFAULT_GRID_COLUMNS = 3
 
-private enum class ShelfSort(@StringRes val labelRes: Int) {
+internal enum class ShelfSort(@StringRes val labelRes: Int) {
     LAST_ACTIVITY(R.string.vaultshelf_library_sort_recent),
     TITLE(R.string.vaultshelf_library_sort_title),
     ADDED(R.string.vaultshelf_library_sort_added),
@@ -657,35 +657,54 @@ fun LibraryScreen(
     }
 }
 
-private fun filterAndSortBooks(
-    books: List<LibraryBook>,
+internal fun <T> filterAndSortShelfItems(
+    items: List<T>,
     query: String,
     sort: ShelfSort,
-): List<LibraryBook> {
+    title: (T) -> String,
+    addedAtEpochMillis: (T) -> Long,
+    lastOpenedAtEpochMillis: (T) -> Long,
+    progressFraction: (T) -> Float,
+): List<T> {
     val normalizedQuery = query.trim()
     val filtered = if (normalizedQuery.isEmpty()) {
-        books
+        items
     } else {
-        books.filter { it.title.contains(normalizedQuery, ignoreCase = true) }
+        items.filter { title(it).contains(normalizedQuery, ignoreCase = true) }
     }
 
     return when (sort) {
         ShelfSort.LAST_ACTIVITY -> filtered.sortedWith(
-            compareByDescending<LibraryBook> {
-                if (it.lastOpenedAtEpochMillis > 0L) it.lastOpenedAtEpochMillis else it.addedAtEpochMillis
-            }.thenBy { it.title.lowercase() },
+            compareByDescending<T> {
+                val lastOpened = lastOpenedAtEpochMillis(it)
+                if (lastOpened > 0L) lastOpened else addedAtEpochMillis(it)
+            }.thenBy { title(it).lowercase() },
         )
-        ShelfSort.TITLE -> filtered.sortedBy { it.title.lowercase() }
-        ShelfSort.ADDED -> filtered.sortedByDescending { it.addedAtEpochMillis }
+        ShelfSort.TITLE -> filtered.sortedBy { title(it).lowercase() }
+        ShelfSort.ADDED -> filtered.sortedByDescending { addedAtEpochMillis(it) }
         ShelfSort.PROGRESS -> filtered.sortedWith(
-            compareByDescending<LibraryBook> { it.progressFraction }
-                .thenByDescending { it.lastOpenedAtEpochMillis },
+            compareByDescending<T> { progressFraction(it) }
+                .thenByDescending { lastOpenedAtEpochMillis(it) },
         )
     }
 }
 
+private fun filterAndSortBooks(
+    books: List<LibraryBook>,
+    query: String,
+    sort: ShelfSort,
+): List<LibraryBook> = filterAndSortShelfItems(
+    items = books,
+    query = query,
+    sort = sort,
+    title = { it.title },
+    addedAtEpochMillis = { it.addedAtEpochMillis },
+    lastOpenedAtEpochMillis = { it.lastOpenedAtEpochMillis },
+    progressFraction = { it.progressFraction },
+)
+
 @Composable
-private fun ShelfHeader(
+internal fun ShelfHeader(
     bookCount: Int,
     visibleCount: Int,
     searchQuery: String,
@@ -697,6 +716,10 @@ private fun ShelfHeader(
     gridColumns: Int,
     onGridColumnsChange: (Int) -> Unit,
     onImport: () -> Unit,
+    titleOverride: String? = null,
+    countOverride: String? = null,
+    actionOverride: String? = null,
+    availableSorts: List<ShelfSort> = ShelfSort.entries,
 ) {
     var sortMenuExpanded by remember { mutableStateOf(false) }
     var gridMenuExpanded by remember { mutableStateOf(false) }
@@ -714,12 +737,12 @@ private fun ShelfHeader(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = stringResource(R.string.vaultshelf_library_title),
+                    text = titleOverride ?: stringResource(R.string.vaultshelf_library_title),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = if (searchQuery.isBlank()) {
+                    text = countOverride ?: if (searchQuery.isBlank()) {
                         stringResource(R.string.vaultshelf_library_book_count, bookCount)
                     } else {
                         pluralStringResource(
@@ -738,7 +761,7 @@ private fun ShelfHeader(
                 shape = RoundedCornerShape(10.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp),
             ) {
-                Text(stringResource(R.string.vaultshelf_library_import_short))
+                Text(actionOverride ?: stringResource(R.string.vaultshelf_library_import_short))
             }
         }
 
@@ -768,7 +791,7 @@ private fun ShelfHeader(
                     expanded = sortMenuExpanded,
                     onDismissRequest = { sortMenuExpanded = false },
                 ) {
-                    ShelfSort.entries.forEach { item ->
+                    availableSorts.forEach { item ->
                         DropdownMenuItem(
                             text = { Text(stringResource(item.labelRes)) },
                             onClick = {
@@ -1290,7 +1313,7 @@ private fun GeneratedBookCover(book: LibraryBook) {
 }
 
 @Composable
-private fun BookMenuButton(
+internal fun BookMenuButton(
     onOpen: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
