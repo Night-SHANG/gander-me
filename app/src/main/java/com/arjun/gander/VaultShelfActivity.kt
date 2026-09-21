@@ -27,12 +27,12 @@ import com.arjun.gander.vault.VaultBackupActivity
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultDefaultVolumePreference
 import com.arjun.gander.vault.VaultVolumeActivity
-import com.arjun.gander.vault.VaultSettingsActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.SafVolume
 import java.io.File
 import java.util.ArrayList
 import java.util.UUID
+import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 import sushi.hardcore.droidfs.VolumeData
 import sushi.hardcore.droidfs.VolumeManagerApp
 import sushi.hardcore.droidfs.filesystems.EncryptedVolume
@@ -66,7 +66,7 @@ class VaultShelfActivity : AppCompatActivity() {
                         onOpenVault = ::openVault,
                         onOpenVaultSettings = {
                             startActivity(
-                                Intent(this@VaultShelfActivity, VaultSettingsActivity::class.java),
+                                Intent(this@VaultShelfActivity, DroidFsSettingsActivity::class.java),
                             )
                         },
                         onOpenVaultBackup = {
