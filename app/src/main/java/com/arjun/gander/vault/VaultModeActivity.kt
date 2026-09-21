@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
@@ -23,9 +24,12 @@ import sushi.hardcore.droidfs.util.finishOnClose
 class VaultModeActivity : AppCompatActivity() {
 
     private var libraryRevision by mutableIntStateOf(0)
+    private var requestedDestinationName by mutableStateOf("HOME")
+    private var returnToFiles by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyNavigationIntent(intent)
         VaultScreenshotPolicy.apply(this)
 
         val volumeId = intent.getIntExtra(EXTRA_VOLUME_ID, -1)
@@ -40,10 +44,6 @@ class VaultModeActivity : AppCompatActivity() {
 
         val fileRepository = VaultFileRepository(applicationContext, volumeId)
         val libraryStore = VaultLibraryStore(applicationContext, fileRepository)
-        val initialDestination =
-            intent.getStringExtra(EXTRA_INITIAL_DESTINATION).orEmpty().ifBlank { "HOME" }
-        val returnToFiles = intent.getBooleanExtra(EXTRA_RETURN_TO_FILES, false)
-
         val root = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
@@ -53,7 +53,7 @@ class VaultModeActivity : AppCompatActivity() {
                         fileRepository = fileRepository,
                         libraryStore = libraryStore,
                         externalRevision = libraryRevision,
-                        initialDestinationName = initialDestination,
+                        initialDestinationName = requestedDestinationName,
                         onOpenFile = { item ->
                             if (!VaultShelfFileRouter.openAny(
                                     this@VaultModeActivity,
@@ -160,10 +160,28 @@ class VaultModeActivity : AppCompatActivity() {
         setContentView(root)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        applyNavigationIntent(intent)
+        VaultScreenshotPolicy.apply(this)
+    }
+
+    private fun applyNavigationIntent(intent: Intent) {
+        requestedDestinationName =
+            intent.getStringExtra(EXTRA_INITIAL_DESTINATION).orEmpty().ifBlank { "HOME" }
+        returnToFiles = intent.getBooleanExtra(EXTRA_RETURN_TO_FILES, false)
+    }
+
     override fun onResume() {
         super.onResume()
         VaultScreenshotPolicy.apply(this)
         libraryRevision += 1
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) VaultScreenshotPolicy.apply(this)
     }
 
     companion object {
