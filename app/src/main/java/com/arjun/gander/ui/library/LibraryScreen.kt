@@ -39,6 +39,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -111,7 +114,7 @@ fun LibraryScreen(
     }
     var books by remember { mutableStateOf<List<LibraryBook>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var importFailed by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     var viewModeName by rememberSaveable { mutableStateOf(ShelfViewMode.GRID.name) }
     var sortName by rememberSaveable { mutableStateOf(ShelfSort.LAST_ACTIVITY.name) }
     var gridColumns by rememberSaveable {
@@ -145,6 +148,20 @@ fun LibraryScreen(
         }
     }
 
+    fun dismissTransientMessage() {
+        snackbarHostState.currentSnackbarData?.dismiss()
+    }
+
+    fun showTransientMessage(message: String) {
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Long,
+            )
+        }
+    }
+
     fun toggleSelection(book: LibraryBook) {
         selectedIds = selectedIds.toMutableSet().apply {
             if (!add(book.id)) remove(book.id)
@@ -157,13 +174,16 @@ fun LibraryScreen(
         val ids = exportBookIds
         exportBookIds = emptyList()
         if (rootUri != null && ids.isNotEmpty()) {
+            dismissTransientMessage()
             scope.launch {
                 val selectedBooks = books.filter { it.id in ids }
                 val exported = withContext(Dispatchers.IO) {
                     exportLibraryBooksToTree(context, repository, selectedBooks, rootUri)
                 }
                 if (exported.isEmpty()) {
-                    importFailed = true
+                    showTransientMessage(
+                        context.getString(R.string.vaultshelf_library_export_failed),
+                    )
                 } else {
                     when (
                         TransferBehaviorPreferences.automaticDecision(
@@ -181,7 +201,15 @@ fun LibraryScreen(
                         }
                         null -> exportedSourceIds = exported
                     }
-                    if (exported.size != selectedBooks.size) importFailed = true
+                    if (exported.size != selectedBooks.size) {
+                        showTransientMessage(
+                            context.getString(
+                                R.string.vaultshelf_library_export_partial,
+                                exported.size,
+                                selectedBooks.size - exported.size,
+                            ),
+                        )
+                    }
                 }
             }
         }
@@ -219,9 +247,9 @@ fun LibraryScreen(
         contract = ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
         if (uris.isNotEmpty()) {
-            importFailed = false
+            dismissTransientMessage()
             scope.launch {
-                var failed = false
+                var failedCount = 0
                 uris.forEach { uri ->
                     runCatching {
                         val persistFlags =
@@ -248,15 +276,31 @@ fun LibraryScreen(
                                 repository.importMobi(uri, format)
                             null -> error("Unsupported library format")
                         }
-                    }.onFailure { failed = true }
+                    }.onFailure { failedCount += 1 }
                 }
                 books = repository.listBooks()
-                importFailed = failed
+                when {
+                    failedCount == uris.size -> {
+                        showTransientMessage(
+                            context.getString(R.string.vaultshelf_library_import_failed),
+                        )
+                    }
+                    failedCount > 0 -> {
+                        showTransientMessage(
+                            context.getString(
+                                R.string.vaultshelf_library_import_partial,
+                                uris.size - failedCount,
+                                failedCount,
+                            ),
+                        )
+                    }
+                }
             }
         }
     }
 
     fun openBook(book: LibraryBook) {
+        dismissTransientMessage()
         scope.launch {
             runCatching {
                 createReaderLaunchPlan(context, repository, book)
@@ -289,7 +333,8 @@ fun LibraryScreen(
         loading = false
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
         if (selectedIds.isNotEmpty()) {
             SelectionHeader(
                 selectedCount = selectedIds.size,
@@ -303,6 +348,7 @@ fun LibraryScreen(
                     }
                 },
                 onExportToFiles = {
+                    dismissTransientMessage()
                     exportBookIds = selectedIds.toList()
                     exportLauncher.launch(null)
                 },
@@ -343,23 +389,20 @@ fun LibraryScreen(
                     gridColumns = columns.coerceIn(2, 6)
                     shelfPreferences.edit { putInt(PREF_GRID_COLUMNS, gridColumns) }
                 },
-                onImport = { importLauncher.launch(IMPORT_MIME_TYPES) },
-            )
-        }
-
-        if (importFailed) {
-            Text(
-                text = stringResource(R.string.vaultshelf_library_import_failed),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                onImport = {
+                    dismissTransientMessage()
+                    importLauncher.launch(IMPORT_MIME_TYPES)
+                },
             )
         }
 
         when {
             loading -> LoadingLibrary()
             books.isEmpty() -> EmptyLibrary(
-                onImport = { importLauncher.launch(IMPORT_MIME_TYPES) },
+                onImport = {
+                    dismissTransientMessage()
+                    importLauncher.launch(IMPORT_MIME_TYPES)
+                },
                 modifier = Modifier.padding(16.dp),
             )
 
@@ -411,6 +454,14 @@ fun LibraryScreen(
                 }
             }
         }
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        )
     }
 
     bookToRename?.let { book ->

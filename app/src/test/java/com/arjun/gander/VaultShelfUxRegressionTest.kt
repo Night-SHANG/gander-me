@@ -1649,4 +1649,25 @@ class VaultShelfUxRegressionTest {
         assertThat(patch).doesNotContain("VaultShelf 柔和白")
     }
 
+    @Test
+    fun libraryOperationFailuresUseTransientTypedSnackbars() {
+        val library = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
+        ).readText()
+        val strings = File(repo, "app/src/main/res/values-zh-rCN/strings.xml").readText()
+
+        assertThat(library).contains("SnackbarHostState")
+        assertThat(library).contains("SnackbarDuration.Long")
+        assertThat(library).contains("vaultshelf_library_import_failed")
+        assertThat(library).contains("vaultshelf_library_import_partial")
+        assertThat(library).contains("vaultshelf_library_export_failed")
+        assertThat(library).contains("vaultshelf_library_export_partial")
+        assertThat(library).doesNotContain("var importFailed")
+        assertThat(library).doesNotContain("if (importFailed)")
+        assertThat(library).contains("dismissTransientMessage()")
+        assertThat(strings).contains("部分文件导入失败")
+        assertThat(strings).contains("部分书籍导出失败")
+    }
+
 }

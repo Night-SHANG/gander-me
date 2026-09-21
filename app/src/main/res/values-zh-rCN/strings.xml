@@ -276,4 +276,8 @@
     <string name="reader_appearance_reset">恢复 VaultShelf 柔和白默认色</string>
     <string name="reader_appearance_saved">已保存，下次创建阅读界面时应用。</string>
 
+    <string name="vaultshelf_library_import_partial">部分文件导入失败。成功：%1$d · 失败：%2$d。</string>
+    <string name="vaultshelf_library_export_failed">无法导出选中的书籍。</string>
+    <string name="vaultshelf_library_export_partial">部分书籍导出失败。成功：%1$d · 失败：%2$d。</string>
+
 </resources>
