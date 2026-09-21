@@ -71,6 +71,7 @@
     <string name="vaultshelf_nav_library">书库</string>
     <string name="vaultshelf_nav_files">文件</string>
     <string name="vaultshelf_nav_vault">保险库</string>
+    <string name="vaultshelf_nav_switch">切换</string>
     <string name="vaultshelf_nav_settings">设置</string>
     <string name="vaultshelf_quick_access">快速访问</string>
     <string name="vaultshelf_open_documents">打开文档</string>
