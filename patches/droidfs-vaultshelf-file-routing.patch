@@ -1684,7 +1684,6 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/SettingsActivity.kt b/app/
 +    }
 +
      override val contentAreaId = R.id.settings
-
 @@ -75,6 +75,25 @@
          override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
              setPreferencesFromResource(R.xml.root_preferences, rootKey)
@@ -3216,7 +3215,6 @@ diff --git a/app/src/main/res/xml/root_preferences.xml b/app/src/main/res/xml/ro
 -    </PreferenceCategory>
 -
  </PreferenceScreen>
-
 @@ -1,5 +1,14 @@
  <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
      xmlns:android="http://schemas.android.com/apk/res/android">
@@ -3973,7 +3971,6 @@ diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strin
 +    <string name="vaultshelf_current_volume_label">Current</string>
 +    <string name="vaultshelf_default_volume_label">Default</string>
 +</resources>
-
 @@ -301,4 +301,7 @@
      <string name="propose_wipe_imported_files_summary">After importing files, ask whether to wipe them from the source</string>
      <string name="vaultshelf_current_volume_label">Current</string>
