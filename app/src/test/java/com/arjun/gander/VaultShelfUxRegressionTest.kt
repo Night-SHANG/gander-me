@@ -1325,7 +1325,9 @@ class VaultShelfUxRegressionTest {
         assertThat(external).contains("selected = VaultShelfDestination.FILES")
         assertThat(vault).contains("destinations = VaultShelfVaultDestinations")
         assertThat(vault).contains("selected = VaultShelfDestination.FILES")
+        assertThat(vault).contains("labelOverrides = VaultShelfVaultLabelOverrides")
         assertThat(vaultShell).contains("destinations = VaultShelfVaultDestinations")
+        assertThat(vaultShell).contains("labelOverrides = VaultShelfVaultLabelOverrides")
         assertThat(vaultShell).contains("bottomDestination")
         assertThat(layout).contains("androidx.compose.ui.platform.ComposeView")
         assertThat(layout).doesNotContain("BottomNavigationView")
@@ -1507,17 +1509,20 @@ class VaultShelfUxRegressionTest {
         ).readText()
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
 
-        assertThat(activity).contains("app.volumeManager.getVolumeId")
         assertThat(activity).contains("VaultVolumeActivity::class.java")
+        assertThat(activity).contains("EXTRA_VAULT_SHELL_ENTRY")
+        assertThat(activity).doesNotContain("VaultModeActivity.EXTRA_VOLUME_ID")
         assertThat(chooser).contains("VaultShelfBottomBar(")
         assertThat(chooser).contains("selected = VaultShelfDestination.VAULT")
+        assertThat(chooser).contains("override fun onNewIntent(intent: Intent)")
+        assertThat(chooser).contains("switchingMode")
         assertThat(vaultShell).contains("destinations = VaultShelfVaultDestinations")
         assertThat(vaultShell).contains("VaultModeDestination.HOME -> VaultShelfDestination.HOME")
         assertThat(vaultShell).contains("VaultModeDestination.LIBRARY -> VaultShelfDestination.LIBRARY")
         assertThat(vaultShell).contains("VaultModeDestination.SETTINGS -> VaultShelfDestination.SETTINGS")
         assertThat(patch).contains("volumeManager.getVolumeId(volumeData)?.let")
         assertThat(patch).contains("explorerRouter.importTargetMode")
-        assertThat(patch).contains("intent.getBooleanExtra(\"vaultshelf.shell_entry\", false)")
+        assertThat(patch).contains("intent.getBooleanExtra(\"vaultshelf.switching_vault\", false)")
     }
 
     @Test
@@ -1592,7 +1597,11 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun vaultNavigationStaysInsideVaultAndSwitcherIsExplicit() {
+    fun vaultNavigationStaysInsideVaultAndSwitchingNeverStacksOldVaults() {
+        val shared = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfBottomBar.kt",
+        ).readText()
         val vaultShell = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
@@ -1605,22 +1614,37 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
         ).readText()
+        val chooser = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
+        ).readText()
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
 
-        assertThat(vaultShell).contains("destinations = VaultShelfVaultDestinations")
+        assertThat(shared).contains("VaultShelfVaultDestinations")
+        assertThat(shared).contains("VaultShelfDestination.VAULT to R.string.vaultshelf_nav_switch")
         assertThat(vaultShell).contains("VaultShelfDestination.FILES -> onOpenFiles()")
-        assertThat(vaultShell).contains("Button(onClick = onOpenVaultSwitcher")
-        assertThat(vaultFiles).contains("openVaultShell(destination.name)")
-        assertThat(vaultFiles).doesNotContain("openExternalShell(destination.name)")
-        assertThat(vaultMode).contains("override fun onNewIntent(intent: Intent)")
-        assertThat(vaultMode).contains("applyNavigationIntent(intent)")
+        assertThat(vaultShell).contains("VaultShelfDestination.VAULT -> onOpenVaultSwitcher()")
+        assertThat(vaultShell).contains("labelOverrides = VaultShelfVaultLabelOverrides")
+        assertThat(vaultFiles).contains("VaultShelfDestination.VAULT -> openVaultSwitcher()")
+        assertThat(vaultFiles).contains("labelOverrides = VaultShelfVaultLabelOverrides")
+        listOf(vaultMode, vaultFiles).forEach { source ->
+            assertThat(source).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
+            assertThat(source).contains("Intent.FLAG_ACTIVITY_SINGLE_TOP")
+            assertThat(source).contains("VaultVolumeActivity.EXTRA_SWITCHING_VAULT")
+        }
+        assertThat(chooser).contains("override fun onNewIntent(intent: Intent)")
+        assertThat(chooser).contains("switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)")
+        assertThat(chooser).contains("labelOverrides = if (switchingMode)")
         assertThat(patch).contains(
-            "if (!intent.getBooleanExtra(\"vaultshelf.switching_vault\", false))",
+            "intent.getBooleanExtra(\"vaultshelf.switching_vault\", false)",
+        )
+        assertThat(patch).doesNotContain(
+            "intent.getBooleanExtra(\"vaultshelf.shell_entry\", false)\n+",
         )
     }
 
     @Test
-    fun enteringAnyVaultStartsAtItsVaultHome() {
+    fun enteringAnyVaultGoesThroughChooserAndStartsAtVaultHome() {
         val external = File(
             repo,
             "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
@@ -1631,10 +1655,8 @@ class VaultShelfUxRegressionTest {
         ).readText()
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
 
-        assertThat(external).contains("VaultModeActivity.EXTRA_VOLUME_ID")
-        assertThat(external).doesNotContain(
-            "VaultModeActivity.EXTRA_INITIAL_DESTINATION, \"FILES\"",
-        )
+        assertThat(external).contains("VaultVolumeActivity::class.java")
+        assertThat(external).doesNotContain("VaultModeActivity.EXTRA_VOLUME_ID")
         assertThat(vaultMode).contains(
             "const val EXTRA_VOLUME_ID = \"vaultshelf.mode.volume_id\"",
         )
