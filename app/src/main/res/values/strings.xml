@@ -283,8 +283,6 @@
 
     <string name="vault_default_volume_title">Default vault</string>
     <string name="vault_default_volume_none">None</string>
-    <string name="vault_default_volume_value">Default vault: %1$s</string>
-    <string name="vault_current_volume">Current vault</string>
     <string name="vault_switch_volume">Switch vault</string>
 
     <string name="vault_default_volume_selected">Selected as default</string>
