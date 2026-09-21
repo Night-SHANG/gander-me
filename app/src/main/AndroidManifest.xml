@@ -115,6 +115,14 @@
             android:exported="false" />
 
         <activity
+            android:name=".vault.VaultSettingsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".reader.ReaderAppearanceSettingsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".vault.VaultModeActivity"
             android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
             android:exported="false" />

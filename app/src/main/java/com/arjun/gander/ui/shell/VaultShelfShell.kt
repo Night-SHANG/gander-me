@@ -83,6 +83,7 @@ fun VaultShelfShell(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onOpenTransferSettings: () -> Unit,
+    onOpenReaderAppearance: () -> Unit,
     onImportBooksToVaultFiles: (List<LibraryBook>) -> Unit,
     onImportBooksToVaultLibrary: (List<LibraryBook>) -> Unit,
     onOpenAbout: () -> Unit,
@@ -154,6 +155,7 @@ fun VaultShelfShell(
                 onOpenVaultSettings = onOpenVaultSettings,
                 onOpenVaultBackup = onOpenVaultBackup,
                 onOpenTransferSettings = onOpenTransferSettings,
+                onOpenReaderAppearance = onOpenReaderAppearance,
                 onOpenAbout = onOpenAbout,
                 modifier = Modifier.padding(innerPadding),
             )
@@ -673,6 +675,7 @@ private fun SettingsScreen(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onOpenTransferSettings: () -> Unit,
+    onOpenReaderAppearance: () -> Unit,
     onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -709,6 +712,13 @@ private fun SettingsScreen(
             detailRes = R.string.transfer_settings_entry_detail,
             iconRes = R.drawable.ic_vaultshelf_files,
             onClick = onOpenTransferSettings,
+        )
+
+        SettingsEntry(
+            titleRes = R.string.reader_appearance_title,
+            detailRes = R.string.reader_appearance_entry_detail,
+            iconRes = R.drawable.ic_vaultshelf_library,
+            onClick = onOpenReaderAppearance,
         )
 
         SettingsEntry(

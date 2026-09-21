@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -96,6 +95,7 @@ fun VaultModeShell(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
+    onOpenVaultSwitcher: () -> Unit,
     onOpenExternalDestination: (String) -> Unit,
     modifier: Modifier = Modifier,
     initialDestinationName: String = VaultModeDestination.HOME.name,
@@ -121,7 +121,9 @@ fun VaultModeShell(
                 destinations = VaultShelfExternalDestinations,
                 selected = VaultShelfDestination.VAULT,
                 onSelected = { destination ->
-                    if (destination != VaultShelfDestination.VAULT) {
+                    if (destination == VaultShelfDestination.VAULT) {
+                        onOpenVaultSwitcher()
+                    } else {
                         onOpenExternalDestination(destination.name)
                     }
                 },
@@ -185,6 +187,7 @@ fun VaultModeShell(
                 onOpenVaultSettings = onOpenVaultSettings,
                 onOpenVaultBackup = onOpenVaultBackup,
                 onLockVault = onLockVault,
+                onOpenVaultSwitcher = onOpenVaultSwitcher,
                 onOpenExternalDestination = onOpenExternalDestination,
                 modifier = contentModifier,
             )
@@ -936,6 +939,7 @@ private fun VaultSettingsScreen(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
+    onOpenVaultSwitcher: () -> Unit,
     onOpenExternalDestination: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -954,6 +958,9 @@ private fun VaultSettingsScreen(
             text = volumeName,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Button(onClick = onOpenVaultSwitcher, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.vault_switch_volume))
+        }
         Button(onClick = onOpenVaultSettings, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.vault_settings_security))
         }
@@ -970,6 +977,7 @@ private fun VaultSettingsScreen(
             )
         }
     }
+
 }
 
 private val VAULT_COVER_COLORS = listOf(

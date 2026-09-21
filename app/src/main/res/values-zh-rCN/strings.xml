@@ -257,4 +257,23 @@
     <string name="vaultshelf_files_remove_access_title">移除文件夹授权？</string>
     <string name="vaultshelf_files_remove_access_message">VaultShelf 将不再显示已授权文件夹“%1$s”，但不会删除文件夹中的任何文件。</string>
 
+    <string name="vault_default_volume_title">默认卷</string>
+    <string name="vault_default_volume_none">无</string>
+    <string name="vault_default_volume_value">默认卷：%1$s</string>
+    <string name="vault_current_volume">当前卷</string>
+    <string name="vault_switch_volume">切换保险库卷</string>
+
+    <string name="vault_default_volume_selected">已设为默认卷</string>
+    <string name="vault_settings_security_detail">打开保险库安全与隐私设置，包括导出、分享、截图、锁定和访问控制。</string>
+
+    <string name="reader_appearance_title">阅读器界面颜色</string>
+    <string name="reader_appearance_entry_detail">修改阅读器原本棕色的界面主色；正文文字和阅读背景仍在阅读器内部设置。</string>
+    <string name="reader_appearance_scope">这里只修改 Legado 阅读界面原本棕色的主色。正文文字、阅读背景、进度条、按钮和 Legado 其他原有颜色都不会被这里修改。</string>
+    <string name="reader_appearance_primary">阅读器界面主色</string>
+    <string name="reader_appearance_hex_hint">十六进制颜色，例如 #F3F3F3</string>
+    <string name="reader_appearance_invalid">请输入 6 位十六进制颜色，例如 #F3F3F3</string>
+    <string name="reader_appearance_save">保存阅读器界面颜色</string>
+    <string name="reader_appearance_reset">恢复 VaultShelf 柔和白默认色</string>
+    <string name="reader_appearance_saved">已保存，下次创建阅读界面时应用。</string>
+
 </resources>

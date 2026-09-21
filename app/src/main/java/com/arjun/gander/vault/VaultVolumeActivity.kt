@@ -22,6 +22,11 @@ import sushi.hardcore.droidfs.R as DroidFsR
  */
 class VaultVolumeActivity : MainActivity() {
 
+    companion object {
+        const val EXTRA_SWITCHING_VAULT = "vaultshelf.switching_vault"
+        const val EXTRA_CURRENT_VOLUME_UUID = "vaultshelf.current_volume_uuid"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (isFinishing || !intent.getBooleanExtra(VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY, false)) {

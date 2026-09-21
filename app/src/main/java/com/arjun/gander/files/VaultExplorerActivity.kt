@@ -28,6 +28,7 @@ import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultLibraryEntry
 import com.arjun.gander.vault.VaultLibraryStore
 import com.arjun.gander.vault.VaultSecurityPolicy
+import com.arjun.gander.vault.VaultVolumeActivity
 import com.arjun.gander.vault.VaultModeActivity
 import com.arjun.gander.vault.VaultFileRepository
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -37,6 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sushi.hardcore.droidfs.R as DroidFsR
+import sushi.hardcore.droidfs.VolumeManagerApp
 import sushi.hardcore.droidfs.explorers.ExplorerActivity
 import sushi.hardcore.droidfs.explorers.ExplorerElement
 import sushi.hardcore.droidfs.file_operations.TaskResult
@@ -440,13 +442,32 @@ class VaultExplorerActivity : ExplorerActivity() {
                     destinations = VaultShelfExternalDestinations,
                     selected = VaultShelfDestination.VAULT,
                     onSelected = { destination ->
-                        if (destination != VaultShelfDestination.VAULT) {
+                        if (destination == VaultShelfDestination.VAULT) {
+                            openVaultSwitcher()
+                        } else {
                             openExternalShell(destination.name)
                         }
                     },
                 )
             }
         }
+    }
+
+    private fun openVaultSwitcher() {
+        val currentUuid = (application as VolumeManagerApp)
+            .volumeManager
+            .listVolumes()
+            .firstOrNull { it.first == volumeId }
+            ?.second
+            ?.uuid
+        startActivity(
+            Intent(this, VaultVolumeActivity::class.java)
+                .putExtra(com.arjun.gander.VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY, true)
+                .putExtra(VaultVolumeActivity.EXTRA_SWITCHING_VAULT, true)
+                .putExtra(VaultVolumeActivity.EXTRA_CURRENT_VOLUME_UUID, currentUuid)
+                .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+        )
+        overridePendingTransition(0, 0)
     }
 
     private fun openExternalShell(destination: String) {

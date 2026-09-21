@@ -1,0 +1,35 @@
+package com.arjun.gander.reader
+
+import android.content.Context
+import android.graphics.Color
+
+object ReaderChromePreferences {
+    const val KEY_PRIMARY = "vaultshelf_reader_chrome_primary"
+    const val DEFAULT_PRIMARY = "#F3F3F3"
+
+    private fun prefs(context: Context) =
+        context.getSharedPreferences(context.packageName + "_preferences", Context.MODE_PRIVATE)
+
+    fun normalizeHex(value: String): String? {
+        val body = value.trim().removePrefix("#")
+        if (!body.matches(Regex("[0-9A-Fa-f]{6}"))) return null
+        return "#" + body.uppercase()
+    }
+
+    fun isValid(value: String): Boolean =
+        normalizeHex(value)?.let { runCatching { Color.parseColor(it) }.isSuccess } == true
+
+    fun load(context: Context): String =
+        normalizeHex(prefs(context).getString(KEY_PRIMARY, null).orEmpty())
+            ?: DEFAULT_PRIMARY
+
+    fun save(context: Context, color: String) {
+        prefs(context).edit()
+            .putString(KEY_PRIMARY, normalizeHex(color) ?: DEFAULT_PRIMARY)
+            .apply()
+    }
+
+    fun reset(context: Context) {
+        prefs(context).edit().remove(KEY_PRIMARY).apply()
+    }
+}

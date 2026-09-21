@@ -17,7 +17,6 @@ import com.arjun.gander.files.VaultExplorerActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import java.util.ArrayList
-import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 import sushi.hardcore.droidfs.VolumeManagerApp
 import sushi.hardcore.droidfs.util.finishOnClose
 
@@ -107,7 +106,7 @@ class VaultModeActivity : AppCompatActivity() {
                         },
                         onOpenVaultSettings = {
                             startActivity(
-                                Intent(this@VaultModeActivity, DroidFsSettingsActivity::class.java),
+                                Intent(this@VaultModeActivity, VaultSettingsActivity::class.java),
                             )
                         },
                         onOpenVaultBackup = {
@@ -117,6 +116,26 @@ class VaultModeActivity : AppCompatActivity() {
                         },
                         onLockVault = {
                             volumeManager.closeVolume(volumeId)
+                        },
+                        onOpenVaultSwitcher = {
+                            val currentUuid = volumeManager.listVolumes()
+                                .firstOrNull { it.first == volumeId }
+                                ?.second
+                                ?.uuid
+                            startActivity(
+                                Intent(
+                                    this@VaultModeActivity,
+                                    VaultVolumeActivity::class.java,
+                                )
+                                    .putExtra(VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY, true)
+                                    .putExtra(VaultVolumeActivity.EXTRA_SWITCHING_VAULT, true)
+                                    .putExtra(
+                                        VaultVolumeActivity.EXTRA_CURRENT_VOLUME_UUID,
+                                        currentUuid,
+                                    )
+                                    .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                            )
+                            overridePendingTransition(0, 0)
                         },
                         onOpenExternalDestination = { destination ->
                             startActivity(

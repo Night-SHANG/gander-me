@@ -18,21 +18,21 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.net.toUri
 import com.arjun.gander.files.ExternalExplorerActivity
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.reader.ReaderAppearanceSettingsActivity
 import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.transfer.TransferBehaviorSettingsActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.VaultBackupActivity
 import com.arjun.gander.vault.VaultImportTargetActivity
+import com.arjun.gander.vault.VaultDefaultVolumePreference
 import com.arjun.gander.vault.VaultVolumeActivity
+import com.arjun.gander.vault.VaultSettingsActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.SafVolume
 import java.io.File
 import java.util.ArrayList
 import java.util.UUID
-import sushi.hardcore.droidfs.Constants as DroidFsConstants
-import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 import sushi.hardcore.droidfs.VolumeData
-import sushi.hardcore.droidfs.VolumeDatabase
 import sushi.hardcore.droidfs.VolumeManagerApp
 import sushi.hardcore.droidfs.filesystems.EncryptedVolume
 
@@ -65,7 +65,7 @@ class VaultShelfActivity : AppCompatActivity() {
                         onOpenVault = ::openVault,
                         onOpenVaultSettings = {
                             startActivity(
-                                Intent(this@VaultShelfActivity, DroidFsSettingsActivity::class.java),
+                                Intent(this@VaultShelfActivity, VaultSettingsActivity::class.java),
                             )
                         },
                         onOpenVaultBackup = {
@@ -78,6 +78,14 @@ class VaultShelfActivity : AppCompatActivity() {
                                 Intent(
                                     this@VaultShelfActivity,
                                     TransferBehaviorSettingsActivity::class.java,
+                                ),
+                            )
+                        },
+                        onOpenReaderAppearance = {
+                            startActivity(
+                                Intent(
+                                    this@VaultShelfActivity,
+                                    ReaderAppearanceSettingsActivity::class.java,
                                 ),
                             )
                         },
@@ -133,16 +141,10 @@ class VaultShelfActivity : AppCompatActivity() {
 
     private fun openVault() {
         val app = application as VolumeManagerApp
-        val defaultName = getSharedPreferences(
-            packageName + "_preferences",
-            MODE_PRIVATE,
-        ).getString(DroidFsConstants.DEFAULT_VOLUME_KEY, null)
-        if (!defaultName.isNullOrBlank()) {
-            val defaultVolume = VolumeDatabase(this).use { database ->
-                database.getVolumes().firstOrNull { it.name == defaultName }
-            }
-            val openId = defaultVolume?.let { app.volumeManager.getVolumeId(it) }
-            if (defaultVolume != null && openId != null) {
+        val defaultVolume = VaultDefaultVolumePreference.resolve(this)
+        if (defaultVolume != null) {
+            val openId = app.volumeManager.getVolumeId(defaultVolume)
+            if (openId != null) {
                 startActivity(
                     Intent(this, com.arjun.gander.vault.VaultModeActivity::class.java)
                         .putExtra(

@@ -1542,4 +1542,105 @@ class VaultShelfUxRegressionTest {
         assertThat(external).contains("refreshCurrentDirectory()")
     }
 
+    @Test
+    fun defaultVaultUsesUuidAndKeepsAllThreeControlSurfacesInSync() {
+        val preference = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultDefaultVolumePreference.kt",
+        ).readText()
+        val settings = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultSettingsActivity.kt",
+        ).readText()
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+
+        assertThat(preference).contains("volume.uuid")
+        assertThat(preference).contains("it.name == stored")
+        assertThat(preference).contains("Constants.DEFAULT_VOLUME_KEY")
+        assertThat(settings).contains("vault_default_volume_none")
+        assertThat(patch).contains("putString(DEFAULT_VOLUME_KEY, volume.uuid)")
+        assertThat(patch).contains("dialogBinding!!.checkboxDefaultOpen.isChecked = isDefaultVolume(volume)")
+        assertThat(patch).contains("setDefaultVolumeMenuId")
+        assertThat(patch).contains("vaultshelf_default_volume_label")
+    }
+
+    @Test
+    fun vaultTabReopensChooserAndSwitchingDoesNotReturnToPreviousVault() {
+        val vaultShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+        val vaultMode = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
+        val vaultFiles = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
+        ).readText()
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+
+        assertThat(vaultShell).contains("destination == VaultShelfDestination.VAULT")
+        assertThat(vaultMode).contains("EXTRA_SWITCHING_VAULT")
+        assertThat(vaultFiles).contains("EXTRA_SWITCHING_VAULT")
+        assertThat(patch).contains(
+            "if (!intent.getBooleanExtra(\"vaultshelf.switching_vault\", false))",
+        )
+        assertThat(patch).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
+    }
+
+    @Test
+    fun enteringAnyVaultStartsAtItsVaultHome() {
+        val external = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
+        ).readText()
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+
+        assertThat(external).contains("VaultModeActivity.EXTRA_VOLUME_ID")
+        assertThat(external).doesNotContain(
+            "VaultModeActivity.EXTRA_INITIAL_DESTINATION, \"FILES\"",
+        )
+        assertThat(patch).contains("VaultModeActivity.EXTRA_VOLUME_ID")
+        assertThat(patch).doesNotContain(
+            "VaultModeActivity.EXTRA_INITIAL_DESTINATION, \"FILES\"",
+        )
+    }
+
+    @Test
+    fun readerChromeOnlyReplacesBrownPrimaryAndUsesReadableForeground() {
+        val preferences = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/reader/ReaderChromePreferences.kt",
+        ).readText()
+        val settings = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/reader/ReaderAppearanceSettingsActivity.kt",
+        ).readText()
+        val patch = File(repo, "patches/legado-vaultshelf-runtime.patch").readText()
+
+        assertThat(preferences).contains("DEFAULT_PRIMARY = \"#F3F3F3\"")
+        assertThat(preferences).contains("vaultshelf_reader_chrome_primary")
+        assertThat(settings).contains("reader_appearance_primary")
+        assertThat(settings).doesNotContain("reader_appearance_accent")
+        assertThat(patch).contains("applyVaultShelfReaderChrome")
+        assertThat(patch).contains("ColorUtils.isColorLight(primaryColor)")
+        assertThat(patch).doesNotContain("#005FB8")
+    }
+
+    @Test
+    fun vaultShelfSoftWhiteIsDefaultWithoutMutatingWechatReadingPreset() {
+        val patch = File(repo, "patches/legado-vaultshelf-runtime.patch").readText()
+
+        assertThat(patch).contains(
+            "VAULTSHELF_SOFT_WHITE_STYLE = \"VaultShelf 柔和白\"",
+        )
+        assertThat(patch).contains("configList.indexOfFirst")
+        assertThat(patch).contains("base.copy(")
+        assertThat(patch).contains("bgStr = \"#FBFBFB\"")
+        assertThat(patch).contains("appCtx.putPrefInt(PreferKey.readStyleSelect, index)")
+        assertThat(patch).doesNotContain("defaultData/readConfig.json")
+        assertThat(patch).doesNotContain("name == \"微信读书\"")
+    }
+
 }
