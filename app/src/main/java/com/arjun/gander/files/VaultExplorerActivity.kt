@@ -21,16 +21,14 @@ import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.transfer.TransferBehaviorPreferences
 import com.arjun.gander.transfer.TransferRoute
 import com.arjun.gander.transfer.TransferSourceDecision
-import com.arjun.gander.ui.shell.VaultShelfBottomBar
-import com.arjun.gander.ui.shell.VaultShelfDestination
-import com.arjun.gander.ui.shell.VaultShelfVaultDestinations
-import com.arjun.gander.ui.shell.VaultShelfVaultLabelOverrides
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.EncryptedVolumeInputStream
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultLibraryEntry
 import com.arjun.gander.vault.VaultLibraryStore
 import com.arjun.gander.vault.VaultSecurityPolicy
+import com.arjun.gander.vault.VaultBottomBar
+import com.arjun.gander.vault.VaultBottomDestination
 import com.arjun.gander.vault.VaultModeActivity
 import com.arjun.gander.vault.VaultVolumeActivity
 import com.arjun.gander.vault.VaultFileRepository
@@ -445,19 +443,17 @@ class VaultExplorerActivity : ExplorerActivity() {
         )
         nav.setContent {
             VaultShelfTheme {
-                VaultShelfBottomBar(
-                    destinations = VaultShelfVaultDestinations,
-                    selected = VaultShelfDestination.FILES,
+                VaultBottomBar(
+                    selected = VaultBottomDestination.FILES,
                     onSelected = { destination ->
                         when (destination) {
-                            VaultShelfDestination.FILES -> Unit
-                            VaultShelfDestination.HOME,
-                            VaultShelfDestination.LIBRARY,
-                            VaultShelfDestination.SETTINGS -> openVaultShell(destination.name)
-                            VaultShelfDestination.VAULT -> openVaultSwitcher()
+                            VaultBottomDestination.FILES -> Unit
+                            VaultBottomDestination.HOME,
+                            VaultBottomDestination.LIBRARY,
+                            VaultBottomDestination.SETTINGS -> openVaultShell(destination.name)
+                            VaultBottomDestination.SWITCH -> openVaultSwitcher()
                         }
                     },
-                    labelOverrides = VaultShelfVaultLabelOverrides,
                 )
             }
         }
