@@ -108,7 +108,6 @@ fun VaultModeShell(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
-    onOpenVaultSwitcher: () -> Unit,
     onOpenExternalDestination: (String) -> Unit,
     modifier: Modifier = Modifier,
     initialDestinationName: String = VaultModeDestination.HOME.name,
@@ -218,7 +217,6 @@ fun VaultModeShell(
                 onOpenVaultSettings = onOpenVaultSettings,
                 onOpenVaultBackup = onOpenVaultBackup,
                 onLockVault = onLockVault,
-                onOpenVaultSwitcher = onOpenVaultSwitcher,
                 onOpenExternalDestination = onOpenExternalDestination,
                 modifier = contentModifier,
             )
@@ -1245,9 +1243,6 @@ private fun VaultSettingsScreen(
             text = volumeName,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Button(onClick = onOpenVaultSwitcher, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.vault_switch_volume))
-        }
         Button(onClick = onOpenVaultSettings, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.vault_settings_security))
         }
