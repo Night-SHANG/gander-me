@@ -1633,14 +1633,20 @@ class VaultShelfUxRegressionTest {
             assertThat(source).contains("VaultVolumeActivity.EXTRA_SWITCHING_VAULT")
         }
         assertThat(chooser).contains("override fun onNewIntent(intent: Intent)")
+        assertThat(chooser).contains("override fun onResume()")
         assertThat(chooser).contains("switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)")
+        assertThat(chooser).contains("openCurrentVaultDestination(destination.name)")
         assertThat(chooser).contains("labelOverrides = if (switchingMode)")
         assertThat(patch).contains(
-            "intent.getBooleanExtra(\"vaultshelf.switching_vault\", false)",
+            "intent.putExtra(\"vaultshelf.current_volume_uuid\", volume.uuid)",
         )
-        assertThat(patch).doesNotContain(
-            "intent.getBooleanExtra(\"vaultshelf.shell_entry\", false)\n+",
+        assertThat(patch).contains(
+            "intent.putExtra(\"vaultshelf.switching_vault\", false)",
         )
+        val finishPolicy = patch.substringAfter("private fun shouldFinishAfterOpening")
+            .substringBefore("private fun openVolume")
+        assertThat(finishPolicy).doesNotContain("vaultshelf.switching_vault")
+        assertThat(finishPolicy).doesNotContain("vaultshelf.shell_entry")
     }
 
     @Test
