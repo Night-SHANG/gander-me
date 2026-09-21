@@ -1600,27 +1600,30 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun defaultVaultUsesUuidAndLivesInUnifiedDroidFsSettings() {
+    fun vaultEntryAlwaysUsesChooserAndDefaultVaultFeatureIsRemoved() {
         val preference = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultDefaultVolumePreference.kt",
-        ).readText()
+        )
         val activity = File(
             repo,
             "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
         ).readText()
+        val vaultShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
         val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
 
-        assertThat(preference).contains("volume.uuid")
-        assertThat(preference).contains("it.name == stored")
-        assertThat(preference).contains("Constants.DEFAULT_VOLUME_KEY")
-        assertThat(activity).contains("DroidFsSettingsActivity::class.java")
-        assertThat(patch).contains("findPreference<ListPreference>(Constants.DEFAULT_VOLUME_KEY)")
-        assertThat(patch).contains("vaultshelf_default_volume_title")
-        assertThat(patch).contains("volumes.map { it.uuid }")
-        assertThat(patch).contains("putString(DEFAULT_VOLUME_KEY, volume.uuid)")
-        assertThat(patch).contains("dialogBinding!!.checkboxDefaultOpen.isChecked = isDefaultVolume(volume)")
-        assertThat(patch).contains("setDefaultVolumeMenuId")
+        assertThat(preference.exists()).isFalse()
+        assertThat(activity).contains("VaultVolumeActivity::class.java")
+        assertThat(patch).doesNotContain("resolveDefaultVolume")
+        assertThat(patch).doesNotContain("setDefaultVolumeMenuId")
+        assertThat(patch).doesNotContain("vaultshelf_default_volume_title")
+        assertThat(patch).doesNotContain("vaultshelf_default_volume_label")
+        assertThat(patch).contains("checkboxDefaultOpen.visibility = View.GONE")
+        assertThat(vaultShell).doesNotContain("vault_switch_volume")
+        assertThat(vaultShell).doesNotContain("onOpenVaultSwitcher = onOpenVaultSwitcher")
     }
 
     @Test
