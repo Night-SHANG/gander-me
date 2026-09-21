@@ -1716,22 +1716,43 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun vaultLibraryMatchesExternalLibraryDiscoveryControls() {
-        val shell = File(
+    fun vaultLibraryReusesExternalLibraryDiscoveryControls() {
+        val externalLibrary = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
+        ).readText()
+        val vaultLibrary = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
         ).readText()
+        val vaultStorage = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultStorage.kt",
+        ).readText()
 
-        assertThat(shell).contains("VaultLibraryHeader")
-        assertThat(shell).contains("OutlinedTextField")
-        assertThat(shell).contains("VaultLibrarySort.LAST_ACTIVITY")
-        assertThat(shell).contains("VaultLibrarySort.TITLE")
-        assertThat(shell).contains("VaultLibrarySort.ADDED")
-        assertThat(shell).contains("VaultLibraryViewMode.GRID")
-        assertThat(shell).contains("VaultLibraryViewMode.LIST")
-        assertThat(shell).contains("GridCells.Fixed(gridColumns)")
-        assertThat(shell).contains("(2..6).forEach")
-        assertThat(shell).contains("filterAndSortVaultBooks")
+        assertThat(externalLibrary).contains("internal enum class ShelfViewMode")
+        assertThat(externalLibrary).contains("internal enum class ShelfSort")
+        assertThat(externalLibrary).contains("internal fun ShelfHeader")
+        assertThat(externalLibrary).contains("filterAndSortShelfItems")
+        assertThat(externalLibrary).contains("internal fun BookMenuButton")
+
+        assertThat(vaultLibrary).contains("ShelfHeader(")
+        assertThat(vaultLibrary).contains("filterAndSortShelfItems(")
+        assertThat(vaultLibrary).contains("BookMenuButton(")
+        assertThat(vaultLibrary).contains("ShelfSort.LAST_ACTIVITY")
+        assertThat(vaultLibrary).contains("ShelfSort.TITLE")
+        assertThat(vaultLibrary).contains("ShelfSort.ADDED")
+        assertThat(vaultLibrary).contains("ShelfViewMode.GRID")
+        assertThat(vaultLibrary).contains("ShelfViewMode.LIST")
+        assertThat(vaultLibrary).doesNotContain("VaultLibraryHeader")
+        assertThat(vaultLibrary).doesNotContain("VaultLibrarySort")
+        assertThat(vaultLibrary).doesNotContain("VaultLibraryViewMode")
+        assertThat(vaultLibrary).doesNotContain("filterAndSortVaultBooks")
+
+        assertThat(vaultLibrary).contains("entryToRename")
+        assertThat(vaultLibrary).contains("entryToInspect")
+        assertThat(vaultLibrary).contains("libraryStore.rename(entry.id")
+        assertThat(vaultStorage).contains("fun rename(id: String, title: String)")
     }
 
     @Test
