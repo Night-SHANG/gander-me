@@ -23,14 +23,13 @@ import com.arjun.gander.transfer.TransferRoute
 import com.arjun.gander.transfer.TransferSourceDecision
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
-import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
+import com.arjun.gander.ui.shell.VaultShelfVaultDestinations
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.EncryptedVolumeInputStream
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultLibraryEntry
 import com.arjun.gander.vault.VaultLibraryStore
 import com.arjun.gander.vault.VaultSecurityPolicy
-import com.arjun.gander.vault.VaultVolumeActivity
 import com.arjun.gander.vault.VaultModeActivity
 import com.arjun.gander.vault.VaultFileRepository
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -446,13 +445,15 @@ class VaultExplorerActivity : ExplorerActivity() {
         nav.setContent {
             VaultShelfTheme {
                 VaultShelfBottomBar(
-                    destinations = VaultShelfExternalDestinations,
-                    selected = VaultShelfDestination.VAULT,
+                    destinations = VaultShelfVaultDestinations,
+                    selected = VaultShelfDestination.FILES,
                     onSelected = { destination ->
-                        if (destination == VaultShelfDestination.VAULT) {
-                            openVaultSwitcher()
-                        } else {
-                            openExternalShell(destination.name)
+                        when (destination) {
+                            VaultShelfDestination.FILES -> Unit
+                            VaultShelfDestination.HOME,
+                            VaultShelfDestination.LIBRARY,
+                            VaultShelfDestination.SETTINGS -> openVaultShell(destination.name)
+                            VaultShelfDestination.VAULT -> Unit
                         }
                     },
                 )
@@ -460,30 +461,12 @@ class VaultExplorerActivity : ExplorerActivity() {
         }
     }
 
-    private fun openVaultSwitcher() {
-        val currentUuid = (application as VolumeManagerApp)
-            .volumeManager
-            .listVolumes()
-            .firstOrNull { it.first == volumeId }
-            ?.second
-            ?.uuid
+    private fun openVaultShell(destination: String) {
         startActivity(
-            Intent(this, VaultVolumeActivity::class.java)
-                .putExtra(com.arjun.gander.VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY, true)
-                .putExtra(VaultVolumeActivity.EXTRA_SWITCHING_VAULT, true)
-                .putExtra(VaultVolumeActivity.EXTRA_CURRENT_VOLUME_UUID, currentUuid)
-                .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
-        )
-        overridePendingTransition(0, 0)
-    }
-
-    private fun openExternalShell(destination: String) {
-        startActivity(
-            Intent(this, com.arjun.gander.VaultShelfActivity::class.java)
-                .putExtra(
-                    com.arjun.gander.VaultShelfActivity.EXTRA_INITIAL_DESTINATION,
-                    destination,
-                )
+            Intent(this, VaultModeActivity::class.java)
+                .putExtra(VaultModeActivity.EXTRA_VOLUME_ID, volumeId)
+                .putExtra(VaultModeActivity.EXTRA_VOLUME_NAME, intent.getStringExtra("volumeName").orEmpty())
+                .putExtra(VaultModeActivity.EXTRA_INITIAL_DESTINATION, destination)
                 .addFlags(
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
                         Intent.FLAG_ACTIVITY_SINGLE_TOP or
@@ -492,4 +475,5 @@ class VaultExplorerActivity : ExplorerActivity() {
         )
         overridePendingTransition(0, 0)
     }
+
 }
