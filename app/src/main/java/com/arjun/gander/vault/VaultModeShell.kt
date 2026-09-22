@@ -64,7 +64,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import androidx.documentfile.provider.DocumentFile
 import com.arjun.gander.R
-import com.arjun.gander.ui.shell.VaultShelfDestinationCrossfade
+import com.arjun.gander.ui.shell.VaultShelfDestinationTransition
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LocalLibraryRepository
@@ -162,7 +162,7 @@ fun VaultModeShell(
         },
     ) { innerPadding ->
         val contentModifier = Modifier.padding(innerPadding)
-        VaultShelfDestinationCrossfade(targetState = selected) { destination ->
+        VaultShelfDestinationTransition(targetState = selected) { destination ->
             when (destination) {
             VaultModeDestination.HOME -> VaultHomeScreen(
                 volumeName = volumeName,

@@ -1345,6 +1345,10 @@ class VaultShelfUxRegressionTest {
         assertThat(vaultBar).contains("LIBRARY(R.string.vaultshelf_nav_library")
         assertThat(vaultBar).contains("FILES(R.string.vaultshelf_nav_files")
         assertThat(vaultBar).contains("SETTINGS(R.string.vaultshelf_nav_settings")
+        assertThat(externalBar).contains("NavigationBar(")
+        assertThat(externalBar).contains("NavigationBarItem(")
+        assertThat(vaultBar).contains("NavigationBar(")
+        assertThat(vaultBar).contains("NavigationBarItem(")
         listOf(mainShell, external).forEach { source ->
             assertThat(source).contains("VaultShelfBottomBar(")
             assertThat(source).doesNotContain("VaultBottomBar(")
@@ -1690,9 +1694,11 @@ class VaultShelfUxRegressionTest {
         assertThat(vaultMode).contains("finish()")
         assertThat(chooser).contains("showExitConfirmation")
         assertThat(chooser).contains("WindowInsetsCompat.Type.ime()")
-        assertThat(motion).contains("Crossfade(")
-        assertThat(motion).contains("android.R.anim.fade_in")
-        assertThat(motion).contains("android.R.anim.fade_out")
+        assertThat(motion).contains("AnimatedContent(")
+        assertThat(motion).contains("fadeIn(")
+        assertThat(motion).contains("scaleIn(")
+        assertThat(motion).contains("fadeOut(")
+        assertThat(motion).contains("overridePendingTransition(0, 0)")
     }
 
     @Test
@@ -1710,11 +1716,19 @@ class VaultShelfUxRegressionTest {
             "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
         ).readText()
 
-        assertThat(mainShell).contains("VaultShelfDestinationCrossfade")
-        assertThat(vaultShell).contains("VaultShelfDestinationCrossfade")
+        assertThat(mainShell).contains("VaultShelfDestinationTransition")
+        assertThat(vaultShell).contains("VaultShelfDestinationTransition")
         assertThat(chooser).contains("onBackPressedDispatcher.addCallback")
         assertThat(chooser).contains("vault_exit_confirm")
         assertThat(chooser).contains("WindowInsetsCompat.Type.ime()")
+        val motion = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfNavigationMotion.kt",
+        ).readText()
+        assertThat(motion).contains("AnimatedContent(")
+        assertThat(motion).contains("overridePendingTransition(0, 0)")
+        assertThat(motion).doesNotContain("android.R.anim.fade_in")
+        assertThat(motion).doesNotContain("android.R.anim.fade_out")
     }
 
     @Test

@@ -138,7 +138,7 @@ fun VaultShelfShell(
             }
         },
     ) { innerPadding ->
-        VaultShelfDestinationCrossfade(targetState = selected) { destination ->
+        VaultShelfDestinationTransition(targetState = selected) { destination ->
             when (destination) {
             VaultShelfDestination.HOME -> HomeScreen(
                 libraryRepository = libraryRepository,
