@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.items
@@ -77,6 +79,8 @@ import com.arjun.gander.ui.library.ShelfHeader
 import com.arjun.gander.ui.library.ShelfSort
 import com.arjun.gander.ui.library.ShelfViewMode
 import com.arjun.gander.ui.library.filterAndSortShelfItems
+import com.arjun.gander.ui.shell.QuickActionTile
+import com.arjun.gander.ui.shell.animateVaultShelfPageTo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -135,7 +139,7 @@ fun VaultModeShell(
     fun navigateTo(destination: VaultModeDestination) {
         val page = destinations.indexOf(destination)
         if (page >= 0) {
-            scope.launch { pagerState.scrollToPage(page) }
+            scope.launch { pagerState.animateVaultShelfPageTo(page) }
         }
     }
 
@@ -260,7 +264,8 @@ private fun VaultHomeScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(vertical = 18.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(top = 14.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Column(
@@ -278,78 +283,110 @@ private fun VaultHomeScreen(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Button(onClick = onOpenLibrary, modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.vaultshelf_nav_library))
-            }
-            Button(onClick = onOpenFiles, modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.vaultshelf_nav_files))
-            }
-        }
-        TextButton(
-            onClick = { onOpenExternalDestination("HOME") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-        ) {
-            Text(stringResource(R.string.vault_return_external_home))
-        }
-        Text(
-            text = stringResource(R.string.vault_home_recent),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
 
-        if (recent.isEmpty()) {
-            Surface(
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(14.dp),
-                tonalElevation = 1.dp,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = stringResource(R.string.vault_home_recent_empty),
-                    modifier = Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = stringResource(R.string.vault_home_recent),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.vaultshelf_home_open_library),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.combinedClickable(
+                        onClick = onOpenLibrary,
+                        onLongClick = onOpenLibrary,
+                    ),
                 )
             }
-        } else {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                items(recent, key = { it.id }) { entry ->
-                    Column(
-                        modifier = Modifier
-                            .size(width = 108.dp, height = 190.dp)
-                            .combinedClickable(
-                                onClick = { onOpenBook(entry) },
-                                onLongClick = { onOpenLibrary() },
-                            ),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        VaultGeneratedBookCover(
-                            entry = entry,
+
+            if (recent.isEmpty()) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    tonalElevation = 1.dp,
+                ) {
+                    Text(
+                        text = stringResource(R.string.vault_home_recent_empty),
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    items(recent, key = { it.id }) { entry ->
+                        Column(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(0.68f),
-                        )
-                        Text(
-                            text = entry.title,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                                .size(width = 108.dp, height = 190.dp)
+                                .combinedClickable(
+                                    onClick = { onOpenBook(entry) },
+                                    onLongClick = onOpenLibrary,
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            VaultGeneratedBookCover(
+                                entry = entry,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(0.68f),
+                            )
+                            Text(
+                                text = entry.title,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
+            }
+        }
+
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.vaultshelf_quick_access),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                QuickActionTile(
+                    titleRes = R.string.vaultshelf_library_card,
+                    iconRes = R.drawable.ic_vaultshelf_library,
+                    onClick = onOpenLibrary,
+                    modifier = Modifier.weight(1f),
+                )
+                QuickActionTile(
+                    titleRes = R.string.vaultshelf_open_documents,
+                    iconRes = R.drawable.ic_vaultshelf_files,
+                    onClick = onOpenFiles,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            TextButton(
+                onClick = { onOpenExternalDestination("HOME") },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.vault_return_external_home))
             }
         }
     }

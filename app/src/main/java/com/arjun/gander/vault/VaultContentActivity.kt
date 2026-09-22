@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -35,6 +36,7 @@ class VaultContentActivity : ComponentActivity() {
     private var previousFileKey: String? = null
     private var transientBookUrl: String? = null
     private var childActive = false
+    private var legadoChildActive = false
     private var bridgeResumed = false
     private var pendingChildIntent: Intent? = null
 
@@ -92,7 +94,15 @@ class VaultContentActivity : ComponentActivity() {
         bridgeResumed = true
         if (childActive && !cleanupStarted.get()) {
             childActive = false
-            cleanupAndFinish()
+            if (legadoChildActive) {
+                legadoChildActive = false
+                lifecycleScope.launch {
+                    delay(READER_RETURN_TRANSITION_MS)
+                    cleanupAndFinish()
+                }
+            } else {
+                cleanupAndFinish()
+            }
             return
         }
         pendingChildIntent?.let { intent ->
@@ -145,6 +155,7 @@ class VaultContentActivity : ComponentActivity() {
 
             val reader = LegadoReaderBridge.readerIntent(this@VaultContentActivity, session.bookUrl)
                 .putExtra(VaultShelfFileRouter.EXTRA_SESSION_TOKEN, token)
+            legadoChildActive = true
             launchChild(reader)
         }
     }
@@ -253,5 +264,6 @@ class VaultContentActivity : ComponentActivity() {
 
     private companion object {
         const val STATE_TRANSIENT_BOOK_URL = "transient_book_url"
+        const val READER_RETURN_TRANSITION_MS = 300L
     }
 }

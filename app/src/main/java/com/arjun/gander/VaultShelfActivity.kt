@@ -183,7 +183,6 @@ class VaultShelfActivity : AppCompatActivity() {
                     .putExtra("volumeName", label)
                     .putExtra(EXTRA_PLAIN_VOLUME, true),
             )
-            applyVaultShelfPeerTransition()
             true
         }.getOrDefault(false)
         if (!opened) {

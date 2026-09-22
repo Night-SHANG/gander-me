@@ -1,10 +1,29 @@
 package com.arjun.gander.ui.shell
 
 import android.app.Activity
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.pager.PagerState
+
+private const val TAB_TRANSITION_MS = 300
+private val TabEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
+
+@OptIn(ExperimentalFoundationApi::class)
+internal suspend fun PagerState.animateVaultShelfPageTo(page: Int) {
+    if (currentPage == page) return
+    animateScrollToPage(
+        page = page,
+        animationSpec = tween(
+            durationMillis = TAB_TRANSITION_MS,
+            easing = TabEaseOut,
+        ),
+    )
+}
 
 /**
- * Peer bottom-navigation destinations must not animate the whole Activity window.
- * Top-level content transitions are handled inside the shell pager instead.
+ * Peer destinations that live in separate Activities must not animate the whole window.
+ * Top-level bottom-navigation motion is handled by the shell pager.
  */
 internal fun Activity.applyVaultShelfPeerTransition() {
     overridePendingTransition(0, 0)

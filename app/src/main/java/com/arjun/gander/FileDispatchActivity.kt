@@ -11,6 +11,7 @@ import com.vaultshelf.droidfs.VaultShelfExternalMediaRouter
 import com.vaultshelf.legado.LegadoReaderBridge
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -77,7 +78,10 @@ class FileDispatchActivity : ComponentActivity() {
         super.onResume()
         if (transientReaderActive && !cleanupStarted.get()) {
             transientReaderActive = false
-            cleanupAndFinish()
+            lifecycleScope.launch {
+                delay(READER_RETURN_TRANSITION_MS)
+                cleanupAndFinish()
+            }
         }
     }
 
@@ -284,6 +288,7 @@ class FileDispatchActivity : ComponentActivity() {
     private companion object {
         const val STATE_TRANSIENT_BOOK_URL = "transient_book_url"
         const val STATE_POSITION_KEY = "position_key"
+        const val READER_RETURN_TRANSITION_MS = 300L
     }
 }
 

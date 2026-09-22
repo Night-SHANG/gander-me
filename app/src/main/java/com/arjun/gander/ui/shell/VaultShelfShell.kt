@@ -119,7 +119,7 @@ fun VaultShelfShell(
     fun navigateTo(destination: VaultShelfDestination) {
         val page = destinations.indexOf(destination)
         if (page >= 0) {
-            scope.launch { pagerState.scrollToPage(page) }
+            scope.launch { pagerState.animateVaultShelfPageTo(page) }
         }
     }
 
@@ -672,7 +672,7 @@ private fun RecentBookCard(
 }
 
 @Composable
-private fun QuickActionTile(
+internal fun QuickActionTile(
     @StringRes titleRes: Int,
     @DrawableRes iconRes: Int,
     onClick: () -> Unit,

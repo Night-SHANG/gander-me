@@ -565,11 +565,14 @@ class VaultShelfUxRegressionTest {
         assertThat(dispatcher).doesNotContain("StartActivityForResult")
         assertThat(dispatcher).contains("transientReaderActive")
         assertThat(dispatcher).contains("override fun onResume()")
+        assertThat(dispatcher).contains("delay(READER_RETURN_TRANSITION_MS)")
         assertThat(vaultBridge).doesNotContain("StartActivityForResult")
         assertThat(vaultBridge).contains("childActive")
         assertThat(vaultBridge).contains("bridgeResumed")
         assertThat(vaultBridge).contains("pendingChildIntent")
         assertThat(vaultBridge).contains("override fun onResume()")
+        assertThat(vaultBridge).contains("legadoChildActive")
+        assertThat(vaultBridge).contains("delay(READER_RETURN_TRANSITION_MS)")
         assertThat(vaultBridge).contains("override fun onPause()")
     }
 
@@ -1686,7 +1689,7 @@ class VaultShelfUxRegressionTest {
         assertThat(vaultBar).doesNotContain("SWITCH(")
         assertThat(vaultShell).contains("HorizontalPager(")
         assertThat(vaultShell).contains("userScrollEnabled = false")
-        assertThat(vaultShell).contains("pagerState.scrollToPage(page)")
+        assertThat(vaultShell).contains("pagerState.animateVaultShelfPageTo(page)")
         assertThat(vaultShell).contains("VaultBottomDestination.FILES -> onOpenFiles()")
         assertThat(vaultShell).contains("onSwitchVault = onSwitchVault")
         assertThat(vaultFiles).doesNotContain("openVaultSwitcher")
@@ -1714,11 +1717,14 @@ class VaultShelfUxRegressionTest {
         listOf(mainShell, vaultShell).forEach { source ->
             assertThat(source).contains("HorizontalPager(")
             assertThat(source).contains("userScrollEnabled = false")
-            assertThat(source).contains("scrollToPage")
+            assertThat(source).contains("animateVaultShelfPageTo")
             assertThat(source).doesNotContain("AnimatedContent(")
             assertThat(source).doesNotContain("Crossfade(")
             assertThat(source).doesNotContain("scaleIn(")
         }
+        assertThat(motion).contains("animateScrollToPage")
+        assertThat(motion).contains("TAB_TRANSITION_MS = 300")
+        assertThat(motion).contains("CubicBezierEasing(0f, 0f, 0.58f, 1f)")
         assertThat(motion).contains("overridePendingTransition(0, 0)")
         assertThat(motion).doesNotContain("AnimatedContent(")
         assertThat(motion).doesNotContain("fadeIn(")
@@ -1984,6 +1990,66 @@ class VaultShelfUxRegressionTest {
         assertThat(explorerPatch).doesNotContain(
             "if (ime.bottom > 0) ime.bottom else bars.bottom",
         )
+    }
+
+    @Test
+    fun vaultHomeOrdersRecentThenQuickAccessThenExternalReturn() {
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+        val home = shell.substringAfter("private fun VaultHomeScreen(")
+            .substringBefore("private fun VaultLibraryScreen(")
+
+        val recent = home.indexOf("vault_home_recent")
+        val quick = home.indexOf("vaultshelf_quick_access")
+        val library = home.indexOf("vaultshelf_library_card", quick)
+        val files = home.indexOf("vaultshelf_open_documents", quick)
+        val external = home.indexOf("vault_return_external_home", quick)
+
+        assertThat(recent).isAtLeast(0)
+        assertThat(quick).isGreaterThan(recent)
+        assertThat(library).isGreaterThan(quick)
+        assertThat(files).isGreaterThan(library)
+        assertThat(external).isGreaterThan(files)
+        assertThat(home).contains("QuickActionTile(")
+        assertThat(home).contains("verticalScroll(rememberScrollState())")
+    }
+
+    @Test
+    fun externalFolderLaunchKeepsMatchedPlatformBackTransition() {
+        val activity = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
+        ).readText()
+        val openFolder = activity.substringAfter("private fun openExternalFolder(")
+            .substringBefore("private fun ")
+
+        assertThat(openFolder).contains("ExternalExplorerActivity::class.java")
+        assertThat(openFolder).doesNotContain("applyVaultShelfPeerTransition()")
+        assertThat(openFolder).doesNotContain("overridePendingTransition(0, 0)")
+    }
+
+    @Test
+    fun transientLegadoReadersKeepTheirParentAliveThroughReturnAnimation() {
+        val dispatcher = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/FileDispatchActivity.kt",
+        ).readText()
+        val vaultBridge = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultContentActivity.kt",
+        ).readText()
+
+        assertThat(dispatcher).contains("READER_RETURN_TRANSITION_MS = 300L")
+        assertThat(dispatcher).contains("delay(READER_RETURN_TRANSITION_MS)")
+        assertThat(dispatcher).contains("transientReaderActive = false")
+
+        assertThat(vaultBridge).contains("legadoChildActive")
+        assertThat(vaultBridge).contains("READER_RETURN_TRANSITION_MS = 300L")
+        assertThat(vaultBridge).contains("delay(READER_RETURN_TRANSITION_MS)")
+        assertThat(vaultBridge).contains("if (legadoChildActive)")
+        assertThat(vaultBridge).contains("openWithGander")
     }
 
     @Test
