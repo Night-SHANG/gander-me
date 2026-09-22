@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -64,7 +66,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import androidx.documentfile.provider.DocumentFile
 import com.arjun.gander.R
-import com.arjun.gander.ui.shell.VaultShelfDestinationTransition
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LocalLibraryRepository
@@ -113,25 +114,17 @@ fun VaultModeShell(
     onOpenExternalDestination: (String) -> Unit,
     modifier: Modifier = Modifier,
     initialDestinationName: String = VaultModeDestination.HOME.name,
+    bottomBarVisible: Boolean = true,
 ) {
-    var selectedName by rememberSaveable {
-        mutableStateOf(
-            VaultModeDestination.entries
-                .firstOrNull { it.name == initialDestinationName }
-                ?.name
-                ?: VaultModeDestination.HOME.name,
-        )
-    }
+    val destinations = remember { VaultModeDestination.entries.toList() }
+    val initialPage = destinations
+        .indexOfFirst { it.name == initialDestinationName }
+        .takeIf { it >= 0 }
+        ?: 0
+    val pagerState = rememberPagerState(initialPage = initialPage) { destinations.size }
+    val scope = rememberCoroutineScope()
     var revision by remember { mutableIntStateOf(0) }
-    LaunchedEffect(initialDestinationName) {
-        selectedName = VaultModeDestination.entries
-            .firstOrNull { it.name == initialDestinationName }
-            ?.name
-            ?: VaultModeDestination.HOME.name
-    }
-    val selected = VaultModeDestination.entries
-        .firstOrNull { it.name == selectedName }
-        ?: VaultModeDestination.HOME
+    val selected = destinations[pagerState.currentPage]
     val bottomDestination = when (selected) {
         VaultModeDestination.HOME -> VaultBottomDestination.HOME
         VaultModeDestination.LIBRARY -> VaultBottomDestination.LIBRARY
@@ -139,90 +132,109 @@ fun VaultModeShell(
     }
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
+    fun navigateTo(destination: VaultModeDestination) {
+        val page = destinations.indexOf(destination)
+        if (page >= 0) {
+            scope.launch { pagerState.scrollToPage(page) }
+        }
+    }
+
+    LaunchedEffect(initialDestinationName) {
+        val requestedPage = destinations.indexOfFirst { it.name == initialDestinationName }
+        if (requestedPage >= 0 && requestedPage != pagerState.currentPage) {
+            pagerState.scrollToPage(requestedPage)
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (!imeVisible) {
+            if (bottomBarVisible && !imeVisible) {
                 VaultBottomBar(
                     selected = bottomDestination,
                     onSelected = { destination ->
                         when (destination) {
                             VaultBottomDestination.HOME ->
-                                selectedName = VaultModeDestination.HOME.name
+                                navigateTo(VaultModeDestination.HOME)
                             VaultBottomDestination.LIBRARY ->
-                                selectedName = VaultModeDestination.LIBRARY.name
+                                navigateTo(VaultModeDestination.LIBRARY)
                             VaultBottomDestination.FILES -> onOpenFiles()
                             VaultBottomDestination.SETTINGS ->
-                                selectedName = VaultModeDestination.SETTINGS.name
+                                navigateTo(VaultModeDestination.SETTINGS)
                         }
                     },
                 )
             }
         },
     ) { innerPadding ->
-        val contentModifier = Modifier.padding(innerPadding)
-        VaultShelfDestinationTransition(targetState = selected) { destination ->
-            when (destination) {
-            VaultModeDestination.HOME -> VaultHomeScreen(
-                volumeName = volumeName,
-                libraryStore = libraryStore,
-                revision = revision + externalRevision,
-                onOpenLibrary = { selectedName = VaultModeDestination.LIBRARY.name },
-                onOpenFiles = onOpenFiles,
-                onOpenExternalDestination = onOpenExternalDestination,
-                onOpenBook = { entry ->
-                    libraryStore.markOpened(entry.id)
-                    fileRepository.volume.getAttr(entry.path)?.let { stat ->
-                        onOpenFile(
-                            VaultFileItem(
-                                name = File(entry.path).name,
-                                path = entry.path,
-                                sizeBytes = stat.size.coerceAtLeast(0L),
-                                modifiedAtEpochMillis = stat.mTime.coerceAtLeast(0L),
-                                isDirectory = false,
-                            ),
-                        )
-                        revision += 1
-                    }
-                },
-                modifier = contentModifier,
-            )
+        HorizontalPager(
+            state = pagerState,
+            userScrollEnabled = false,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) { page ->
+            when (destinations[page]) {
+                VaultModeDestination.HOME -> VaultHomeScreen(
+                    volumeName = volumeName,
+                    libraryStore = libraryStore,
+                    revision = revision + externalRevision,
+                    onOpenLibrary = { navigateTo(VaultModeDestination.LIBRARY) },
+                    onOpenFiles = onOpenFiles,
+                    onOpenExternalDestination = onOpenExternalDestination,
+                    onOpenBook = { entry ->
+                        libraryStore.markOpened(entry.id)
+                        fileRepository.volume.getAttr(entry.path)?.let { stat ->
+                            onOpenFile(
+                                VaultFileItem(
+                                    name = File(entry.path).name,
+                                    path = entry.path,
+                                    sizeBytes = stat.size.coerceAtLeast(0L),
+                                    modifiedAtEpochMillis = stat.mTime.coerceAtLeast(0L),
+                                    isDirectory = false,
+                                ),
+                            )
+                            revision += 1
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
 
-            VaultModeDestination.LIBRARY -> VaultLibraryScreen(
-                fileRepository = fileRepository,
-                libraryStore = libraryStore,
-                revision = revision + externalRevision,
-                onOpen = { entry ->
-                    libraryStore.markOpened(entry.id)
-                    fileRepository.volume.getAttr(entry.path)?.let { stat ->
-                        onOpenFile(
-                            VaultFileItem(
-                                name = File(entry.path).name,
-                                path = entry.path,
-                                sizeBytes = stat.size.coerceAtLeast(0L),
-                                modifiedAtEpochMillis = stat.mTime.coerceAtLeast(0L),
-                                isDirectory = false,
-                            ),
-                        )
-                        revision += 1
-                    }
-                },
-                onOpenFiles = onOpenFiles,
-                onExportToVaultFiles = onExportLibraryToVaultFiles,
-                onRevision = { revision += 1 },
-                modifier = contentModifier,
-            )
+                VaultModeDestination.LIBRARY -> VaultLibraryScreen(
+                    fileRepository = fileRepository,
+                    libraryStore = libraryStore,
+                    revision = revision + externalRevision,
+                    onOpen = { entry ->
+                        libraryStore.markOpened(entry.id)
+                        fileRepository.volume.getAttr(entry.path)?.let { stat ->
+                            onOpenFile(
+                                VaultFileItem(
+                                    name = File(entry.path).name,
+                                    path = entry.path,
+                                    sizeBytes = stat.size.coerceAtLeast(0L),
+                                    modifiedAtEpochMillis = stat.mTime.coerceAtLeast(0L),
+                                    isDirectory = false,
+                                ),
+                            )
+                            revision += 1
+                        }
+                    },
+                    onOpenFiles = onOpenFiles,
+                    onExportToVaultFiles = onExportLibraryToVaultFiles,
+                    onRevision = { revision += 1 },
+                    modifier = Modifier.fillMaxSize(),
+                )
 
-            VaultModeDestination.SETTINGS -> VaultSettingsScreen(
-                volumeName = volumeName,
-                onSwitchVault = onSwitchVault,
-                onOpenVaultSettings = onOpenVaultSettings,
-                onOpenVaultBackup = onOpenVaultBackup,
-                onLockVault = onLockVault,
-                onOpenExternalDestination = onOpenExternalDestination,
-                modifier = contentModifier,
-            )
+                VaultModeDestination.SETTINGS -> VaultSettingsScreen(
+                    volumeName = volumeName,
+                    onSwitchVault = onSwitchVault,
+                    onOpenVaultSettings = onOpenVaultSettings,
+                    onOpenVaultBackup = onOpenVaultBackup,
+                    onLockVault = onLockVault,
+                    onOpenExternalDestination = onOpenExternalDestination,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
     }

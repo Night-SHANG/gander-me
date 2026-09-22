@@ -3,6 +3,7 @@ package com.arjun.gander.vault
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.addCallback
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -36,6 +37,7 @@ class VaultModeActivity : BaseActivity() {
     private var requestedDestinationName by mutableStateOf("HOME")
     private var returnToFiles by mutableStateOf(false)
     private lateinit var switchVolumeOpener: VolumeOpener
+    private var bottomNavigationVisible by mutableStateOf(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +67,7 @@ class VaultModeActivity : BaseActivity() {
                         libraryStore = libraryStore,
                         externalRevision = libraryRevision,
                         initialDestinationName = requestedDestinationName,
+                        bottomBarVisible = bottomNavigationVisible,
                         onOpenFile = { item ->
                             if (!VaultShelfFileRouter.openAny(
                                     this@VaultModeActivity,
@@ -150,6 +153,9 @@ class VaultModeActivity : BaseActivity() {
             }
         }
         setContentView(root)
+        onBackPressedDispatcher.addCallback(this) {
+            VaultExitCoordinator.confirmExit(this@VaultModeActivity)
+        }
     }
 
     private fun showVaultSwitchDialog(currentVolumeId: Int) {
@@ -224,6 +230,7 @@ class VaultModeActivity : BaseActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        bottomNavigationVisible = hasFocus
         if (hasFocus) VaultScreenshotPolicy.apply(this)
     }
 

@@ -2,21 +2,21 @@ package com.arjun.gander.vault
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
-import androidx.activity.addCallback
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.core.view.updatePadding
 import com.arjun.gander.VaultShelfActivity
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
-import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.ui.shell.applyVaultShelfPeerTransition
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.arjun.gander.ui.theme.VaultShelfTheme
 import sushi.hardcore.droidfs.MainActivity
 import sushi.hardcore.droidfs.R as DroidFsR
 
@@ -24,11 +24,13 @@ import sushi.hardcore.droidfs.R as DroidFsR
  * VaultShelf wrapper around DroidFS' mature volume chooser.
  *
  * DroidFS still owns volume creation, biometric/password unlock and volume management.
- * VaultShelf only supplies the same global bottom navigation used everywhere else.
+ * VaultShelf only supplies the external-shell bottom navigation.
  */
 class VaultVolumeActivity : MainActivity() {
 
-    private var selectedVolumeCount = 0
+    private var bottomNavigation: ComposeView? = null
+    private var imeVisible = false
+    private var windowFocused = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,23 +38,13 @@ class VaultVolumeActivity : MainActivity() {
             return
         }
 
-        val content = findViewById<android.view.View>(DroidFsR.id.content_area)
+        val content = findViewById<View>(DroidFsR.id.content_area)
         val root = content.parent as? LinearLayout ?: return
         content.layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             0,
             1f,
         )
-
-        onBackPressedDispatcher.addCallback(this) {
-            if (selectedVolumeCount > 0) {
-                isEnabled = false
-                onBackPressedDispatcher.onBackPressed()
-                isEnabled = true
-            } else {
-                showExitConfirmation()
-            }
-        }
 
         val navigation = ComposeView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -76,29 +68,46 @@ class VaultVolumeActivity : MainActivity() {
                 }
             }
         }
-        ViewCompat.setOnApplyWindowInsetsListener(navigation) { view, insets ->
-            view.isVisible = !insets.isVisible(WindowInsetsCompat.Type.ime())
+        bottomNavigation = navigation
+        ViewCompat.setOnApplyWindowInsetsListener(navigation) { _, insets ->
+            imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            updateBottomNavigationVisibility()
             insets
         }
         ViewCompat.requestApplyInsets(navigation)
         root.addView(navigation)
     }
 
-    override fun onSelectionChanged(size: Int) {
-        selectedVolumeCount = size
-        super.onSelectionChanged(size)
+    override fun onPostCreate(savedInstanceState: Bundle?) {
+        super.onPostCreate(savedInstanceState)
+
+        // DroidFS BaseActivity normally replaces bottom system-bar padding with IME height.
+        // The chooser owns a fixed bottom bar, so doing that visibly lifts the whole bar.
+        // Keep only the stable system-bar inset; modal password/biometric prompts hide the bar.
+        val windowContent = findViewById<View>(android.R.id.content)
+        ViewCompat.setOnApplyWindowInsetsListener(windowContent) { view, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout(),
+            )
+            view.updatePadding(
+                left = bars.left,
+                right = bars.right,
+                bottom = bars.bottom,
+            )
+            insets
+        }
+        ViewCompat.requestApplyInsets(windowContent)
     }
 
-    private fun showExitConfirmation() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(com.arjun.gander.R.string.vault_exit_title)
-            .setMessage(com.arjun.gander.R.string.vault_exit_message)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(com.arjun.gander.R.string.vault_exit_confirm) { _, _ ->
-                finish()
-                applyVaultShelfPeerTransition()
-            }
-            .show()
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        windowFocused = hasFocus
+        updateBottomNavigationVisibility()
+    }
+
+    private fun updateBottomNavigationVisibility() {
+        bottomNavigation?.isVisible = windowFocused && !imeVisible
     }
 
     private fun openExternalDestination(destination: String) {

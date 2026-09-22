@@ -962,7 +962,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
  import sushi.hardcore.droidfs.file_viewers.TextEditor
  import sushi.hardcore.droidfs.file_viewers.VideoPlayer
  import sushi.hardcore.droidfs.filesystems.EncryptedVolume
-@@ -51,8 +55,13 @@
+@@ -51,8 +55,15 @@
  import sushi.hardcore.droidfs.util.PathUtils
  import sushi.hardcore.droidfs.util.finishOnClose
  import sushi.hardcore.droidfs.widgets.EditTextDialog
@@ -973,10 +973,12 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +        applyCustomTheme = false
 +    }
 +
++    protected open fun onRootBackPressed(): Boolean = false
++
      private lateinit var sortOrderEntries: Array<String>
      private lateinit var sortOrderValues: Array<String>
      private var foldersFirst = true
-@@ -71,6 +80,10 @@
+@@ -71,6 +82,10 @@
      protected lateinit var fileOperationService: FileOperationService
      protected val activityScope = MainScope()
      private var directoryLoadingTask: Job? = null
@@ -987,7 +989,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
      protected lateinit var explorerElements: MutableList<ExplorerElement>
      protected lateinit var explorerAdapter: ExplorerElementAdapter
      protected lateinit var app: VolumeManagerApp
-@@ -129,16 +142,18 @@
+@@ -129,16 +144,19 @@
          layoutIcon = findViewById(R.id.layout_icon)
          setRecyclerViewLayout()
          onBackPressedDispatcher.addCallback(this) {
@@ -997,6 +999,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +                else -> {
 +                    val parentPath = PathUtils.getParentPath(currentDirectoryPath)
 +                    if (parentPath == currentDirectoryPath) {
++                        if (onRootBackPressed()) return@addCallback
 +                        isEnabled = false
 +                        onBackPressedDispatcher.onBackPressed()
 +                    } else {
@@ -1015,7 +1018,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
              }
          }
          layoutIcon.setOnClickListener {
-@@ -162,6 +177,25 @@
+@@ -162,6 +180,25 @@
          }
      }
  
@@ -1041,7 +1044,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
      class ExplorerViewModel: ViewModel() {
          var currentDirectoryPath = "/"
      }
-@@ -199,6 +233,9 @@
+@@ -199,6 +236,9 @@
              putExtra("path", filePath)
              putExtra("volumeId", volumeId)
              putExtra("sortOrder", sortOrderValues[currentSortOrderIndex])
@@ -1051,7 +1054,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
          }
          startActivity(intent)
      }
-@@ -247,7 +284,7 @@
+@@ -247,7 +287,7 @@
                      "image" -> startFileViewer(ImageViewer::class.java, path)
                      "video" -> startFileViewer(VideoPlayer::class.java, path)
                      "audio" -> startFileViewer(AudioPlayer::class.java, path)
@@ -1060,7 +1063,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                      "text" -> startFileViewer(TextEditor::class.java, path)
                      "external" -> if (usf_open) {
                          openWithExternalApp(path, explorerElement.stat.size)
-@@ -283,12 +320,12 @@
+@@ -283,12 +323,12 @@
      }
  
      private fun setVolumeNameTitle() {
@@ -1075,7 +1078,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
          } else {
              supportActionBar?.title = getString(R.string.elements_selected, size, explorerElements.count { !it.isParentFolder })
          }
-@@ -304,6 +341,15 @@
+@@ -304,6 +344,15 @@
                  explorerElements[position].isParentFolder -> {
                      changeCurrentDirectory(PathUtils.getParentPath(currentDirectoryPath))
                  }
@@ -1091,7 +1094,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                  FileTypes.isImage(fullPath) -> {
                      startFileViewer(ImageViewer::class.java, fullPath)
                  }
-@@ -313,9 +359,6 @@
+@@ -313,9 +362,6 @@
                  FileTypes.isText(fullPath) -> {
                      startFileViewer(TextEditor::class.java, fullPath)
                  }
@@ -1101,7 +1104,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                  FileTypes.isAudio(fullPath) -> {
                      startFileViewer(AudioPlayer::class.java, fullPath)
                  }
-@@ -368,17 +411,147 @@
+@@ -368,17 +414,147 @@
      }
  
      protected fun changeCurrentDirectory(path: String) {
@@ -1249,7 +1252,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
          if (currentDirectoryPath != "/") {
              explorerElements.add(
                  0,
-@@ -635,13 +808,23 @@
+@@ -635,13 +811,23 @@
              menu.findItem(R.id.external_open)?.isVisible = false
          }
          val noItemSelected = explorerAdapter.selectedItems.isEmpty()
@@ -1276,7 +1279,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                  if (explorerElements[explorerAdapter.selectedItems.first()].isRegularFile) {
                      menu.findItem(R.id.open_as)?.isVisible = true
                      if (usf_open) {
-@@ -654,9 +837,13 @@
+@@ -654,9 +840,13 @@
      }
  
      override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -1291,7 +1294,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                  true
              }
              R.id.sort -> {
-@@ -715,6 +902,19 @@
+@@ -715,6 +905,19 @@
  
      override fun onResume() {
          super.onResume()

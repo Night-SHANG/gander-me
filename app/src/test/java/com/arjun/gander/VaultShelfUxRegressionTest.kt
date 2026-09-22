@@ -1345,10 +1345,14 @@ class VaultShelfUxRegressionTest {
         assertThat(vaultBar).contains("LIBRARY(R.string.vaultshelf_nav_library")
         assertThat(vaultBar).contains("FILES(R.string.vaultshelf_nav_files")
         assertThat(vaultBar).contains("SETTINGS(R.string.vaultshelf_nav_settings")
-        assertThat(externalBar).contains("NavigationBar(")
-        assertThat(externalBar).contains("NavigationBarItem(")
-        assertThat(vaultBar).contains("NavigationBar(")
-        assertThat(vaultBar).contains("NavigationBarItem(")
+        listOf(externalBar, vaultBar).forEach { source ->
+            assertThat(source).contains("Surface(")
+            assertThat(source).contains("shadowElevation = 6.dp")
+            assertThat(source).contains("padding(horizontal = 6.dp, vertical = 6.dp)")
+            assertThat(source).doesNotContain("NavigationBar(")
+            assertThat(source).doesNotContain("NavigationBarItem(")
+            assertThat(source).doesNotContain("tonalElevation")
+        }
         listOf(mainShell, external).forEach { source ->
             assertThat(source).contains("VaultShelfBottomBar(")
             assertThat(source).doesNotContain("VaultBottomBar(")
@@ -1550,9 +1554,12 @@ class VaultShelfUxRegressionTest {
         assertThat(chooser).doesNotContain("VaultBottomBar(")
         assertThat(chooser).contains("selected = VaultShelfDestination.VAULT")
         assertThat(chooser).contains("WindowInsetsCompat.Type.ime()")
-        assertThat(chooser).contains("view.isVisible = !insets.isVisible")
-        assertThat(chooser).contains("showExitConfirmation()")
-        assertThat(chooser).contains("vault_exit_title")
+        assertThat(chooser).contains("updateBottomNavigationVisibility()")
+        assertThat(chooser).contains("override fun onWindowFocusChanged")
+        assertThat(chooser).contains("bottom = bars.bottom")
+        assertThat(chooser).doesNotContain("bottom = if (ime")
+        assertThat(chooser).doesNotContain("showExitConfirmation")
+        assertThat(chooser).doesNotContain("vault_exit_title")
         assertThat(chooser).doesNotContain("switchingMode")
         assertThat(vaultShell).contains("VaultModeDestination.HOME -> VaultBottomDestination.HOME")
         assertThat(vaultShell).contains("VaultModeDestination.LIBRARY -> VaultBottomDestination.LIBRARY")
@@ -1658,7 +1665,7 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun vaultNavigationUsesFourTabsAndSettingsSwitchDoesNotStackOldVaults() {
+    fun vaultNavigationUsesFourTabsPagerAndSettingsSwitchDoesNotStackOldVaults() {
         val vaultBar = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultBottomBar.kt",
@@ -1675,16 +1682,11 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
         ).readText()
-        val chooser = File(
-            repo,
-            "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
-        ).readText()
-        val motion = File(
-            repo,
-            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfNavigationMotion.kt",
-        ).readText()
 
         assertThat(vaultBar).doesNotContain("SWITCH(")
+        assertThat(vaultShell).contains("HorizontalPager(")
+        assertThat(vaultShell).contains("userScrollEnabled = false")
+        assertThat(vaultShell).contains("pagerState.scrollToPage(page)")
         assertThat(vaultShell).contains("VaultBottomDestination.FILES -> onOpenFiles()")
         assertThat(vaultShell).contains("onSwitchVault = onSwitchVault")
         assertThat(vaultFiles).doesNotContain("openVaultSwitcher")
@@ -1692,17 +1694,10 @@ class VaultShelfUxRegressionTest {
         assertThat(vaultMode).contains("setSingleChoiceItems")
         assertThat(vaultMode).contains("switchVolumeOpener.openVolume")
         assertThat(vaultMode).contains("finish()")
-        assertThat(chooser).contains("showExitConfirmation")
-        assertThat(chooser).contains("WindowInsetsCompat.Type.ime()")
-        assertThat(motion).contains("AnimatedContent(")
-        assertThat(motion).contains("fadeIn(")
-        assertThat(motion).contains("scaleIn(")
-        assertThat(motion).contains("fadeOut(")
-        assertThat(motion).contains("overridePendingTransition(0, 0)")
     }
 
     @Test
-    fun peerNavigationAnimatesAndVaultExitConfirmsAtTheBoundary() {
+    fun topLevelNavigationUsesFixedBarsAndTiebaLiteStylePagerSwitching() {
         val mainShell = File(
             repo,
             "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
@@ -1711,24 +1706,81 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
         ).readText()
-        val chooser = File(
-            repo,
-            "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
-        ).readText()
-
-        assertThat(mainShell).contains("VaultShelfDestinationTransition")
-        assertThat(vaultShell).contains("VaultShelfDestinationTransition")
-        assertThat(chooser).contains("onBackPressedDispatcher.addCallback")
-        assertThat(chooser).contains("vault_exit_confirm")
-        assertThat(chooser).contains("WindowInsetsCompat.Type.ime()")
         val motion = File(
             repo,
             "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfNavigationMotion.kt",
         ).readText()
-        assertThat(motion).contains("AnimatedContent(")
+
+        listOf(mainShell, vaultShell).forEach { source ->
+            assertThat(source).contains("HorizontalPager(")
+            assertThat(source).contains("userScrollEnabled = false")
+            assertThat(source).contains("scrollToPage")
+            assertThat(source).doesNotContain("AnimatedContent(")
+            assertThat(source).doesNotContain("Crossfade(")
+            assertThat(source).doesNotContain("scaleIn(")
+        }
         assertThat(motion).contains("overridePendingTransition(0, 0)")
-        assertThat(motion).doesNotContain("android.R.anim.fade_in")
-        assertThat(motion).doesNotContain("android.R.anim.fade_out")
+        assertThat(motion).doesNotContain("AnimatedContent(")
+        assertThat(motion).doesNotContain("fadeIn(")
+        assertThat(motion).doesNotContain("fadeOut(")
+    }
+
+    @Test
+    fun unlockedVaultBackBoundaryConfirmsFromShellAndExplorerRootOnly() {
+        val mode = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
+        val explorer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
+        ).readText()
+        val exit = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultExitCoordinator.kt",
+        ).readText()
+        val external = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
+        ).readText()
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val explorerPatch = patch.substringAfter(
+            "diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActivity.kt",
+        )
+
+        assertThat(mode).contains("onBackPressedDispatcher.addCallback")
+        assertThat(mode).contains("VaultExitCoordinator.confirmExit")
+        assertThat(explorer).contains("override fun onRootBackPressed")
+        assertThat(explorer).contains("VaultExitCoordinator.confirmExit")
+        assertThat(explorerPatch).contains("protected open fun onRootBackPressed(): Boolean = false")
+        assertThat(explorerPatch).contains("if (onRootBackPressed()) return@addCallback")
+        assertThat(explorerPatch).contains("activeSearchQuery.isNotEmpty() -> exitSearch()")
+        assertThat(exit).contains("vault_exit_title")
+        assertThat(exit).contains("vault_exit_confirm")
+        assertThat(exit).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
+        assertThat(exit).contains("EXTRA_PRESERVE_DESTINATION")
+        assertThat(external).contains("EXTRA_PRESERVE_DESTINATION")
+    }
+
+    @Test
+    fun chooserBottomBarHasStableInsetsAndHidesForUnlockPrompts() {
+        val chooser = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
+        ).readText()
+        val externalBar = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfBottomBar.kt",
+        ).readText()
+
+        assertThat(chooser).contains("override fun onPostCreate")
+        assertThat(chooser).contains("WindowInsetsCompat.Type.systemBars()")
+        assertThat(chooser).contains("bottom = bars.bottom")
+        assertThat(chooser).contains("windowFocused && !imeVisible")
+        assertThat(chooser).contains("override fun onWindowFocusChanged")
+        assertThat(externalBar).doesNotContain("windowInsets")
+        assertThat(externalBar).doesNotContain("NavigationBar(")
+        assertThat(externalBar).doesNotContain("tonalElevation")
     }
 
     @Test
@@ -1870,6 +1922,12 @@ class VaultShelfUxRegressionTest {
             assertThat(source).contains("WindowInsetsCompat.Type.ime()")
             assertThat(source).contains("view.isVisible = !insets.isVisible")
         }
+        val chooser = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
+        ).readText()
+        assertThat(chooser).contains("windowFocused && !imeVisible")
+        assertThat(chooser).contains("bottom = bars.bottom")
     }
 
     @Test

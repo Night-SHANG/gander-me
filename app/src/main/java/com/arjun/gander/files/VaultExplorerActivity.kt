@@ -31,6 +31,7 @@ import com.arjun.gander.vault.VaultSecurityPolicy
 import com.arjun.gander.vault.VaultBottomBar
 import com.arjun.gander.vault.VaultBottomDestination
 import com.arjun.gander.vault.VaultModeActivity
+import com.arjun.gander.vault.VaultExitCoordinator
 import com.arjun.gander.vault.VaultFileRepository
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfProgressStore
@@ -65,6 +66,11 @@ class VaultExplorerActivity : ExplorerActivity() {
         vaultFiles = VaultFileRepository(applicationContext, volumeId)
         vaultLibrary = VaultLibraryStore(applicationContext, vaultFiles)
         configureBottomNavigation()
+    }
+
+    protected override fun onRootBackPressed(): Boolean {
+        VaultExitCoordinator.confirmExit(this)
+        return true
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

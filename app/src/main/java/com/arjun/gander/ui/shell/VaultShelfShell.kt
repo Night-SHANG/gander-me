@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.arjun.gander.ui.shell
 
 import android.content.Context
@@ -27,6 +29,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -95,26 +99,36 @@ fun VaultShelfShell(
     returnToFiles: Boolean = false,
     onReturnToFiles: () -> Unit = {},
 ) {
-    var selectedName by rememberSaveable {
-        mutableStateOf(
-            VaultShelfDestination.entries
-                .firstOrNull { it.name == initialDestinationName && it != VaultShelfDestination.VAULT }
-                ?.name
-                ?: VaultShelfDestination.HOME.name,
+    val destinations = remember {
+        listOf(
+            VaultShelfDestination.HOME,
+            VaultShelfDestination.LIBRARY,
+            VaultShelfDestination.FILES,
+            VaultShelfDestination.SETTINGS,
         )
     }
-    LaunchedEffect(initialDestinationName) {
-        selectedName = VaultShelfDestination.entries
-            .firstOrNull {
-                it.name == initialDestinationName && it != VaultShelfDestination.VAULT
-            }
-            ?.name
-            ?: VaultShelfDestination.HOME.name
-    }
-    val selected = VaultShelfDestination.entries
-        .firstOrNull { it.name == selectedName }
-        ?: VaultShelfDestination.HOME
+    val initialPage = destinations
+        .indexOfFirst { it.name == initialDestinationName }
+        .takeIf { it >= 0 }
+        ?: 0
+    val pagerState = rememberPagerState(initialPage = initialPage) { destinations.size }
+    val scope = rememberCoroutineScope()
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val selected = destinations[pagerState.currentPage]
+
+    fun navigateTo(destination: VaultShelfDestination) {
+        val page = destinations.indexOf(destination)
+        if (page >= 0) {
+            scope.launch { pagerState.scrollToPage(page) }
+        }
+    }
+
+    LaunchedEffect(initialDestinationName) {
+        val requestedPage = destinations.indexOfFirst { it.name == initialDestinationName }
+        if (requestedPage >= 0 && requestedPage != pagerState.currentPage) {
+            pagerState.scrollToPage(requestedPage)
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -128,52 +142,58 @@ fun VaultShelfShell(
                         when (destination) {
                             VaultShelfDestination.FILES -> {
                                 if (returnToFiles) onReturnToFiles()
-                                else selectedName = destination.name
+                                else navigateTo(destination)
                             }
                             VaultShelfDestination.VAULT -> onOpenVault()
-                            else -> selectedName = destination.name
+                            else -> navigateTo(destination)
                         }
                     },
                 )
             }
         },
     ) { innerPadding ->
-        VaultShelfDestinationTransition(targetState = selected) { destination ->
-            when (destination) {
-            VaultShelfDestination.HOME -> HomeScreen(
-                libraryRepository = libraryRepository,
-                modifier = Modifier.padding(innerPadding),
-                onOpenFiles = {
-                    if (returnToFiles) onReturnToFiles()
-                    else selectedName = VaultShelfDestination.FILES.name
-                },
-                onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
-                onOpenVault = onOpenVault,
-            )
+        HorizontalPager(
+            state = pagerState,
+            userScrollEnabled = false,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) { page ->
+            when (destinations[page]) {
+                VaultShelfDestination.HOME -> HomeScreen(
+                    libraryRepository = libraryRepository,
+                    modifier = Modifier.fillMaxSize(),
+                    onOpenFiles = {
+                        if (returnToFiles) onReturnToFiles()
+                        else navigateTo(VaultShelfDestination.FILES)
+                    },
+                    onOpenLibrary = { navigateTo(VaultShelfDestination.LIBRARY) },
+                    onOpenVault = onOpenVault,
+                )
 
-            VaultShelfDestination.LIBRARY -> LibraryScreen(
-                repository = libraryRepository,
-                externalRevision = externalRevision,
-                onImportToVaultFiles = onImportBooksToVaultFiles,
-                onImportToVaultLibrary = onImportBooksToVaultLibrary,
-                modifier = Modifier.padding(innerPadding),
-            )
+                VaultShelfDestination.LIBRARY -> LibraryScreen(
+                    repository = libraryRepository,
+                    externalRevision = externalRevision,
+                    onImportToVaultFiles = onImportBooksToVaultFiles,
+                    onImportToVaultLibrary = onImportBooksToVaultLibrary,
+                    modifier = Modifier.fillMaxSize(),
+                )
 
-            VaultShelfDestination.FILES -> ExternalFilesScreen(
-                onOpenFolder = onOpenExternalFolder,
-                modifier = Modifier.padding(innerPadding),
-            )
+                VaultShelfDestination.FILES -> ExternalFilesScreen(
+                    onOpenFolder = onOpenExternalFolder,
+                    modifier = Modifier.fillMaxSize(),
+                )
 
-            VaultShelfDestination.VAULT -> Unit
+                VaultShelfDestination.SETTINGS -> SettingsScreen(
+                    onOpenVaultSettings = onOpenVaultSettings,
+                    onOpenVaultBackup = onOpenVaultBackup,
+                    onOpenTransferSettings = onOpenTransferSettings,
+                    onOpenReaderAppearance = onOpenReaderAppearance,
+                    onOpenAbout = onOpenAbout,
+                    modifier = Modifier.fillMaxSize(),
+                )
 
-            VaultShelfDestination.SETTINGS -> SettingsScreen(
-                onOpenVaultSettings = onOpenVaultSettings,
-                onOpenVaultBackup = onOpenVaultBackup,
-                onOpenTransferSettings = onOpenTransferSettings,
-                onOpenReaderAppearance = onOpenReaderAppearance,
-                onOpenAbout = onOpenAbout,
-                modifier = Modifier.padding(innerPadding),
-            )
+                VaultShelfDestination.VAULT -> Unit
             }
         }
     }
