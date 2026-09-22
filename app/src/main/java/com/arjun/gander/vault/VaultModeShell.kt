@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import androidx.documentfile.provider.DocumentFile
 import com.arjun.gander.R
+import com.arjun.gander.ui.shell.VaultShelfDestinationCrossfade
 import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LocalLibraryRepository
@@ -108,7 +109,7 @@ fun VaultModeShell(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
-    onOpenVaultSwitcher: () -> Unit,
+    onSwitchVault: () -> Unit,
     onOpenExternalDestination: (String) -> Unit,
     modifier: Modifier = Modifier,
     initialDestinationName: String = VaultModeDestination.HOME.name,
@@ -154,7 +155,6 @@ fun VaultModeShell(
                             VaultBottomDestination.FILES -> onOpenFiles()
                             VaultBottomDestination.SETTINGS ->
                                 selectedName = VaultModeDestination.SETTINGS.name
-                            VaultBottomDestination.SWITCH -> onOpenVaultSwitcher()
                         }
                     },
                 )
@@ -162,7 +162,8 @@ fun VaultModeShell(
         },
     ) { innerPadding ->
         val contentModifier = Modifier.padding(innerPadding)
-        when (selected) {
+        VaultShelfDestinationCrossfade(targetState = selected) { destination ->
+            when (destination) {
             VaultModeDestination.HOME -> VaultHomeScreen(
                 volumeName = volumeName,
                 libraryStore = libraryStore,
@@ -215,12 +216,14 @@ fun VaultModeShell(
 
             VaultModeDestination.SETTINGS -> VaultSettingsScreen(
                 volumeName = volumeName,
+                onSwitchVault = onSwitchVault,
                 onOpenVaultSettings = onOpenVaultSettings,
                 onOpenVaultBackup = onOpenVaultBackup,
                 onLockVault = onLockVault,
                 onOpenExternalDestination = onOpenExternalDestination,
                 modifier = contentModifier,
             )
+            }
         }
     }
 }
@@ -1222,6 +1225,7 @@ private suspend fun exportVaultLibraryBooksToTree(
 @Composable
 private fun VaultSettingsScreen(
     volumeName: String,
+    onSwitchVault: () -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onLockVault: () -> Unit,
@@ -1243,6 +1247,9 @@ private fun VaultSettingsScreen(
             text = volumeName,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Button(onClick = onSwitchVault, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.vault_switch_volume))
+        }
         Button(onClick = onOpenVaultSettings, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.vault_settings_security))
         }

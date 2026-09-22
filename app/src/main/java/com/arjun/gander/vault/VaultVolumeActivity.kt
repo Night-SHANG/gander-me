@@ -4,9 +4,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.LinearLayout
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.activity.addCallback
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.arjun.gander.VaultShelfActivity
@@ -14,9 +15,10 @@ import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
 import com.arjun.gander.ui.theme.VaultShelfTheme
+import com.arjun.gander.ui.shell.applyVaultShelfPeerTransition
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import sushi.hardcore.droidfs.MainActivity
 import sushi.hardcore.droidfs.R as DroidFsR
-import sushi.hardcore.droidfs.VolumeManagerApp
 
 /**
  * VaultShelf wrapper around DroidFS' mature volume chooser.
@@ -26,15 +28,9 @@ import sushi.hardcore.droidfs.VolumeManagerApp
  */
 class VaultVolumeActivity : MainActivity() {
 
-    private var switchingMode by mutableStateOf(false)
-
-    companion object {
-        const val EXTRA_SWITCHING_VAULT = "vaultshelf.switching_vault"
-        const val EXTRA_CURRENT_VOLUME_UUID = "vaultshelf.current_volume_uuid"
-    }
+    private var selectedVolumeCount = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)
         super.onCreate(savedInstanceState)
         if (isFinishing || !intent.getBooleanExtra(VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY, false)) {
             return
@@ -48,85 +44,61 @@ class VaultVolumeActivity : MainActivity() {
             1f,
         )
 
-        root.addView(
-            ComposeView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                )
-                setViewCompositionStrategy(
-                    ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
-                )
-                setContent {
-                    VaultShelfTheme {
-                        if (switchingMode) {
-                            VaultBottomBar(
-                                selected = VaultBottomDestination.SWITCH,
-                                onSelected = { destination ->
-                                    when (destination) {
-                                        VaultBottomDestination.SWITCH -> Unit
-                                        else -> openCurrentVaultDestination(destination)
-                                    }
-                                },
-                            )
-                        } else {
-                            VaultShelfBottomBar(
-                                destinations = VaultShelfExternalDestinations,
-                                selected = VaultShelfDestination.VAULT,
-                                onSelected = { destination ->
-                                    if (destination != VaultShelfDestination.VAULT) {
-                                        openExternalDestination(destination.name)
-                                    }
-                                },
-                            )
-                        }
-                    }
-                }
-            },
-        )
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)
-    }
-
-    private fun openCurrentVaultDestination(destination: VaultBottomDestination) {
-        val currentUuid = intent.getStringExtra(EXTRA_CURRENT_VOLUME_UUID)
-        val current = (application as VolumeManagerApp)
-            .volumeManager
-            .listVolumes()
-            .firstOrNull { it.second.uuid == currentUuid }
-        if (current == null) {
-            openExternalDestination(destination.name)
-            return
+        onBackPressedDispatcher.addCallback(this) {
+            if (selectedVolumeCount > 0) {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+                isEnabled = true
+            } else {
+                showExitConfirmation()
+            }
         }
 
-        switchingMode = false
-        intent.putExtra(EXTRA_SWITCHING_VAULT, false)
-        val target = when (destination) {
-            VaultBottomDestination.FILES -> Intent(
-                this,
-                com.arjun.gander.files.VaultExplorerActivity::class.java,
+        val navigation = ComposeView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
             )
-                .putExtra("volumeId", current.first)
-                .putExtra("volumeName", current.second.shortName)
-            VaultBottomDestination.HOME,
-            VaultBottomDestination.LIBRARY,
-            VaultBottomDestination.SETTINGS -> Intent(this, VaultModeActivity::class.java)
-                .putExtra(VaultModeActivity.EXTRA_VOLUME_ID, current.first)
-                .putExtra(VaultModeActivity.EXTRA_VOLUME_NAME, current.second.shortName)
-                .putExtra(VaultModeActivity.EXTRA_INITIAL_DESTINATION, destination.name)
-            VaultBottomDestination.SWITCH -> return
-        }.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-        startActivity(target)
-        overridePendingTransition(0, 0)
+            setViewCompositionStrategy(
+                ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
+            )
+            setContent {
+                VaultShelfTheme {
+                    VaultShelfBottomBar(
+                        destinations = VaultShelfExternalDestinations,
+                        selected = VaultShelfDestination.VAULT,
+                        onSelected = { destination ->
+                            if (destination != VaultShelfDestination.VAULT) {
+                                openExternalDestination(destination.name)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(navigation) { view, insets ->
+            view.isVisible = !insets.isVisible(WindowInsetsCompat.Type.ime())
+            insets
+        }
+        ViewCompat.requestApplyInsets(navigation)
+        root.addView(navigation)
+    }
+
+    override fun onSelectionChanged(size: Int) {
+        selectedVolumeCount = size
+        super.onSelectionChanged(size)
+    }
+
+    private fun showExitConfirmation() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(com.arjun.gander.R.string.vault_exit_title)
+            .setMessage(com.arjun.gander.R.string.vault_exit_message)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(com.arjun.gander.R.string.vault_exit_confirm) { _, _ ->
+                finish()
+                applyVaultShelfPeerTransition()
+            }
+            .show()
     }
 
     private fun openExternalDestination(destination: String) {
@@ -135,11 +107,10 @@ class VaultVolumeActivity : MainActivity() {
                 .putExtra(VaultShelfActivity.EXTRA_INITIAL_DESTINATION, destination)
                 .addFlags(
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                        Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP,
                 ),
         )
-        overridePendingTransition(0, 0)
+        applyVaultShelfPeerTransition()
         finish()
     }
 }

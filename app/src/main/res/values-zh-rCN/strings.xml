@@ -71,7 +71,6 @@
     <string name="vaultshelf_nav_library">书库</string>
     <string name="vaultshelf_nav_files">文件</string>
     <string name="vaultshelf_nav_vault">保险库</string>
-    <string name="vaultshelf_nav_switch">切换</string>
     <string name="vaultshelf_nav_settings">设置</string>
     <string name="vaultshelf_quick_access">快速访问</string>
     <string name="vaultshelf_open_documents">打开文档</string>
@@ -163,6 +162,10 @@
     <string name="vault_settings_title">保险库设置</string>
     <string name="vault_settings_security">安全与保险库行为</string>
     <string name="vault_settings_backup">导出 / 恢复备份</string>
+    <string name="vault_switch_volume">切换保险库</string>
+    <string name="vault_exit_title">退出保险库？</string>
+    <string name="vault_exit_message">确定退出保险库并返回外部页面吗？</string>
+    <string name="vault_exit_confirm">退出保险库</string>
     <string name="vault_settings_lock">锁定保险库</string>
     <string name="vault_return_external_home">返回外部首页</string>
     <string name="vault_open_failed">暂时无法打开这个文件。</string>

@@ -1340,7 +1340,11 @@ class VaultShelfUxRegressionTest {
         assertThat(externalBar).contains("fun VaultShelfBottomBar(")
         assertThat(externalBar).doesNotContain("VaultShelfVaultDestinations")
         assertThat(vaultBar).contains("fun VaultBottomBar(")
-        assertThat(vaultBar).contains("SWITCH(R.string.vaultshelf_nav_switch")
+        assertThat(vaultBar).doesNotContain("SWITCH(")
+        assertThat(vaultBar).contains("HOME(R.string.vaultshelf_nav_home")
+        assertThat(vaultBar).contains("LIBRARY(R.string.vaultshelf_nav_library")
+        assertThat(vaultBar).contains("FILES(R.string.vaultshelf_nav_files")
+        assertThat(vaultBar).contains("SETTINGS(R.string.vaultshelf_nav_settings")
         listOf(mainShell, external).forEach { source ->
             assertThat(source).contains("VaultShelfBottomBar(")
             assertThat(source).doesNotContain("VaultBottomBar(")
@@ -1539,17 +1543,19 @@ class VaultShelfUxRegressionTest {
         assertThat(activity).contains("EXTRA_VAULT_SHELL_ENTRY")
         assertThat(activity).doesNotContain("VaultModeActivity.EXTRA_VOLUME_ID")
         assertThat(chooser).contains("VaultShelfBottomBar(")
-        assertThat(chooser).contains("VaultBottomBar(")
+        assertThat(chooser).doesNotContain("VaultBottomBar(")
         assertThat(chooser).contains("selected = VaultShelfDestination.VAULT")
-        assertThat(chooser).contains("selected = VaultBottomDestination.SWITCH")
-        assertThat(chooser).contains("override fun onNewIntent(intent: Intent)")
-        assertThat(chooser).contains("switchingMode")
+        assertThat(chooser).contains("WindowInsetsCompat.Type.ime()")
+        assertThat(chooser).contains("view.isVisible = !insets.isVisible")
+        assertThat(chooser).contains("showExitConfirmation()")
+        assertThat(chooser).contains("vault_exit_title")
+        assertThat(chooser).doesNotContain("switchingMode")
         assertThat(vaultShell).contains("VaultModeDestination.HOME -> VaultBottomDestination.HOME")
         assertThat(vaultShell).contains("VaultModeDestination.LIBRARY -> VaultBottomDestination.LIBRARY")
         assertThat(vaultShell).contains("VaultModeDestination.SETTINGS -> VaultBottomDestination.SETTINGS")
         assertThat(patch).doesNotContain("resolveDefaultVolume")
         assertThat(patch).contains("explorerRouter.importTargetMode")
-        assertThat(patch).contains("intent.getBooleanExtra(\"vaultshelf.switching_vault\", false)")
+        assertThat(patch).doesNotContain("resolveDefaultVolume")
     }
 
     @Test
@@ -1626,15 +1632,16 @@ class VaultShelfUxRegressionTest {
         assertThat(patch).doesNotContain("vaultshelf_default_volume_title")
         assertThat(patch).doesNotContain("vaultshelf_default_volume_label")
         assertThat(patch).contains("checkboxDefaultOpen.visibility = View.GONE")
-        assertThat(vaultShell).doesNotContain("vault_switch_volume")
-        assertThat(vaultShell).doesNotContain("onOpenVaultSwitcher = onOpenVaultSwitcher")
+        assertThat(vaultShell).contains("vault_switch_volume")
+        assertThat(vaultShell).contains("onSwitchVault = onSwitchVault")
+        assertThat(modeActivity).contains("showVaultSwitchDialog(volumeId)")
         val externalExit = modeActivity.substringAfter("onOpenExternalDestination = {")
             .substringBefore("modifier = Modifier.safeDrawingPadding()")
         assertThat(externalExit).doesNotContain("closeVolume")
     }
 
     @Test
-    fun vaultNavigationStaysInsideVaultAndSwitchingNeverStacksOldVaults() {
+    fun vaultNavigationUsesFourTabsAndSettingsSwitchDoesNotStackOldVaults() {
         val vaultBar = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultBottomBar.kt",
@@ -1655,35 +1662,46 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
         ).readText()
-        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val motion = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfNavigationMotion.kt",
+        ).readText()
 
-        assertThat(vaultBar).contains("enum class VaultBottomDestination")
-        assertThat(vaultBar).contains("SWITCH(R.string.vaultshelf_nav_switch")
+        assertThat(vaultBar).doesNotContain("SWITCH(")
         assertThat(vaultShell).contains("VaultBottomDestination.FILES -> onOpenFiles()")
-        assertThat(vaultShell).contains("VaultBottomDestination.SWITCH -> onOpenVaultSwitcher()")
-        assertThat(vaultFiles).contains("VaultBottomDestination.SWITCH -> openVaultSwitcher()")
-        assertThat(vaultFiles).doesNotContain("VaultShelfBottomBar(")
-        listOf(vaultMode, vaultFiles).forEach { source ->
-            assertThat(source).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
-            assertThat(source).contains("Intent.FLAG_ACTIVITY_SINGLE_TOP")
-            assertThat(source).contains("VaultVolumeActivity.EXTRA_SWITCHING_VAULT")
-        }
-        assertThat(chooser).contains("override fun onNewIntent(intent: Intent)")
-        assertThat(chooser).contains("override fun onResume()")
-        assertThat(chooser).contains("switchingMode = intent.getBooleanExtra(EXTRA_SWITCHING_VAULT, false)")
-        assertThat(chooser).contains("openCurrentVaultDestination(destination)")
-        assertThat(chooser).contains("VaultBottomDestination.FILES -> Intent(")
-        assertThat(chooser).contains("VaultExplorerActivity::class.java")
-        assertThat(patch).contains(
-            "intent.putExtra(\"vaultshelf.current_volume_uuid\", volume.uuid)",
-        )
-        assertThat(patch).contains(
-            "intent.putExtra(\"vaultshelf.switching_vault\", false)",
-        )
-        val finishPolicy = patch.substringAfter("private fun shouldFinishAfterOpening")
-            .substringBefore("private fun openVolume")
-        assertThat(finishPolicy).doesNotContain("vaultshelf.switching_vault")
-        assertThat(finishPolicy).doesNotContain("vaultshelf.shell_entry")
+        assertThat(vaultShell).contains("onSwitchVault = onSwitchVault")
+        assertThat(vaultFiles).doesNotContain("openVaultSwitcher")
+        assertThat(vaultMode).contains("showVaultSwitchDialog")
+        assertThat(vaultMode).contains("setSingleChoiceItems")
+        assertThat(vaultMode).contains("switchVolumeOpener.openVolume")
+        assertThat(vaultMode).contains("finish()")
+        assertThat(chooser).contains("showExitConfirmation")
+        assertThat(chooser).contains("WindowInsetsCompat.Type.ime()")
+        assertThat(motion).contains("Crossfade(")
+        assertThat(motion).contains("android.R.anim.fade_in")
+        assertThat(motion).contains("android.R.anim.fade_out")
+    }
+
+    @Test
+    fun peerNavigationAnimatesAndVaultExitConfirmsAtTheBoundary() {
+        val mainShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+        val vaultShell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
+        ).readText()
+        val chooser = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
+        ).readText()
+
+        assertThat(mainShell).contains("VaultShelfDestinationCrossfade")
+        assertThat(vaultShell).contains("VaultShelfDestinationCrossfade")
+        assertThat(chooser).contains("onBackPressedDispatcher.addCallback")
+        assertThat(chooser).contains("vault_exit_confirm")
+        assertThat(chooser).contains("WindowInsetsCompat.Type.ime()")
     }
 
     @Test

@@ -15,10 +15,14 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.arjun.gander.R
 import com.arjun.gander.VaultShelfActivity
 import com.arjun.gander.files.VaultExplorerActivity
+import com.arjun.gander.ui.shell.applyVaultShelfPeerTransition
 import com.arjun.gander.ui.theme.VaultShelfTheme
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import java.util.ArrayList
 import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
+import sushi.hardcore.droidfs.VolumeDatabase
+import sushi.hardcore.droidfs.VolumeOpener
 import sushi.hardcore.droidfs.VolumeManagerApp
 import sushi.hardcore.droidfs.util.finishOnClose
 
@@ -27,6 +31,7 @@ class VaultModeActivity : AppCompatActivity() {
     private var libraryRevision by mutableIntStateOf(0)
     private var requestedDestinationName by mutableStateOf("HOME")
     private var returnToFiles by mutableStateOf(false)
+    private lateinit var switchVolumeOpener: VolumeOpener
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +47,7 @@ class VaultModeActivity : AppCompatActivity() {
             return
         }
         finishOnClose(volume)
+        switchVolumeOpener = VolumeOpener(this)
 
         val fileRepository = VaultFileRepository(applicationContext, volumeId)
         val libraryStore = VaultLibraryStore(applicationContext, fileRepository)
@@ -73,7 +79,7 @@ class VaultModeActivity : AppCompatActivity() {
                         onOpenFiles = {
                             if (returnToFiles) {
                                 finish()
-                                overridePendingTransition(0, 0)
+                                applyVaultShelfPeerTransition()
                             } else {
                                 startActivity(
                                     Intent(
@@ -81,10 +87,9 @@ class VaultModeActivity : AppCompatActivity() {
                                         VaultExplorerActivity::class.java,
                                     )
                                         .putExtra("volumeId", volumeId)
-                                        .putExtra("volumeName", volumeName)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                                        .putExtra("volumeName", volumeName),
                                 )
-                                overridePendingTransition(0, 0)
+                                applyVaultShelfPeerTransition()
                             }
                         },
                         onExportLibraryToVaultFiles = { entries ->
@@ -118,29 +123,8 @@ class VaultModeActivity : AppCompatActivity() {
                         onLockVault = {
                             volumeManager.closeVolume(volumeId)
                         },
-                        onOpenVaultSwitcher = {
-                            val currentUuid = volumeManager.listVolumes()
-                                .firstOrNull { it.first == volumeId }
-                                ?.second
-                                ?.uuid
-                            startActivity(
-                                Intent(
-                                    this@VaultModeActivity,
-                                    VaultVolumeActivity::class.java,
-                                )
-                                    .putExtra(VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY, true)
-                                    .putExtra(VaultVolumeActivity.EXTRA_SWITCHING_VAULT, true)
-                                    .putExtra(
-                                        VaultVolumeActivity.EXTRA_CURRENT_VOLUME_UUID,
-                                        currentUuid,
-                                    )
-                                    .addFlags(
-                                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                                            Intent.FLAG_ACTIVITY_NO_ANIMATION,
-                                    ),
-                            )
-                            overridePendingTransition(0, 0)
+                        onSwitchVault = {
+                            showVaultSwitchDialog(volumeId)
                         },
                         onOpenExternalDestination = { destination ->
                             startActivity(
@@ -151,11 +135,10 @@ class VaultModeActivity : AppCompatActivity() {
                                     )
                                     .addFlags(
                                         Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                                            Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                                            Intent.FLAG_ACTIVITY_SINGLE_TOP,
                                     ),
                             )
-                            overridePendingTransition(0, 0)
+                            applyVaultShelfPeerTransition()
                         },
                         modifier = Modifier.safeDrawingPadding(),
                     )
@@ -163,6 +146,57 @@ class VaultModeActivity : AppCompatActivity() {
             }
         }
         setContentView(root)
+    }
+
+    private fun showVaultSwitchDialog(currentVolumeId: Int) {
+        val volumeManager = (application as VolumeManagerApp).volumeManager
+        val volumes = VolumeDatabase(this).use { it.getVolumes() }
+        if (volumes.isEmpty()) return
+
+        val currentUuid = volumeManager.listVolumes()
+            .firstOrNull { it.first == currentVolumeId }
+            ?.second
+            ?.uuid
+        var selectedIndex = volumes.indexOfFirst { it.uuid == currentUuid }
+            .takeIf { it >= 0 }
+            ?: 0
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.vault_switch_volume)
+            .setSingleChoiceItems(
+                volumes.map { it.shortName }.toTypedArray(),
+                selectedIndex,
+            ) { _, which ->
+                selectedIndex = which
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.ok) { _, _ ->
+                val target = volumes.getOrNull(selectedIndex) ?: return@setPositiveButton
+                if (target.uuid == currentUuid) return@setPositiveButton
+                switchVolumeOpener.openVolume(
+                    target,
+                    true,
+                    object : VolumeOpener.VolumeOpenerCallbacks {
+                        override fun onHashStorageReset() = Unit
+
+                        override fun onVolumeOpened(id: Int) {
+                            val opened = volumeManager.listVolumes()
+                                .firstOrNull { it.first == id }
+                                ?.second
+                                ?: target
+                            startActivity(
+                                Intent(this@VaultModeActivity, VaultModeActivity::class.java)
+                                    .putExtra(EXTRA_VOLUME_ID, id)
+                                    .putExtra(EXTRA_VOLUME_NAME, opened.shortName)
+                                    .putExtra(EXTRA_INITIAL_DESTINATION, "HOME"),
+                            )
+                            applyVaultShelfPeerTransition()
+                            finish()
+                        }
+                    },
+                )
+            }
+            .show()
     }
 
     override fun onNewIntent(intent: Intent) {

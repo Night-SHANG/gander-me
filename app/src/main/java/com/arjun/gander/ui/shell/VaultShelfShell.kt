@@ -138,7 +138,8 @@ fun VaultShelfShell(
             }
         },
     ) { innerPadding ->
-        when (selected) {
+        VaultShelfDestinationCrossfade(targetState = selected) { destination ->
+            when (destination) {
             VaultShelfDestination.HOME -> HomeScreen(
                 libraryRepository = libraryRepository,
                 modifier = Modifier.padding(innerPadding),
@@ -173,6 +174,7 @@ fun VaultShelfShell(
                 onOpenAbout = onOpenAbout,
                 modifier = Modifier.padding(innerPadding),
             )
+            }
         }
     }
 }

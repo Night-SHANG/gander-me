@@ -33,7 +33,6 @@ internal enum class VaultBottomDestination(
     HOME(R.string.vaultshelf_nav_home, R.drawable.ic_vaultshelf_home),
     LIBRARY(R.string.vaultshelf_nav_library, R.drawable.ic_vaultshelf_library),
     FILES(R.string.vaultshelf_nav_files, R.drawable.ic_vaultshelf_files),
-    SWITCH(R.string.vaultshelf_nav_switch, R.drawable.ic_vaultshelf_vault),
     SETTINGS(R.string.vaultshelf_nav_settings, R.drawable.ic_vaultshelf_settings),
 }
 

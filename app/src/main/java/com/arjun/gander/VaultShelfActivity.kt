@@ -23,6 +23,7 @@ import com.arjun.gander.reader.ReaderAppearanceSettingsActivity
 import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.transfer.TransferBehaviorSettingsActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
+import com.arjun.gander.ui.shell.applyVaultShelfPeerTransition
 import com.arjun.gander.vault.VaultBackupActivity
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultVolumeActivity
@@ -124,7 +125,7 @@ class VaultShelfActivity : AppCompatActivity() {
                         returnToFiles = returnToFiles,
                         onReturnToFiles = {
                             finish()
-                            overridePendingTransition(0, 0)
+                            applyVaultShelfPeerTransition()
                         },
                         modifier = Modifier.safeDrawingPadding(),
                     )
@@ -154,10 +155,9 @@ class VaultShelfActivity : AppCompatActivity() {
     private fun openVault() {
         startActivity(
             Intent(this, VaultVolumeActivity::class.java)
-                .putExtra(EXTRA_VAULT_SHELL_ENTRY, true)
-                .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                .putExtra(EXTRA_VAULT_SHELL_ENTRY, true),
         )
-        overridePendingTransition(0, 0)
+        applyVaultShelfPeerTransition()
     }
 
     private fun openExternalFolder(treeUri: Uri, label: String) {
@@ -180,10 +180,9 @@ class VaultShelfActivity : AppCompatActivity() {
                 Intent(this, ExternalExplorerActivity::class.java)
                     .putExtra("volumeId", volumeId)
                     .putExtra("volumeName", label)
-                    .putExtra(EXTRA_PLAIN_VOLUME, true)
-                    .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                    .putExtra(EXTRA_PLAIN_VOLUME, true),
             )
-            overridePendingTransition(0, 0)
+            applyVaultShelfPeerTransition()
             true
         }.getOrDefault(false)
         if (!opened) {

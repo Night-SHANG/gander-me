@@ -22,6 +22,7 @@ import com.arjun.gander.transfer.TransferBehaviorPreferences
 import com.arjun.gander.transfer.TransferRoute
 import com.arjun.gander.transfer.TransferSourceDecision
 import com.arjun.gander.ui.theme.VaultShelfTheme
+import com.arjun.gander.ui.shell.applyVaultShelfPeerTransition
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultVolumeActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -395,10 +396,9 @@ class ExternalExplorerActivity : ExplorerActivity() {
                             VaultShelfDestination.FILES -> Unit
                             VaultShelfDestination.VAULT -> {
                                 startActivity(
-                                    Intent(this@ExternalExplorerActivity, VaultVolumeActivity::class.java)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                                    Intent(this@ExternalExplorerActivity, VaultVolumeActivity::class.java),
                                 )
-                                overridePendingTransition(0, 0)
+                                applyVaultShelfPeerTransition()
                             }
                             VaultShelfDestination.SETTINGS -> openShell("SETTINGS")
                         }
@@ -412,10 +412,9 @@ class ExternalExplorerActivity : ExplorerActivity() {
         startActivity(
             Intent(this, VaultShelfActivity::class.java)
                 .putExtra(VaultShelfActivity.EXTRA_INITIAL_DESTINATION, destination)
-                .putExtra(VaultShelfActivity.EXTRA_RETURN_TO_FILES, true)
-                .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                .putExtra(VaultShelfActivity.EXTRA_RETURN_TO_FILES, true),
         )
-        overridePendingTransition(0, 0)
+        applyVaultShelfPeerTransition()
     }
 
     override fun onResume() {
