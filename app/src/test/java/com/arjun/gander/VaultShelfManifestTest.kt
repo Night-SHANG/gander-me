@@ -83,8 +83,8 @@ class VaultShelfManifestTest {
         val layout = File("../app/src/main/res/layout/activity_explorer.xml").readText()
         val bottomNavigation = layout.indexOf("@+id/vaultshelf_explorer_bottom_nav")
         assertThat(bottomNavigation).isAtLeast(0)
-        assertThat(layout).contains("android:background=\"?attr/colorSurface\"")
         assertThat(layout).doesNotContain("@android:color/transparent")
+        assertThat(themes).contains("<item name=\"android:windowBackground\">@color/gander_surface</item>")
     }
 
     private fun activities(): List<ActivityContract> {

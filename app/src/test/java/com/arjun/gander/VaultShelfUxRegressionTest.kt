@@ -229,7 +229,7 @@ class VaultShelfUxRegressionTest {
         assertThat(gitmodules).contains("third_party/droidfs")
         assertThat(gitmodules).contains("https://github.com/hardcore-sushi/DroidFS.git")
         assertThat(activity).contains("VaultVolumeActivity")
-        assertThat(shell).contains("VaultShelfDestination.VAULT -> onOpenVault(selected.name)")
+        assertThat(shell).contains("VaultShelfDestination.VAULT -> onOpenVault()")
         assertThat(droidFsBuild).contains("../third_party/droidfs/app/src/main/java")
         assertThat(droidFsBuild).contains("\"CRYFS_DISABLED\", \"true\"")
         assertThat(droidFsBuild).contains("\"GOCRYPTFS_DISABLED\", \"false\"")
