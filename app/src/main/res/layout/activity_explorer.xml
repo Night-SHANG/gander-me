@@ -1,18 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/transparent"
-    android:orientation="vertical"
     tools:ignore="UnusedResources">
 
     <LinearLayout
         android:id="@+id/vaultshelf_explorer_content_shell"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="match_parent"
+        android:layout_above="@+id/vaultshelf_explorer_bottom_nav"
         android:background="?attr/colorSurface"
         android:orientation="vertical">
 
@@ -49,9 +48,10 @@
     </LinearLayout>
 
     <androidx.compose.ui.platform.ComposeView
-        android:id="@+id/vaultshelf_explorer_bottom_nav"
+        android:id="@id/vaultshelf_explorer_bottom_nav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
         android:visibility="gone" />
 
-</LinearLayout>
+</RelativeLayout>

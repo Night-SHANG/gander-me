@@ -1700,7 +1700,7 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun topLevelNavigationUsesFixedBarsAndTiebaLiteStylePagerSwitching() {
+    fun topLevelNavigationUsesFixedBarsAndFlClashStylePagerSwitching() {
         val mainShell = File(
             repo,
             "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
@@ -1718,12 +1718,14 @@ class VaultShelfUxRegressionTest {
             assertThat(source).contains("HorizontalPager(")
             assertThat(source).contains("userScrollEnabled = false")
             assertThat(source).contains("animateVaultShelfPageTo")
+            assertThat(source).contains("pagerState.animateVaultShelfPageTo(requestedPage)")
+            assertThat(source).doesNotContain("pagerState.scrollToPage(requestedPage)")
             assertThat(source).doesNotContain("AnimatedContent(")
             assertThat(source).doesNotContain("Crossfade(")
             assertThat(source).doesNotContain("scaleIn(")
         }
         assertThat(motion).contains("animateScrollToPage")
-        assertThat(motion).contains("TAB_TRANSITION_MS = 300")
+        assertThat(motion).contains("VAULTSHELF_PAGE_TRANSITION_MS = 300")
         assertThat(motion).contains("CubicBezierEasing(0f, 0f, 0.58f, 1f)")
         assertThat(motion).contains("overridePendingTransition(0, 0)")
         assertThat(motion).doesNotContain("AnimatedContent(")
