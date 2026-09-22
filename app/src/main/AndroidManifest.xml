@@ -126,7 +126,8 @@
         <activity
             android:name=".files.ExternalExplorerActivity"
             android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.Gander.ExplorerOverlay" />
 
         <activity
             android:name=".files.VaultExplorerActivity"

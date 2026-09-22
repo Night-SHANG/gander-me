@@ -6,7 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.PagerState
 
-private const val TAB_TRANSITION_MS = 300
+internal const val VAULTSHELF_PAGE_TRANSITION_MS = 300
 private val TabEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -15,7 +15,7 @@ internal suspend fun PagerState.animateVaultShelfPageTo(page: Int) {
     animateScrollToPage(
         page = page,
         animationSpec = tween(
-            durationMillis = TAB_TRANSITION_MS,
+            durationMillis = VAULTSHELF_PAGE_TRANSITION_MS,
             easing = TabEaseOut,
         ),
     )
@@ -26,5 +26,13 @@ internal suspend fun PagerState.animateVaultShelfPageTo(page: Int) {
  * Top-level bottom-navigation motion is handled by the shell pager.
  */
 internal fun Activity.applyVaultShelfPeerTransition() {
+    overridePendingTransition(0, 0)
+}
+
+/**
+ * Nested content owns its own motion. Suppress the Activity window animation so shared shell
+ * chrome (especially the bottom bar) stays visually fixed while only the content moves.
+ */
+internal fun Activity.suppressVaultShelfWindowTransition() {
     overridePendingTransition(0, 0)
 }

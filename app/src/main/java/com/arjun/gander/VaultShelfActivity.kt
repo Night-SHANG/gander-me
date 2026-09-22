@@ -24,6 +24,7 @@ import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.transfer.TransferBehaviorSettingsActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.ui.shell.applyVaultShelfPeerTransition
+import com.arjun.gander.ui.shell.suppressVaultShelfWindowTransition
 import com.arjun.gander.vault.VaultBackupActivity
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultVolumeActivity
@@ -183,6 +184,7 @@ class VaultShelfActivity : AppCompatActivity() {
                     .putExtra("volumeName", label)
                     .putExtra(EXTRA_PLAIN_VOLUME, true),
             )
+            suppressVaultShelfWindowTransition()
             true
         }.getOrDefault(false)
         if (!opened) {

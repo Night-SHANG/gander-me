@@ -1,42 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@android:color/transparent"
     android:orientation="vertical"
-    xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="UnusedResources">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorSurface"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp"
-        app:titleTextAppearance="?attr/textAppearanceTitleLarge" />
-
-    <include layout="@layout/explorer_info_bar" />
-
-    <FrameLayout
-        android:id="@+id/content_area"
+    <LinearLayout
+        android:id="@+id/vaultshelf_explorer_content_shell"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:background="?attr/colorSurface"
+        android:orientation="vertical">
 
-        <include layout="@layout/explorer_content" />
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="?attr/colorSurface"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            app:titleTextAppearance="?attr/textAppearanceTitleLarge" />
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fab"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_margin="20dp"
-            android:contentDescription="@string/add"
-            android:src="@drawable/icon_add"
-            app:backgroundTint="?attr/colorPrimaryContainer"
-            app:tint="?attr/colorOnPrimaryContainer" />
-    </FrameLayout>
+        <include layout="@layout/explorer_info_bar" />
+
+        <FrameLayout
+            android:id="@+id/content_area"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <include layout="@layout/explorer_content" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fab"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="20dp"
+                android:contentDescription="@string/add"
+                android:src="@drawable/icon_add"
+                app:backgroundTint="?attr/colorPrimaryContainer"
+                app:tint="?attr/colorOnPrimaryContainer" />
+        </FrameLayout>
+    </LinearLayout>
 
     <androidx.compose.ui.platform.ComposeView
         android:id="@+id/vaultshelf_explorer_bottom_nav"

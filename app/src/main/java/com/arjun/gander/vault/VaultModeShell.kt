@@ -146,7 +146,7 @@ fun VaultModeShell(
     LaunchedEffect(initialDestinationName) {
         val requestedPage = destinations.indexOfFirst { it.name == initialDestinationName }
         if (requestedPage >= 0 && requestedPage != pagerState.currentPage) {
-            pagerState.scrollToPage(requestedPage)
+            pagerState.animateVaultShelfPageTo(requestedPage)
         }
     }
 

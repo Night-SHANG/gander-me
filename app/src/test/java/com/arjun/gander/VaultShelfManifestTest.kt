@@ -65,6 +65,19 @@ class VaultShelfManifestTest {
         assertThat(manifest).contains("@android:style/Theme.Translucent.NoTitleBar")
     }
 
+    @Test
+    fun externalExplorerKeepsBottomNavigationOutsideTheAnimatedContentShell() {
+        val externalExplorer = activities().single { it.name == ".files.ExternalExplorerActivity" }
+        assertThat(externalExplorer.theme).isEqualTo("@style/Theme.Gander.ExplorerOverlay")
+
+        val layout = File("../app/src/main/res/layout/activity_explorer.xml").readText()
+        val contentShell = layout.indexOf("@+id/vaultshelf_explorer_content_shell")
+        val bottomNavigation = layout.indexOf("@+id/vaultshelf_explorer_bottom_nav")
+
+        assertThat(contentShell).isAtLeast(0)
+        assertThat(bottomNavigation).isGreaterThan(contentShell)
+    }
+
     private fun activities(): List<ActivityContract> {
         val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
         val document = factory.newDocumentBuilder().parse(MANIFEST)
@@ -76,6 +89,7 @@ class VaultShelfManifestTest {
             ActivityContract(
                 name = activity.getAttributeNS(ANDROID_NS, "name"),
                 exported = activity.getAttributeNS(ANDROID_NS, "exported") == "true",
+                theme = activity.getAttributeNS(ANDROID_NS, "theme"),
                 actions = (0 until actions.length)
                     .map { actions.item(it) as Element }
                     .map { it.getAttributeNS(ANDROID_NS, "name") }
@@ -91,6 +105,7 @@ class VaultShelfManifestTest {
     private data class ActivityContract(
         val name: String,
         val exported: Boolean,
+        val theme: String,
         val actions: Set<String>,
         val categories: Set<String>,
     )

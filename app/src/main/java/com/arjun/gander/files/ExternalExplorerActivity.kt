@@ -4,8 +4,11 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.view.animation.PathInterpolator
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.platform.ComposeView
@@ -22,7 +25,9 @@ import com.arjun.gander.transfer.TransferBehaviorPreferences
 import com.arjun.gander.transfer.TransferRoute
 import com.arjun.gander.transfer.TransferSourceDecision
 import com.arjun.gander.ui.theme.VaultShelfTheme
+import com.arjun.gander.ui.shell.VAULTSHELF_PAGE_TRANSITION_MS
 import com.arjun.gander.ui.shell.applyVaultShelfPeerTransition
+import com.arjun.gander.ui.shell.suppressVaultShelfWindowTransition
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultVolumeActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -45,11 +50,23 @@ import sushi.hardcore.droidfs.explorers.ExplorerElement
 class ExternalExplorerActivity : ExplorerActivity() {
 
     private var volumeClosed = false
+    private var finishingToFilesRoot = false
+    private lateinit var explorerContentShell: View
+    private val pageEaseOut = PathInterpolator(0f, 0f, 0.58f, 1f)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        explorerContentShell = findViewById(R.id.vaultshelf_explorer_content_shell)
         title = intent.getStringExtra("volumeName").orEmpty()
         configureBottomNavigation()
+        if (savedInstanceState == null) {
+            animateExplorerContentIn()
+        }
+    }
+
+    protected override fun onRootBackPressed(): Boolean {
+        animateBackToFilesRoot()
+        return true
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -417,6 +434,48 @@ class ExternalExplorerActivity : ExplorerActivity() {
         applyVaultShelfPeerTransition()
     }
 
+    private fun animateExplorerContentIn() {
+        explorerContentShell.doOnPreDraw { view ->
+            if (view.width <= 0 || isFinishing) return@doOnPreDraw
+            view.animate().cancel()
+            view.translationX = view.width.toFloat()
+            view.animate()
+                .translationX(0f)
+                .setDuration(VAULTSHELF_PAGE_TRANSITION_MS.toLong())
+                .setInterpolator(pageEaseOut)
+                .start()
+        }
+    }
+
+    private fun animateBackToFilesRoot() {
+        if (finishingToFilesRoot) return
+        finishingToFilesRoot = true
+
+        val width = explorerContentShell.width.toFloat()
+        if (width <= 0f) {
+            finishToFilesRoot()
+            return
+        }
+
+        explorerContentShell.animate().cancel()
+        val progress = (explorerContentShell.translationX / width).coerceIn(0f, 1f)
+        val remaining = (
+            (1f - progress) * VAULTSHELF_PAGE_TRANSITION_MS
+        ).toLong().coerceAtLeast(MIN_EXIT_TRANSITION_MS)
+
+        explorerContentShell.animate()
+            .translationX(width)
+            .setDuration(remaining)
+            .setInterpolator(pageEaseOut)
+            .withEndAction(::finishToFilesRoot)
+            .start()
+    }
+
+    private fun finishToFilesRoot() {
+        finish()
+        suppressVaultShelfWindowTransition()
+    }
+
     override fun onResume() {
         super.onResume()
         refreshCurrentDirectory()
@@ -433,5 +492,9 @@ class ExternalExplorerActivity : ExplorerActivity() {
         if (app.volumeManager.getVolume(volumeId) != null) {
             app.volumeManager.closeVolume(volumeId)
         }
+    }
+
+    private companion object {
+        const val MIN_EXIT_TRANSITION_MS = 80L
     }
 }
