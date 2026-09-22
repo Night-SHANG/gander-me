@@ -264,7 +264,6 @@
     <string name="reader_appearance_title">阅读器界面颜色</string>
     <string name="reader_appearance_entry_detail">修改阅读器原本棕色的界面主色；正文文字和阅读背景仍在阅读器内部设置。</string>
     <string name="reader_appearance_scope">这里只修改 Legado 阅读界面原本棕色的主色。正文文字、阅读背景、进度条、按钮和 Legado 其他原有颜色都不会被这里修改。</string>
-    <string name="reader_appearance_primary">阅读器界面主色</string>
     <string name="reader_appearance_pick_color">选择阅读器界面颜色</string>
     <string name="reader_appearance_save">保存阅读器界面颜色</string>
     <string name="reader_appearance_reset">恢复 VaultShelf 柔和白默认色</string>
