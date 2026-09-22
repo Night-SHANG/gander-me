@@ -1641,6 +1641,19 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun vaultModeUsesDroidFsBaseActivityBeforeConstructingVolumeOpener() {
+        val source = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultModeActivity.kt",
+        ).readText()
+
+        assertThat(source).contains("class VaultModeActivity : BaseActivity()")
+        assertThat(source).contains("applyCustomTheme = false")
+        assertThat(source).contains("switchVolumeOpener = VolumeOpener(this)")
+        assertThat(source).doesNotContain("class VaultModeActivity : AppCompatActivity()")
+    }
+
+    @Test
     fun vaultNavigationUsesFourTabsAndSettingsSwitchDoesNotStackOldVaults() {
         val vaultBar = File(
             repo,

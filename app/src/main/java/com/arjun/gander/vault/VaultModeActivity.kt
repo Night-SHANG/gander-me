@@ -3,7 +3,6 @@ package com.arjun.gander.vault
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -20,13 +19,18 @@ import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import java.util.ArrayList
+import sushi.hardcore.droidfs.BaseActivity
 import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 import sushi.hardcore.droidfs.VolumeDatabase
 import sushi.hardcore.droidfs.VolumeOpener
 import sushi.hardcore.droidfs.VolumeManagerApp
 import sushi.hardcore.droidfs.util.finishOnClose
 
-class VaultModeActivity : AppCompatActivity() {
+class VaultModeActivity : BaseActivity() {
+
+    init {
+        applyCustomTheme = false
+    }
 
     private var libraryRevision by mutableIntStateOf(0)
     private var requestedDestinationName by mutableStateOf("HOME")
