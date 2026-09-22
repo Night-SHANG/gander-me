@@ -12,6 +12,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import com.arjun.gander.VaultShelfActivity
+import com.arjun.gander.navigation.suppressTopLevelTransition
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
@@ -34,7 +35,6 @@ class VaultVolumeActivity : MainActivity() {
 
     private var bottomNavigation: ComposeView? = null
     private var imeVisible = false
-    private var windowFocused = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,14 +101,8 @@ class VaultVolumeActivity : MainActivity() {
         ViewCompat.requestApplyInsets(windowContent)
     }
 
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        windowFocused = hasFocus
-        updateBottomNavigationVisibility()
-    }
-
     private fun updateBottomNavigationVisibility() {
-        bottomNavigation?.isVisible = windowFocused && !imeVisible
+        bottomNavigation?.isVisible = !imeVisible
     }
 
     private fun openExternalDestination(destination: String) {
@@ -120,6 +114,8 @@ class VaultVolumeActivity : MainActivity() {
                         Intent.FLAG_ACTIVITY_SINGLE_TOP,
                 ),
         )
+        suppressTopLevelTransition()
         finish()
+        suppressTopLevelTransition()
     }
 }

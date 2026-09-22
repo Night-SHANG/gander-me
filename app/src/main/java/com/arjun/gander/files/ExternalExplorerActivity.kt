@@ -15,6 +15,7 @@ import com.arjun.gander.VaultShelfActivity
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.navigation.suppressTopLevelTransition
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
@@ -53,6 +54,7 @@ class ExternalExplorerActivity : ExplorerActivity() {
 
     protected override fun onRootBackPressed(): Boolean {
         finish()
+        suppressTopLevelTransition()
         return true
     }
 
@@ -409,6 +411,7 @@ class ExternalExplorerActivity : ExplorerActivity() {
                                         true,
                                     ),
                                 )
+                                suppressTopLevelTransition()
                             }
                         }
                     },
@@ -421,17 +424,9 @@ class ExternalExplorerActivity : ExplorerActivity() {
         startActivity(
             Intent(this, VaultShelfActivity::class.java)
                 .putExtra(VaultShelfActivity.EXTRA_INITIAL_DESTINATION, destination)
-                .addFlags(
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP,
-                ),
+                .putExtra(VaultShelfActivity.EXTRA_RETURN_TO_FILES, true),
         )
-        finish()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        refreshCurrentDirectory()
+        suppressTopLevelTransition()
     }
 
     override fun onDestroy() {

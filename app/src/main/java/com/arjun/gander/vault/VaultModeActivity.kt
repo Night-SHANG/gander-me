@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.arjun.gander.R
 import com.arjun.gander.VaultShelfActivity
 import com.arjun.gander.files.VaultExplorerActivity
+import com.arjun.gander.navigation.suppressTopLevelTransition
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfFileRouter
@@ -35,8 +36,8 @@ class VaultModeActivity : BaseActivity() {
     private var libraryRevision by mutableIntStateOf(0)
     private var requestedDestinationName by mutableStateOf("HOME")
     private var returnToFiles by mutableStateOf(false)
+    private var navigationRequest by mutableIntStateOf(0)
     private lateinit var switchVolumeOpener: VolumeOpener
-    private var bottomNavigationVisible by mutableStateOf(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,7 +67,7 @@ class VaultModeActivity : BaseActivity() {
                         libraryStore = libraryStore,
                         externalRevision = libraryRevision,
                         initialDestinationName = requestedDestinationName,
-                        bottomBarVisible = bottomNavigationVisible,
+                        navigationRequest = navigationRequest,
                         onOpenFile = { item ->
                             if (!VaultShelfFileRouter.openAny(
                                     this@VaultModeActivity,
@@ -85,6 +86,7 @@ class VaultModeActivity : BaseActivity() {
                         onOpenFiles = {
                             if (returnToFiles) {
                                 finish()
+                                suppressTopLevelTransition()
                             } else {
                                 startActivity(
                                     Intent(
@@ -94,6 +96,7 @@ class VaultModeActivity : BaseActivity() {
                                         .putExtra("volumeId", volumeId)
                                         .putExtra("volumeName", volumeName),
                                 )
+                                suppressTopLevelTransition()
                             }
                         },
                         onExportLibraryToVaultFiles = { entries ->
@@ -142,6 +145,7 @@ class VaultModeActivity : BaseActivity() {
                                             Intent.FLAG_ACTIVITY_SINGLE_TOP,
                                     ),
                             )
+                            suppressTopLevelTransition()
                         },
                         modifier = Modifier.safeDrawingPadding(),
                     )
@@ -150,7 +154,12 @@ class VaultModeActivity : BaseActivity() {
         }
         setContentView(root)
         onBackPressedDispatcher.addCallback(this) {
-            VaultExitCoordinator.confirmExit(this@VaultModeActivity)
+            if (returnToFiles) {
+                finish()
+                suppressTopLevelTransition()
+            } else {
+                VaultExitCoordinator.confirmExit(this@VaultModeActivity)
+            }
         }
     }
 
@@ -208,6 +217,7 @@ class VaultModeActivity : BaseActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         applyNavigationIntent(intent)
+        navigationRequest += 1
         VaultScreenshotPolicy.apply(this)
     }
 
@@ -225,7 +235,6 @@ class VaultModeActivity : BaseActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        bottomNavigationVisible = hasFocus
         if (hasFocus) VaultScreenshotPolicy.apply(this)
     }
 

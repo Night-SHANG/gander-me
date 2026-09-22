@@ -18,6 +18,7 @@ import com.arjun.gander.Positions
 import com.arjun.gander.R
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.navigation.suppressTopLevelTransition
 import com.arjun.gander.transfer.TransferBehaviorPreferences
 import com.arjun.gander.transfer.TransferRoute
 import com.arjun.gander.transfer.TransferSourceDecision
@@ -472,12 +473,9 @@ class VaultExplorerActivity : ExplorerActivity() {
                     intent.getStringExtra("volumeName").orEmpty(),
                 )
                 .putExtra(VaultModeActivity.EXTRA_INITIAL_DESTINATION, destination)
-                .addFlags(
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP,
-                ),
+                .putExtra(VaultModeActivity.EXTRA_RETURN_TO_FILES, true),
         )
-        finish()
+        suppressTopLevelTransition()
     }
 
 }

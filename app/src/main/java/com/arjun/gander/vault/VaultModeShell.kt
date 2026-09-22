@@ -113,13 +113,15 @@ fun VaultModeShell(
     onOpenExternalDestination: (String) -> Unit,
     modifier: Modifier = Modifier,
     initialDestinationName: String = VaultModeDestination.HOME.name,
-    bottomBarVisible: Boolean = true,
+    navigationRequest: Int = 0,
 ) {
     val destinations = remember { VaultModeDestination.entries.toList() }
     val initialDestination = destinations
         .firstOrNull { it.name == initialDestinationName }
         ?: VaultModeDestination.HOME
-    var selectedName by rememberSaveable { mutableStateOf(initialDestination.name) }
+    var selectedName by rememberSaveable(navigationRequest) {
+        mutableStateOf(initialDestination.name)
+    }
     var revision by remember { mutableIntStateOf(0) }
     val selected = destinations.firstOrNull { it.name == selectedName }
         ?: VaultModeDestination.HOME
@@ -134,17 +136,11 @@ fun VaultModeShell(
         selectedName = destination.name
     }
 
-    LaunchedEffect(initialDestinationName) {
-        destinations.firstOrNull { it.name == initialDestinationName }?.let { requested ->
-            selectedName = requested.name
-        }
-    }
-
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (bottomBarVisible && !imeVisible) {
+            if (!imeVisible) {
                 VaultBottomBar(
                     selected = bottomDestination,
                     onSelected = { destination ->

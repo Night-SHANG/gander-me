@@ -1615,8 +1615,8 @@ class VaultShelfUxRegressionTest {
         assertThat(target).contains("VaultShelfActivity.EXTRA_INITIAL_DESTINATION, \"LIBRARY\"")
         assertThat(target).contains("ExternalExplorerActivity::class.java")
         assertThat(target).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
-        assertThat(external).contains("override fun onResume()")
-        assertThat(external).contains("refreshCurrentDirectory()")
+        assertThat(external).doesNotContain("override fun onResume()")
+        assertThat(external).contains("private fun openShell(destination: String)")
     }
 
     @Test
@@ -1695,8 +1695,8 @@ class VaultShelfUxRegressionTest {
         assertThat(vaultShell).contains("VaultBottomDestination.FILES -> onOpenFiles()")
         assertThat(vaultShell).contains("onSwitchVault = onSwitchVault")
         assertThat(vaultFiles).contains("openVaultShell(destination.name)")
-        assertThat(vaultFiles).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
-        assertThat(vaultFiles).contains("Intent.FLAG_ACTIVITY_SINGLE_TOP")
+        assertThat(vaultFiles).contains("VaultModeActivity.EXTRA_RETURN_TO_FILES, true")
+        assertThat(vaultFiles).doesNotContain("Intent.FLAG_ACTIVITY_CLEAR_TOP")
         assertThat(vaultFiles).doesNotContain("translationX")
         assertThat(vaultFiles).doesNotContain("VaultShelfNavigationRelay")
         assertThat(vaultMode).contains("showVaultSwitchDialog")
@@ -1778,7 +1778,7 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun chooserBottomBarHasStableInsetsAndHidesForUnlockPrompts() {
+    fun chooserBottomBarHasStableInsetsAndOnlyHidesForKeyboard() {
         val chooser = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
@@ -1791,8 +1791,8 @@ class VaultShelfUxRegressionTest {
         assertThat(chooser).contains("override fun onPostCreate")
         assertThat(chooser).contains("WindowInsetsCompat.Type.systemBars()")
         assertThat(chooser).contains("bottom = bars.bottom")
-        assertThat(chooser).contains("windowFocused && !imeVisible")
-        assertThat(chooser).contains("override fun onWindowFocusChanged")
+        assertThat(chooser).contains("bottomNavigation?.isVisible = !imeVisible")
+        assertThat(chooser).doesNotContain("windowFocused")
         assertThat(externalBar).doesNotContain("windowInsets")
         assertThat(externalBar).doesNotContain("NavigationBar(")
         assertThat(externalBar).doesNotContain("tonalElevation")
@@ -1825,7 +1825,7 @@ class VaultShelfUxRegressionTest {
 
 
     @Test
-    fun nestedExplorersAndVaultChooserUseOrdinaryActivityNavigation() {
+    fun nestedExplorersReturnToTheirOwnFileTabWithoutSlidingWindows() {
         val externalExplorer = File(
             repo,
             "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
@@ -1844,13 +1844,30 @@ class VaultShelfUxRegressionTest {
         assertThat(externalExplorer).doesNotContain("VaultShelfNavigationRelay")
         assertThat(externalExplorer).doesNotContain("translationX")
         assertThat(externalExplorer).doesNotContain("overridePendingTransition")
+        assertThat(externalExplorer).contains("VaultShelfActivity.EXTRA_RETURN_TO_FILES, true")
+        assertThat(externalExplorer).doesNotContain("Intent.FLAG_ACTIVITY_CLEAR_TOP")
+        assertThat(externalExplorer).contains("suppressTopLevelTransition()")
         assertThat(vaultExplorer).contains("private fun openVaultShell(destination: String)")
         assertThat(vaultExplorer).doesNotContain("VaultShelfNavigationRelay")
         assertThat(vaultExplorer).doesNotContain("translationX")
+        assertThat(vaultExplorer).contains("suppressTopLevelTransition()")
         assertThat(chooser).contains("private fun openExternalDestination(destination: String)")
         assertThat(chooser).doesNotContain("VaultShelfNavigationRelay")
         assertThat(chooser).doesNotContain("animatePageIn")
         assertThat(chooser).doesNotContain("setBackgroundColor(Color.TRANSPARENT)")
+    }
+
+    @Test
+    fun readerReturnKeepsExplorerListVisibleDuringRefresh() {
+        val patch = File(repo, "patches/droidfs-vaultshelf-file-routing.patch").readText()
+        val externalExplorer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
+        ).readText()
+
+        assertThat(patch).contains("refreshCurrentDirectory(retainVisibleList = true)")
+        assertThat(patch).contains("if (!retainVisibleList || !recycler_view_explorer.isVisible)")
+        assertThat(externalExplorer).doesNotContain("override fun onResume()")
     }
 
     @Test
@@ -1874,9 +1891,13 @@ class VaultShelfUxRegressionTest {
 
         assertThat(external).contains("override fun onNewIntent(intent: Intent)")
         assertThat(external).contains("applyNavigationIntent(intent)")
-        assertThat(externalShell).contains("LaunchedEffect(initialDestinationName)")
+        assertThat(external).contains("navigationRequest += 1")
+        assertThat(externalShell).contains("rememberSaveable(navigationRequest)")
+        assertThat(externalShell).doesNotContain("LaunchedEffect(initialDestinationName)")
         assertThat(vaultMode).contains("override fun onNewIntent(intent: Intent)")
-        assertThat(vaultShell).contains("LaunchedEffect(initialDestinationName)")
+        assertThat(vaultMode).contains("navigationRequest += 1")
+        assertThat(vaultShell).contains("rememberSaveable(navigationRequest)")
+        assertThat(vaultShell).doesNotContain("LaunchedEffect(initialDestinationName)")
     }
 
 
@@ -1975,7 +1996,7 @@ class VaultShelfUxRegressionTest {
         assertThat(externalShell).contains("WindowInsets.ime.getBottom")
         assertThat(externalShell).contains("if (!imeVisible)")
         assertThat(vaultShell).contains("WindowInsets.ime.getBottom")
-        assertThat(vaultShell).contains("if (bottomBarVisible && !imeVisible)")
+        assertThat(vaultShell).contains("if (!imeVisible)")
         listOf(externalExplorer, vaultExplorer).forEach { source ->
             assertThat(source).contains("WindowInsetsCompat.Type.ime()")
             assertThat(source).contains("view.isVisible = !insets.isVisible")
@@ -1984,7 +2005,7 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
         ).readText()
-        assertThat(chooser).contains("windowFocused && !imeVisible")
+        assertThat(chooser).contains("bottomNavigation?.isVisible = !imeVisible")
         assertThat(chooser).contains("bottom = bars.bottom")
     }
 
@@ -2069,7 +2090,7 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun externalFolderLaunchKeepsMatchedPlatformBackTransition() {
+    fun externalFolderLaunchKeepsTopLevelWindowStill() {
         val activity = File(
             repo,
             "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
@@ -2079,7 +2100,7 @@ class VaultShelfUxRegressionTest {
 
         assertThat(openFolder).contains("ExternalExplorerActivity::class.java")
         assertThat(openFolder).doesNotContain("applyVaultShelfPeerTransition()")
-        assertThat(openFolder).doesNotContain("overridePendingTransition(0, 0)")
+        assertThat(openFolder).contains("suppressTopLevelTransition()")
     }
 
     @Test

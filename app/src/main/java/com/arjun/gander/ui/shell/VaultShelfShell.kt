@@ -91,6 +91,7 @@ fun VaultShelfShell(
     onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
     initialDestinationName: String = VaultShelfDestination.HOME.name,
+    navigationRequest: Int = 0,
     returnToFiles: Boolean = false,
     onReturnToFiles: () -> Unit = {},
 ) {
@@ -105,7 +106,9 @@ fun VaultShelfShell(
     val initialDestination = destinations
         .firstOrNull { it.name == initialDestinationName }
         ?: VaultShelfDestination.HOME
-    var selectedName by rememberSaveable { mutableStateOf(initialDestination.name) }
+    var selectedName by rememberSaveable(navigationRequest) {
+        mutableStateOf(initialDestination.name)
+    }
     val selected = destinations.firstOrNull { it.name == selectedName }
         ?: VaultShelfDestination.HOME
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -113,12 +116,6 @@ fun VaultShelfShell(
     fun navigateTo(destination: VaultShelfDestination) {
         if (destination in destinations) {
             selectedName = destination.name
-        }
-    }
-
-    LaunchedEffect(initialDestinationName) {
-        destinations.firstOrNull { it.name == initialDestinationName }?.let { requested ->
-            selectedName = requested.name
         }
     }
 

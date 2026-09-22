@@ -8,6 +8,7 @@ import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.addCallback
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -19,6 +20,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.net.toUri
 import com.arjun.gander.files.ExternalExplorerActivity
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.navigation.suppressTopLevelTransition
 import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.transfer.TransferBehaviorSettingsActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
@@ -47,6 +49,7 @@ class VaultShelfActivity : AppCompatActivity() {
     private var libraryRevision by mutableIntStateOf(0)
     private var requestedDestinationName by mutableStateOf("HOME")
     private var returnToFiles by mutableStateOf(false)
+    private var navigationRequest by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -112,20 +115,36 @@ class VaultShelfActivity : AppCompatActivity() {
                         },
                         onOpenAbout = ::showAbout,
                         initialDestinationName = requestedDestinationName,
+                        navigationRequest = navigationRequest,
                         returnToFiles = returnToFiles,
-                        onReturnToFiles = { finish() },
+                        onReturnToFiles = {
+                            finish()
+                            suppressTopLevelTransition()
+                        },
                         modifier = Modifier.safeDrawingPadding(),
                     )
                 }
             }
         }
         setContentView(root)
+        onBackPressedDispatcher.addCallback(this) {
+            if (returnToFiles) {
+                finish()
+                suppressTopLevelTransition()
+            } else {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         applyNavigationIntent(intent)
+        if (!intent.getBooleanExtra(EXTRA_PRESERVE_DESTINATION, false)) {
+            navigationRequest += 1
+        }
     }
 
     private fun applyNavigationIntent(intent: Intent) {
@@ -145,6 +164,7 @@ class VaultShelfActivity : AppCompatActivity() {
             Intent(this, VaultVolumeActivity::class.java)
                 .putExtra(EXTRA_VAULT_SHELL_ENTRY, true),
         )
+        suppressTopLevelTransition()
     }
 
     private fun openExternalFolder(treeUri: Uri, label: String) {
@@ -169,6 +189,7 @@ class VaultShelfActivity : AppCompatActivity() {
                     .putExtra("volumeName", label)
                     .putExtra(EXTRA_PLAIN_VOLUME, true),
             )
+            suppressTopLevelTransition()
             true
         }.getOrDefault(false)
         if (!opened) {

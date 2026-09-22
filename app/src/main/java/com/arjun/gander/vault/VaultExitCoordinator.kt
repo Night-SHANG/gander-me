@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import com.arjun.gander.R
 import com.arjun.gander.VaultShelfActivity
+import com.arjun.gander.navigation.suppressTopLevelTransition
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 internal object VaultExitCoordinator {
@@ -28,6 +29,8 @@ internal object VaultExitCoordinator {
                         Intent.FLAG_ACTIVITY_SINGLE_TOP,
                 ),
         )
+        activity.suppressTopLevelTransition()
         activity.finish()
+        activity.suppressTopLevelTransition()
     }
 }

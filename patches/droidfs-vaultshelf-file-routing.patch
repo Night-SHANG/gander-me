@@ -586,13 +586,16 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/MainActivity.kt b/app/src/
      private fun openVolume(volume: VolumeData) {
          volumeOpener.openVolume(volume, true, object : VolumeOpener.VolumeOpenerCallbacks {
              override fun onHashStorageReset() {
-@@ -491,8 +493,10 @@
+@@ -491,8 +493,13 @@
              }
  
              override fun onVolumeOpened(id: Int) {
 +                intent.putExtra("vaultshelf.current_volume_uuid", volume.uuid)
 +                intent.putExtra("vaultshelf.switching_vault", false)
                  startActivity(explorerRouter.getExplorerIntent(id, volume.shortName))
++                if (intent.getBooleanExtra("vaultshelf.shell_entry", false)) {
++                    overridePendingTransition(0, 0)
++                }
 -                if (explorerRouter.dropMode || explorerRouter.pickMode) {
 +                if (shouldFinishAfterOpening()) {
                      finish()
@@ -1104,7 +1107,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                  FileTypes.isAudio(fullPath) -> {
                      startFileViewer(AudioPlayer::class.java, fullPath)
                  }
-@@ -368,17 +414,147 @@
+@@ -368,17 +414,149 @@
      }
  
      protected fun changeCurrentDirectory(path: String) {
@@ -1234,7 +1237,8 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +        displaySearchResults(matches, query, rootPath, complete = true)
 +    }
 +
-     protected fun refreshCurrentDirectory(onDisplayed: (() -> Unit)? = null) = lifecycleScope.launch {
+-    protected fun refreshCurrentDirectory(onDisplayed: (() -> Unit)? = null) = lifecycleScope.launch {
++    protected fun refreshCurrentDirectory(onDisplayed: (() -> Unit)? = null, retainVisibleList: Boolean = false) = lifecycleScope.launch {
          directoryLoadingTask?.cancelAndJoin()
 +        val searchQuery = activeSearchQuery
 +        val searchRoot = searchRootPath
@@ -1243,8 +1247,12 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +            onDisplayed?.invoke()
 +            return@launch
 +        }
-         recycler_view_explorer.isVisible = false
-         loader.isVisible = true
+-        recycler_view_explorer.isVisible = false
+-        loader.isVisible = true
++        if (!retainVisibleList || !recycler_view_explorer.isVisible) {
++            recycler_view_explorer.isVisible = false
++            loader.isVisible = true
++        }
          explorerElements = encryptedVolume.readDir(currentDirectoryPath) ?: return@launch
 +        if (encryptedVolume !is SafVolume && currentDirectoryPath == "/") {
 +            explorerElements.removeAll { it.name == ".vaultshelf" }
@@ -1294,7 +1302,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
                  true
              }
              R.id.sort -> {
-@@ -715,6 +905,19 @@
+@@ -715,8 +905,21 @@
  
      override fun onResume() {
          super.onResume()
@@ -1314,6 +1322,9 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
          if (app.isStartingExternalApp) {
              TemporaryFileProvider.instance.wipe()
          }
+-        refreshCurrentDirectory()
++        refreshCurrentDirectory(retainVisibleList = true)
+     }
 diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
 --- a/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
 +++ b/app/src/main/java/sushi/hardcore/droidfs/explorers/ExplorerActivity.kt
