@@ -1914,10 +1914,10 @@ class VaultShelfUxRegressionTest {
             "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
         ).readText()
 
-        listOf(externalShell, vaultShell).forEach { source ->
-            assertThat(source).contains("WindowInsets.ime.getBottom")
-            assertThat(source).contains("if (!imeVisible)")
-        }
+        assertThat(externalShell).contains("WindowInsets.ime.getBottom")
+        assertThat(externalShell).contains("if (!imeVisible)")
+        assertThat(vaultShell).contains("WindowInsets.ime.getBottom")
+        assertThat(vaultShell).contains("if (bottomBarVisible && !imeVisible)")
         listOf(externalExplorer, vaultExplorer).forEach { source ->
             assertThat(source).contains("WindowInsetsCompat.Type.ime()")
             assertThat(source).contains("view.isVisible = !insets.isVisible")
