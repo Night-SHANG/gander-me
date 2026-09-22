@@ -1866,6 +1866,9 @@ class VaultShelfUxRegressionTest {
         ).readText()
 
         assertThat(patch).contains("refreshCurrentDirectory(retainVisibleList = true)")
+        assertThat(patch).contains(
+            "refreshCurrentDirectory(retainVisibleList: Boolean = false, onDisplayed: (() -> Unit)? = null)",
+        )
         assertThat(patch).contains("if (!retainVisibleList || !recycler_view_explorer.isVisible)")
         assertThat(externalExplorer).doesNotContain("override fun onResume()")
     }

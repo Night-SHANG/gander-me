@@ -1238,7 +1238,7 @@ diff --git a/app/src/main/java/sushi/hardcore/droidfs/explorers/BaseExplorerActi
 +    }
 +
 -    protected fun refreshCurrentDirectory(onDisplayed: (() -> Unit)? = null) = lifecycleScope.launch {
-+    protected fun refreshCurrentDirectory(onDisplayed: (() -> Unit)? = null, retainVisibleList: Boolean = false) = lifecycleScope.launch {
++    protected fun refreshCurrentDirectory(retainVisibleList: Boolean = false, onDisplayed: (() -> Unit)? = null) = lifecycleScope.launch {
          directoryLoadingTask?.cancelAndJoin()
 +        val searchQuery = activeSearchQuery
 +        val searchRoot = searchRootPath
