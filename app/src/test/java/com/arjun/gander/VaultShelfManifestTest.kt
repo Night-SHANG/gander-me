@@ -67,18 +67,24 @@ class VaultShelfManifestTest {
     }
 
     @Test
-    fun externalExplorerKeepsBottomNavigationOutsideTheAnimatedContentShell() {
+    fun explorersUseOrdinaryOpaqueActivityWindowsAndKeepBottomNavigation() {
         val externalExplorer = activities().single { it.name == ".files.ExternalExplorerActivity" }
         val vaultExplorer = activities().single { it.name == ".files.VaultExplorerActivity" }
-        assertThat(externalExplorer.theme).isEqualTo("@style/Theme.Gander.ExplorerOverlay")
-        assertThat(vaultExplorer.theme).isEqualTo("@style/Theme.Gander.ExplorerOverlay")
+        assertThat(externalExplorer.theme).isEmpty()
+        assertThat(vaultExplorer.theme).isEmpty()
+
+        val manifest = MANIFEST.readText()
+        val themes = File("../app/src/main/res/values/themes.xml").readText()
+        assertThat(manifest).doesNotContain("Theme.Gander.ExplorerOverlay")
+        assertThat(manifest).doesNotContain("Theme.Gander.PeerOverlay")
+        assertThat(themes).doesNotContain("Theme.Gander.ExplorerOverlay")
+        assertThat(themes).doesNotContain("Theme.Gander.PeerOverlay")
 
         val layout = File("../app/src/main/res/layout/activity_explorer.xml").readText()
-        val contentShell = layout.indexOf("@+id/vaultshelf_explorer_content_shell")
         val bottomNavigation = layout.indexOf("@+id/vaultshelf_explorer_bottom_nav")
-
-        assertThat(contentShell).isAtLeast(0)
-        assertThat(bottomNavigation).isGreaterThan(contentShell)
+        assertThat(bottomNavigation).isAtLeast(0)
+        assertThat(layout).contains("android:background=\"?attr/colorSurface\"")
+        assertThat(layout).doesNotContain("@android:color/transparent")
     }
 
     private fun activities(): List<ActivityContract> {

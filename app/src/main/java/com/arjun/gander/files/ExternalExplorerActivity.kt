@@ -4,11 +4,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
-import android.view.View
-import android.view.animation.PathInterpolator
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.platform.ComposeView
@@ -21,14 +18,10 @@ import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.ui.shell.VaultShelfBottomBar
 import com.arjun.gander.ui.shell.VaultShelfDestination
 import com.arjun.gander.ui.shell.VaultShelfExternalDestinations
-import com.arjun.gander.ui.shell.VaultShelfNavigationRelay
 import com.arjun.gander.transfer.TransferBehaviorPreferences
 import com.arjun.gander.transfer.TransferRoute
 import com.arjun.gander.transfer.TransferSourceDecision
 import com.arjun.gander.ui.theme.VaultShelfTheme
-import com.arjun.gander.ui.shell.VAULTSHELF_PAGE_TRANSITION_MS
-import com.arjun.gander.ui.shell.applyVaultShelfPeerTransition
-import com.arjun.gander.ui.shell.suppressVaultShelfWindowTransition
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultVolumeActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -51,29 +44,15 @@ import sushi.hardcore.droidfs.explorers.ExplorerElement
 class ExternalExplorerActivity : ExplorerActivity() {
 
     private var volumeClosed = false
-    private var finishingNavigation = false
-    private lateinit var explorerContentShell: View
-    private val pageEaseOut = PathInterpolator(0f, 0f, 0.58f, 1f)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        explorerContentShell = findViewById(R.id.vaultshelf_explorer_content_shell)
         title = intent.getStringExtra("volumeName").orEmpty()
         configureBottomNavigation()
-        lifecycleScope.launch {
-            VaultShelfNavigationRelay.external.collect { destinationName ->
-                if (destinationName != VaultShelfDestination.FILES.name) {
-                    animateToExternalDestination(destinationName)
-                }
-            }
-        }
-        if (savedInstanceState == null) {
-            animateExplorerContentIn()
-        }
     }
 
     protected override fun onRootBackPressed(): Boolean {
-        animateBackToFilesRoot()
+        finish()
         return true
     }
 
@@ -418,22 +397,18 @@ class ExternalExplorerActivity : ExplorerActivity() {
                         when (destination) {
                             VaultShelfDestination.HOME,
                             VaultShelfDestination.LIBRARY,
-                            VaultShelfDestination.SETTINGS ->
-                                VaultShelfNavigationRelay.navigateExternal(destination.name)
+                            VaultShelfDestination.SETTINGS -> openShell(destination.name)
                             VaultShelfDestination.FILES -> Unit
                             VaultShelfDestination.VAULT -> {
                                 startActivity(
                                     Intent(
                                         this@ExternalExplorerActivity,
                                         VaultVolumeActivity::class.java,
-                                    )
-                                        .putExtra(VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY, true)
-                                        .putExtra(
-                                            VaultVolumeActivity.EXTRA_SOURCE_DESTINATION,
-                                            VaultShelfDestination.FILES.name,
-                                        ),
+                                    ).putExtra(
+                                        VaultShelfActivity.EXTRA_VAULT_SHELL_ENTRY,
+                                        true,
+                                    ),
                                 )
-                                applyVaultShelfPeerTransition()
                             }
                         }
                     },
@@ -442,75 +417,16 @@ class ExternalExplorerActivity : ExplorerActivity() {
         }
     }
 
-    private fun animateToExternalDestination(destinationName: String) {
-        if (finishingNavigation) return
-        val destination = runCatching {
-            VaultShelfDestination.valueOf(destinationName)
-        }.getOrNull() ?: return
-        if (destination == VaultShelfDestination.FILES ||
-            destination == VaultShelfDestination.VAULT
-        ) return
-
-        finishingNavigation = true
-        val width = explorerContentShell.width.toFloat()
-        if (width <= 0f) {
-            finishToFilesRoot()
-            return
-        }
-        val target = if (destination.ordinal > VaultShelfDestination.FILES.ordinal) {
-            -width
-        } else {
-            width
-        }
-        explorerContentShell.animate().cancel()
-        explorerContentShell.animate()
-            .translationX(target)
-            .setDuration(VAULTSHELF_PAGE_TRANSITION_MS.toLong())
-            .setInterpolator(pageEaseOut)
-            .withEndAction(::finishToFilesRoot)
-            .start()
-    }
-
-    private fun animateExplorerContentIn() {
-        explorerContentShell.doOnPreDraw { view ->
-            if (view.width <= 0 || isFinishing) return@doOnPreDraw
-            view.animate().cancel()
-            view.translationX = view.width.toFloat()
-            view.animate()
-                .translationX(0f)
-                .setDuration(VAULTSHELF_PAGE_TRANSITION_MS.toLong())
-                .setInterpolator(pageEaseOut)
-                .start()
-        }
-    }
-
-    private fun animateBackToFilesRoot() {
-        if (finishingNavigation) return
-        finishingNavigation = true
-
-        val width = explorerContentShell.width.toFloat()
-        if (width <= 0f) {
-            finishToFilesRoot()
-            return
-        }
-
-        explorerContentShell.animate().cancel()
-        val progress = (explorerContentShell.translationX / width).coerceIn(0f, 1f)
-        val remaining = (
-            (1f - progress) * VAULTSHELF_PAGE_TRANSITION_MS
-        ).toLong().coerceAtLeast(MIN_EXIT_TRANSITION_MS)
-
-        explorerContentShell.animate()
-            .translationX(width)
-            .setDuration(remaining)
-            .setInterpolator(pageEaseOut)
-            .withEndAction(::finishToFilesRoot)
-            .start()
-    }
-
-    private fun finishToFilesRoot() {
+    private fun openShell(destination: String) {
+        startActivity(
+            Intent(this, VaultShelfActivity::class.java)
+                .putExtra(VaultShelfActivity.EXTRA_INITIAL_DESTINATION, destination)
+                .addFlags(
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                ),
+        )
         finish()
-        suppressVaultShelfWindowTransition()
     }
 
     override fun onResume() {
@@ -531,7 +447,4 @@ class ExternalExplorerActivity : ExplorerActivity() {
         }
     }
 
-    private companion object {
-        const val MIN_EXIT_TRANSITION_MS = 80L
-    }
 }

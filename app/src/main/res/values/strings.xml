@@ -284,15 +284,6 @@
     <string name="vault_export_blocked">Vault plaintext export is disabled. Enable “Allow exporting files” in Vault security settings first.</string>
     <string name="vaultshelf_files_remove_access_title">Remove folder access?</string>
     <string name="vaultshelf_files_remove_access_message">VaultShelf will stop showing the authorized folder “%1$s”. The files themselves will not be deleted.</string>
-
-    <string name="reader_appearance_title">Reader interface color</string>
-    <string name="reader_appearance_entry_detail">Change the reader UI color that used to be brown. Reading text and page background remain controlled inside the reader.</string>
-    <string name="reader_appearance_scope">This changes only Legado’s surrounding reader interface color. It does not change reading text, page background, progress colors, buttons, or Legado’s other original colors.</string>
-    <string name="reader_appearance_pick_color">Choose reader interface color</string>
-    <string name="reader_appearance_save">Save reader interface color</string>
-    <string name="reader_appearance_reset">Restore VaultShelf soft-white default</string>
-    <string name="reader_appearance_saved">Saved. It will be applied the next time the reader UI is created.</string>
-
     <string name="vaultshelf_library_import_partial">Some files could not be imported. Imported: %1$d · Failed: %2$d.</string>
     <string name="vaultshelf_library_export_failed">The selected book(s) could not be exported.</string>
     <string name="vaultshelf_library_export_partial">Some books could not be exported. Exported: %1$d · Failed: %2$d.</string>

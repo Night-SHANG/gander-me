@@ -4,11 +4,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/transparent"
+    android:background="?attr/colorSurface"
     tools:ignore="UnusedResources">
 
     <LinearLayout
-        android:id="@+id/vaultshelf_explorer_content_shell"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_above="@+id/vaultshelf_explorer_bottom_nav"

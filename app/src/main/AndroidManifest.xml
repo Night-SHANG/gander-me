@@ -115,10 +115,6 @@
             android:exported="false" />
 
         <activity
-            android:name=".reader.ReaderAppearanceSettingsActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".vault.VaultModeActivity"
             android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
             android:exported="false" />
@@ -126,14 +122,12 @@
         <activity
             android:name=".files.ExternalExplorerActivity"
             android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
-            android:exported="false"
-            android:theme="@style/Theme.Gander.ExplorerOverlay" />
+            android:exported="false" />
 
         <activity
             android:name=".files.VaultExplorerActivity"
             android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
-            android:exported="false"
-            android:theme="@style/Theme.Gander.ExplorerOverlay" />
+            android:exported="false" />
 
         <activity
             android:name=".vault.VaultImportTargetActivity"

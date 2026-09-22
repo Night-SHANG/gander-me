@@ -1667,8 +1667,9 @@ class VaultShelfUxRegressionTest {
         assertThat(source).doesNotContain("class VaultModeActivity : AppCompatActivity()")
     }
 
+
     @Test
-    fun vaultNavigationUsesDirectFourTabMotionAndSettingsSwitchDoesNotStackOldVaults() {
+    fun vaultNavigationUsesDirectContentAndStandardActivityTransitions() {
         val vaultBar = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultBottomBar.kt",
@@ -1687,21 +1688,25 @@ class VaultShelfUxRegressionTest {
         ).readText()
 
         assertThat(vaultBar).doesNotContain("SWITCH(")
-        assertThat(vaultShell).contains("VaultShelfDirectionalContent(")
+        assertThat(vaultShell).doesNotContain("VaultShelfDirectionalContent(")
         assertThat(vaultShell).doesNotContain("HorizontalPager(")
-        assertThat(vaultShell).doesNotContain("animateScrollToPage")
-        assertThat(vaultShell).contains("VaultBottomDestination.FILES -> onOpenFiles(bottomDestination.name)")
+        assertThat(vaultShell).doesNotContain("AnimatedContent(")
+        assertThat(vaultShell).contains("when (selected)")
+        assertThat(vaultShell).contains("VaultBottomDestination.FILES -> onOpenFiles()")
         assertThat(vaultShell).contains("onSwitchVault = onSwitchVault")
-        assertThat(vaultFiles).contains("VaultShelfNavigationRelay.navigateVault")
-        assertThat(vaultFiles).doesNotContain("openVaultShell(")
+        assertThat(vaultFiles).contains("openVaultShell(destination.name)")
+        assertThat(vaultFiles).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
+        assertThat(vaultFiles).contains("Intent.FLAG_ACTIVITY_SINGLE_TOP")
+        assertThat(vaultFiles).doesNotContain("translationX")
+        assertThat(vaultFiles).doesNotContain("VaultShelfNavigationRelay")
         assertThat(vaultMode).contains("showVaultSwitchDialog")
         assertThat(vaultMode).contains("setSingleChoiceItems")
         assertThat(vaultMode).contains("switchVolumeOpener.openVolume")
-        assertThat(vaultMode).contains("finish()")
     }
 
+
     @Test
-    fun topLevelNavigationSlidesDirectlyToTargetWithoutShowingIntermediateTabs() {
+    fun topLevelNavigationUsesDirectDestinationContentWithoutCustomPageAnimation() {
         val mainShell = File(
             repo,
             "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
@@ -1710,27 +1715,29 @@ class VaultShelfUxRegressionTest {
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultModeShell.kt",
         ).readText()
-        val motion = File(
-            repo,
-            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfNavigationMotion.kt",
-        ).readText()
 
         listOf(mainShell, vaultShell).forEach { source ->
-            assertThat(source).contains("VaultShelfDirectionalContent(")
+            assertThat(source).contains("when (selected)")
+            assertThat(source).doesNotContain("VaultShelfDirectionalContent(")
             assertThat(source).doesNotContain("HorizontalPager(")
-            assertThat(source).doesNotContain("rememberPagerState")
-            assertThat(source).doesNotContain("animateVaultShelfPageTo")
+            assertThat(source).doesNotContain("AnimatedContent(")
+            assertThat(source).doesNotContain("slideInHorizontally")
+            assertThat(source).doesNotContain("slideOutHorizontally")
             assertThat(source).doesNotContain("animateScrollToPage")
         }
-        assertThat(motion).contains("AnimatedContent(")
-        assertThat(motion).contains("slideInHorizontally")
-        assertThat(motion).contains("slideOutHorizontally")
-        assertThat(motion).contains("indexOf(targetState) > indexOf(initialState)")
-        assertThat(motion).contains("VAULTSHELF_PAGE_TRANSITION_MS = 300")
-        assertThat(motion).contains("CubicBezierEasing(0f, 0f, 0.58f, 1f)")
-        assertThat(motion).doesNotContain("PagerState")
-        assertThat(motion).doesNotContain("animateScrollToPage")
-        assertThat(motion).contains("overridePendingTransition(0, 0)")
+
+        assertThat(
+            File(
+                repo,
+                "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfNavigationMotion.kt",
+            ).exists(),
+        ).isFalse()
+        assertThat(
+            File(
+                repo,
+                "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfNavigationRelay.kt",
+            ).exists(),
+        ).isFalse()
     }
 
     @Test
@@ -1816,8 +1823,9 @@ class VaultShelfUxRegressionTest {
         )
     }
 
+
     @Test
-    fun nestedExplorersAndVaultChooserKeepOneLogicalBottomNavigationFlow() {
+    fun nestedExplorersAndVaultChooserUseOrdinaryActivityNavigation() {
         val externalExplorer = File(
             repo,
             "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
@@ -1831,16 +1839,18 @@ class VaultShelfUxRegressionTest {
             "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
         ).readText()
 
-        assertThat(externalExplorer).contains("VaultShelfNavigationRelay.navigateExternal")
+        assertThat(externalExplorer).contains("private fun openShell(destination: String)")
         assertThat(externalExplorer).contains("EXTRA_VAULT_SHELL_ENTRY")
-        assertThat(externalExplorer).contains("VaultVolumeActivity.EXTRA_SOURCE_DESTINATION")
-        assertThat(externalExplorer).doesNotContain("private fun openShell(")
-        assertThat(vaultExplorer).contains("VaultShelfNavigationRelay.navigateVault")
-        assertThat(vaultExplorer).contains("animateToVaultDestination")
-        assertThat(vaultExplorer).doesNotContain("private fun openVaultShell(")
-        assertThat(chooser).contains("VaultShelfNavigationRelay.navigateExternal")
-        assertThat(chooser).contains("animatePageIn")
-        assertThat(chooser).contains("suppressVaultShelfWindowTransition")
+        assertThat(externalExplorer).doesNotContain("VaultShelfNavigationRelay")
+        assertThat(externalExplorer).doesNotContain("translationX")
+        assertThat(externalExplorer).doesNotContain("overridePendingTransition")
+        assertThat(vaultExplorer).contains("private fun openVaultShell(destination: String)")
+        assertThat(vaultExplorer).doesNotContain("VaultShelfNavigationRelay")
+        assertThat(vaultExplorer).doesNotContain("translationX")
+        assertThat(chooser).contains("private fun openExternalDestination(destination: String)")
+        assertThat(chooser).doesNotContain("VaultShelfNavigationRelay")
+        assertThat(chooser).doesNotContain("animatePageIn")
+        assertThat(chooser).doesNotContain("setBackgroundColor(Color.TRANSPARENT)")
     }
 
     @Test
@@ -1869,30 +1879,39 @@ class VaultShelfUxRegressionTest {
         assertThat(vaultShell).contains("LaunchedEffect(initialDestinationName)")
     }
 
-    @Test
-    fun readerChromeOnlyReplacesBrownPrimaryAndUsesReadableForeground() {
-        val preferences = File(
-            repo,
-            "app/src/main/java/com/arjun/gander/reader/ReaderChromePreferences.kt",
-        ).readText()
-        val settings = File(
-            repo,
-            "app/src/main/java/com/arjun/gander/reader/ReaderAppearanceSettingsActivity.kt",
-        ).readText()
-        val patch = File(repo, "patches/legado-vaultshelf-runtime.patch").readText()
 
-        assertThat(preferences).contains("DEFAULT_PRIMARY = \"#F3F3F3\"")
-        assertThat(preferences).contains("vaultshelf_reader_chrome_primary")
-        assertThat(settings).contains("reader_appearance_pick_color")
-        assertThat(settings).contains("ColorPickerDialog.TYPE_CUSTOM")
-        assertThat(settings).contains("ColorPickerDialog.newBuilder()")
-        assertThat(settings).doesNotContain("OutlinedTextField")
-        assertThat(settings).doesNotContain("reader_appearance_hex_hint")
-        assertThat(settings).doesNotContain("reader_appearance_accent")
-        assertThat(patch).contains("applyVaultShelfReaderChrome")
-        assertThat(patch).contains("ColorUtils.isColorLight(primaryColor)")
-        assertThat(patch).doesNotContain("#005FB8")
-        assertThat(patch).contains("accent, progress, button")
+    @Test
+    fun readerAppearanceUsesLegadoWithoutSeparateVaultShelfSettingsScreen() {
+        val shell = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
+        ).readText()
+        val manifest = File(repo, "app/src/main/AndroidManifest.xml").readText()
+        val strings = File(repo, "app/src/main/res/values/strings.xml").readText()
+        val zhStrings = File(repo, "app/src/main/res/values-zh-rCN/strings.xml").readText()
+        val bridge = File(
+            repo,
+            "legado-upstream/src/main/java/com/vaultshelf/legado/LegadoReaderBridge.kt",
+        ).readText()
+
+        assertThat(shell).doesNotContain("onOpenReaderAppearance")
+        assertThat(shell).doesNotContain("reader_appearance_title")
+        assertThat(manifest).doesNotContain("ReaderAppearanceSettingsActivity")
+        assertThat(strings).doesNotContain("reader_appearance_")
+        assertThat(zhStrings).doesNotContain("reader_appearance_")
+        assertThat(bridge).contains(".remove(\"vaultshelf_reader_chrome_primary\")")
+        assertThat(
+            File(
+                repo,
+                "app/src/main/java/com/arjun/gander/reader/ReaderAppearanceSettingsActivity.kt",
+            ).exists(),
+        ).isFalse()
+        assertThat(
+            File(
+                repo,
+                "app/src/main/java/com/arjun/gander/reader/ReaderChromePreferences.kt",
+            ).exists(),
+        ).isFalse()
     }
 
     @Test

@@ -12,17 +12,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
-import androidx.lifecycle.lifecycleScope
 import com.arjun.gander.R
 import com.arjun.gander.VaultShelfActivity
 import com.arjun.gander.files.VaultExplorerActivity
-import com.arjun.gander.ui.shell.VaultShelfNavigationRelay
-import com.arjun.gander.ui.shell.applyVaultShelfPeerTransition
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import java.util.ArrayList
-import kotlinx.coroutines.launch
 import sushi.hardcore.droidfs.BaseActivity
 import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 import sushi.hardcore.droidfs.VolumeDatabase
@@ -45,12 +41,6 @@ class VaultModeActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyNavigationIntent(intent)
-        lifecycleScope.launch {
-            VaultShelfNavigationRelay.vault.collect { destinationName ->
-                requestedDestinationName = destinationName
-                returnToFiles = false
-            }
-        }
         VaultScreenshotPolicy.apply(this)
 
         val volumeId = intent.getIntExtra(EXTRA_VOLUME_ID, -1)
@@ -92,10 +82,9 @@ class VaultModeActivity : BaseActivity() {
                                 ).show()
                             }
                         },
-                        onOpenFiles = { sourceDestination ->
+                        onOpenFiles = {
                             if (returnToFiles) {
                                 finish()
-                                applyVaultShelfPeerTransition()
                             } else {
                                 startActivity(
                                     Intent(
@@ -103,13 +92,8 @@ class VaultModeActivity : BaseActivity() {
                                         VaultExplorerActivity::class.java,
                                     )
                                         .putExtra("volumeId", volumeId)
-                                        .putExtra("volumeName", volumeName)
-                                        .putExtra(
-                                            VaultExplorerActivity.EXTRA_SOURCE_DESTINATION,
-                                            sourceDestination,
-                                        ),
+                                        .putExtra("volumeName", volumeName),
                                 )
-                                applyVaultShelfPeerTransition()
                             }
                         },
                         onExportLibraryToVaultFiles = { entries ->
@@ -158,7 +142,6 @@ class VaultModeActivity : BaseActivity() {
                                             Intent.FLAG_ACTIVITY_SINGLE_TOP,
                                     ),
                             )
-                            applyVaultShelfPeerTransition()
                         },
                         modifier = Modifier.safeDrawingPadding(),
                     )
@@ -213,7 +196,6 @@ class VaultModeActivity : BaseActivity() {
                                     .putExtra(EXTRA_VOLUME_NAME, opened.shortName)
                                     .putExtra(EXTRA_INITIAL_DESTINATION, "HOME"),
                             )
-                            applyVaultShelfPeerTransition()
                             finish()
                         }
                     },

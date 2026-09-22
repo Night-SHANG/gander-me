@@ -82,11 +82,10 @@ fun VaultShelfShell(
     libraryRepository: LibraryRepository,
     externalRevision: Int,
     onOpenExternalFolder: (Uri, String) -> Unit,
-    onOpenVault: (String) -> Unit,
+    onOpenVault: () -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onOpenTransferSettings: () -> Unit,
-    onOpenReaderAppearance: () -> Unit,
     onImportBooksToVaultFiles: (List<LibraryBook>) -> Unit,
     onImportBooksToVaultLibrary: (List<LibraryBook>) -> Unit,
     onOpenAbout: () -> Unit,
@@ -137,7 +136,7 @@ fun VaultShelfShell(
                                 if (returnToFiles) onReturnToFiles()
                                 else navigateTo(destination)
                             }
-                            VaultShelfDestination.VAULT -> onOpenVault(selected.name)
+                            VaultShelfDestination.VAULT -> onOpenVault()
                             else -> navigateTo(destination)
                         }
                     },
@@ -145,14 +144,12 @@ fun VaultShelfShell(
             }
         },
     ) { innerPadding ->
-        VaultShelfDirectionalContent(
-            targetState = selected,
-            indexOf = { it.ordinal },
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-        ) { destination ->
-            when (destination) {
+        ) {
+            when (selected) {
                 VaultShelfDestination.HOME -> HomeScreen(
                     libraryRepository = libraryRepository,
                     modifier = Modifier.fillMaxSize(),
@@ -161,7 +158,7 @@ fun VaultShelfShell(
                         else navigateTo(VaultShelfDestination.FILES)
                     },
                     onOpenLibrary = { navigateTo(VaultShelfDestination.LIBRARY) },
-                    onOpenVault = { onOpenVault(VaultShelfDestination.HOME.name) },
+                    onOpenVault = onOpenVault,
                 )
 
                 VaultShelfDestination.LIBRARY -> LibraryScreen(
@@ -181,7 +178,6 @@ fun VaultShelfShell(
                     onOpenVaultSettings = onOpenVaultSettings,
                     onOpenVaultBackup = onOpenVaultBackup,
                     onOpenTransferSettings = onOpenTransferSettings,
-                    onOpenReaderAppearance = onOpenReaderAppearance,
                     onOpenAbout = onOpenAbout,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -706,7 +702,6 @@ private fun SettingsScreen(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onOpenTransferSettings: () -> Unit,
-    onOpenReaderAppearance: () -> Unit,
     onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -743,13 +738,6 @@ private fun SettingsScreen(
             detailRes = R.string.transfer_settings_entry_detail,
             iconRes = R.drawable.ic_vaultshelf_files,
             onClick = onOpenTransferSettings,
-        )
-
-        SettingsEntry(
-            titleRes = R.string.reader_appearance_title,
-            detailRes = R.string.reader_appearance_entry_detail,
-            iconRes = R.drawable.ic_vaultshelf_library,
-            onClick = onOpenReaderAppearance,
         )
 
         SettingsEntry(

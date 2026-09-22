@@ -141,7 +141,7 @@ dependencies {
     }
 
     implementation("com.github.jenly1314:zxing-lite:3.5.0")
-    api("com.jaredrummler:colorpicker:1.1.0")
+    implementation("com.jaredrummler:colorpicker:1.1.0")
     implementation("me.zhanghai.android.libarchive:library:1.1.6")
     implementation("org.apache.commons:commons-text:1.13.1")
 

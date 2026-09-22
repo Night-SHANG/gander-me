@@ -1,16 +1,14 @@
 package com.arjun.gander.files
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import android.view.Menu
 import android.view.MenuItem
-import android.view.View
-import android.view.animation.PathInterpolator
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.platform.ComposeView
@@ -24,9 +22,6 @@ import com.arjun.gander.transfer.TransferBehaviorPreferences
 import com.arjun.gander.transfer.TransferRoute
 import com.arjun.gander.transfer.TransferSourceDecision
 import com.arjun.gander.ui.theme.VaultShelfTheme
-import com.arjun.gander.ui.shell.VAULTSHELF_PAGE_TRANSITION_MS
-import com.arjun.gander.ui.shell.VaultShelfNavigationRelay
-import com.arjun.gander.ui.shell.suppressVaultShelfWindowTransition
 import com.arjun.gander.vault.EncryptedVolumeInputStream
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultLibraryEntry
@@ -36,6 +31,7 @@ import com.arjun.gander.vault.VaultBottomBar
 import com.arjun.gander.vault.VaultBottomDestination
 import com.arjun.gander.vault.VaultExitCoordinator
 import com.arjun.gander.vault.VaultFileRepository
+import com.arjun.gander.vault.VaultModeActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfProgressStore
 import kotlinx.coroutines.Dispatchers
@@ -54,9 +50,6 @@ class VaultExplorerActivity : ExplorerActivity() {
     private lateinit var vaultFiles: VaultFileRepository
     private lateinit var vaultLibrary: VaultLibraryStore
     private var pendingExport: List<ExplorerElement> = emptyList()
-    private var finishingNavigation = false
-    private lateinit var explorerContentShell: View
-    private val pageEaseOut = PathInterpolator(0f, 0f, 0.58f, 1f)
 
     private val exportDirectory =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -71,18 +64,7 @@ class VaultExplorerActivity : ExplorerActivity() {
         super.onCreate(savedInstanceState)
         vaultFiles = VaultFileRepository(applicationContext, volumeId)
         vaultLibrary = VaultLibraryStore(applicationContext, vaultFiles)
-        explorerContentShell = findViewById(R.id.vaultshelf_explorer_content_shell)
         configureBottomNavigation()
-        lifecycleScope.launch {
-            VaultShelfNavigationRelay.vault.collect { destinationName ->
-                if (destinationName != VaultBottomDestination.FILES.name) {
-                    animateToVaultDestination(destinationName)
-                }
-            }
-        }
-        if (savedInstanceState == null) {
-            animateExplorerContentIn()
-        }
     }
 
     protected override fun onRootBackPressed(): Boolean {
@@ -473,7 +455,7 @@ class VaultExplorerActivity : ExplorerActivity() {
                             VaultBottomDestination.HOME,
                             VaultBottomDestination.LIBRARY,
                             VaultBottomDestination.SETTINGS ->
-                                VaultShelfNavigationRelay.navigateVault(destination.name)
+                                openVaultShell(destination.name)
                         }
                     },
                 )
@@ -481,63 +463,21 @@ class VaultExplorerActivity : ExplorerActivity() {
         }
     }
 
-    private fun animateExplorerContentIn() {
-        val source = runCatching {
-            VaultBottomDestination.valueOf(
-                intent.getStringExtra(EXTRA_SOURCE_DESTINATION)
-                    ?: VaultBottomDestination.HOME.name,
-            )
-        }.getOrDefault(VaultBottomDestination.HOME)
-        explorerContentShell.doOnPreDraw { view ->
-            if (view.width <= 0 || isFinishing) return@doOnPreDraw
-            val start = if (VaultBottomDestination.FILES.ordinal > source.ordinal) {
-                view.width.toFloat()
-            } else {
-                -view.width.toFloat()
-            }
-            view.animate().cancel()
-            view.translationX = start
-            view.animate()
-                .translationX(0f)
-                .setDuration(VAULTSHELF_PAGE_TRANSITION_MS.toLong())
-                .setInterpolator(pageEaseOut)
-                .start()
-        }
-    }
-
-    private fun animateToVaultDestination(destinationName: String) {
-        if (finishingNavigation) return
-        val destination = runCatching {
-            VaultBottomDestination.valueOf(destinationName)
-        }.getOrNull() ?: return
-        if (destination == VaultBottomDestination.FILES) return
-
-        finishingNavigation = true
-        val width = explorerContentShell.width.toFloat()
-        if (width <= 0f) {
-            finishNestedExplorer()
-            return
-        }
-        val target = if (destination.ordinal > VaultBottomDestination.FILES.ordinal) {
-            -width
-        } else {
-            width
-        }
-        explorerContentShell.animate().cancel()
-        explorerContentShell.animate()
-            .translationX(target)
-            .setDuration(VAULTSHELF_PAGE_TRANSITION_MS.toLong())
-            .setInterpolator(pageEaseOut)
-            .withEndAction(::finishNestedExplorer)
-            .start()
-    }
-
-    private fun finishNestedExplorer() {
+    private fun openVaultShell(destination: String) {
+        startActivity(
+            Intent(this, VaultModeActivity::class.java)
+                .putExtra(VaultModeActivity.EXTRA_VOLUME_ID, volumeId)
+                .putExtra(
+                    VaultModeActivity.EXTRA_VOLUME_NAME,
+                    intent.getStringExtra("volumeName").orEmpty(),
+                )
+                .putExtra(VaultModeActivity.EXTRA_INITIAL_DESTINATION, destination)
+                .addFlags(
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                ),
+        )
         finish()
-        suppressVaultShelfWindowTransition()
     }
 
-    companion object {
-        const val EXTRA_SOURCE_DESTINATION = "vaultshelf.vault.files.source_destination"
-    }
 }

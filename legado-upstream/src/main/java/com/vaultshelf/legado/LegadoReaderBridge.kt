@@ -131,6 +131,12 @@ object LegadoReaderBridge {
         appContext.injectAsAppCtx()
 
         if (!initialized.compareAndSet(false, true)) return
+        // The separate VaultShelf reader-chrome setting was removed. Clear any value
+        // written by development builds so a hidden preference cannot keep affecting Legado.
+        appContext.defaultSharedPreferences
+            .edit()
+            .remove("vaultshelf_reader_chrome_primary")
+            .apply()
         ensureVaultShelfReadingPreset(appContext)
         val configuration = Configuration(appContext.resources.configuration)
         var observedNightMode = configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK

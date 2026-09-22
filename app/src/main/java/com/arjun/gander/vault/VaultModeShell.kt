@@ -76,7 +76,6 @@ import com.arjun.gander.ui.library.ShelfSort
 import com.arjun.gander.ui.library.ShelfViewMode
 import com.arjun.gander.ui.library.filterAndSortShelfItems
 import com.arjun.gander.ui.shell.QuickActionTile
-import com.arjun.gander.ui.shell.VaultShelfDirectionalContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -105,7 +104,7 @@ fun VaultModeShell(
     libraryStore: VaultLibraryStore,
     externalRevision: Int,
     onOpenFile: (VaultFileItem) -> Unit,
-    onOpenFiles: (String) -> Unit,
+    onOpenFiles: () -> Unit,
     onExportLibraryToVaultFiles: (List<VaultLibraryEntry>) -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
@@ -154,7 +153,7 @@ fun VaultModeShell(
                                 navigateTo(VaultModeDestination.HOME)
                             VaultBottomDestination.LIBRARY ->
                                 navigateTo(VaultModeDestination.LIBRARY)
-                            VaultBottomDestination.FILES -> onOpenFiles(bottomDestination.name)
+                            VaultBottomDestination.FILES -> onOpenFiles()
                             VaultBottomDestination.SETTINGS ->
                                 navigateTo(VaultModeDestination.SETTINGS)
                         }
@@ -163,26 +162,18 @@ fun VaultModeShell(
             }
         },
     ) { innerPadding ->
-        VaultShelfDirectionalContent(
-            targetState = selected,
-            indexOf = {
-                when (it) {
-                    VaultModeDestination.HOME -> VaultBottomDestination.HOME.ordinal
-                    VaultModeDestination.LIBRARY -> VaultBottomDestination.LIBRARY.ordinal
-                    VaultModeDestination.SETTINGS -> VaultBottomDestination.SETTINGS.ordinal
-                }
-            },
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-        ) { destination ->
-            when (destination) {
+        ) {
+            when (selected) {
                 VaultModeDestination.HOME -> VaultHomeScreen(
                     volumeName = volumeName,
                     libraryStore = libraryStore,
                     revision = revision + externalRevision,
                     onOpenLibrary = { navigateTo(VaultModeDestination.LIBRARY) },
-                    onOpenFiles = { onOpenFiles(VaultBottomDestination.HOME.name) },
+                    onOpenFiles = onOpenFiles,
                     onOpenExternalDestination = onOpenExternalDestination,
                     onOpenBook = { entry ->
                         libraryStore.markOpened(entry.id)
@@ -221,7 +212,7 @@ fun VaultModeShell(
                             revision += 1
                         }
                     },
-                    onOpenFiles = { onOpenFiles(VaultBottomDestination.LIBRARY.name) },
+                    onOpenFiles = onOpenFiles,
                     onExportToVaultFiles = onExportLibraryToVaultFiles,
                     onRevision = { revision += 1 },
                     modifier = Modifier.fillMaxSize(),
