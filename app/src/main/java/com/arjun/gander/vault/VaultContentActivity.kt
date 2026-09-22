@@ -248,10 +248,16 @@ class VaultContentActivity : ComponentActivity() {
 
             if (finishWhenDone) {
                 withContext(Dispatchers.Main.immediate) {
-                    if (!isDestroyed && !isFinishing) finish()
+                    if (!isDestroyed && !isFinishing) finishBridge()
                 }
             }
         }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun finishBridge() {
+        finish()
+        overridePendingTransition(0, 0)
     }
 
     override fun onDestroy() {

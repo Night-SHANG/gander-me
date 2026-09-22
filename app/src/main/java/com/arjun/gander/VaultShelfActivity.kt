@@ -17,9 +17,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
 import com.arjun.gander.files.ExternalExplorerActivity
 import com.arjun.gander.library.LocalLibraryRepository
 import com.arjun.gander.reader.ReaderAppearanceSettingsActivity
+import com.arjun.gander.ui.shell.VaultShelfNavigationRelay
 import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.transfer.TransferBehaviorSettingsActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
@@ -33,6 +35,7 @@ import com.vaultshelf.droidfs.SafVolume
 import java.io.File
 import java.util.ArrayList
 import java.util.UUID
+import kotlinx.coroutines.launch
 import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 import sushi.hardcore.droidfs.VolumeData
 import sushi.hardcore.droidfs.VolumeManagerApp
@@ -54,6 +57,12 @@ class VaultShelfActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyNavigationIntent(intent)
+        lifecycleScope.launch {
+            VaultShelfNavigationRelay.external.collect { destinationName ->
+                requestedDestinationName = destinationName
+                returnToFiles = false
+            }
+        }
         val libraryRepository = LocalLibraryRepository(applicationContext)
 
         val root = ComposeView(this).apply {
@@ -154,10 +163,14 @@ class VaultShelfActivity : AppCompatActivity() {
         libraryRevision += 1
     }
 
-    private fun openVault() {
+    private fun openVault(sourceDestinationName: String) {
         startActivity(
             Intent(this, VaultVolumeActivity::class.java)
-                .putExtra(EXTRA_VAULT_SHELL_ENTRY, true),
+                .putExtra(EXTRA_VAULT_SHELL_ENTRY, true)
+                .putExtra(
+                    VaultVolumeActivity.EXTRA_SOURCE_DESTINATION,
+                    sourceDestinationName,
+                ),
         )
         applyVaultShelfPeerTransition()
     }

@@ -1,5 +1,3 @@
-@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-
 package com.arjun.gander.ui.shell
 
 import android.content.Context
@@ -29,8 +27,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -86,7 +82,7 @@ fun VaultShelfShell(
     libraryRepository: LibraryRepository,
     externalRevision: Int,
     onOpenExternalFolder: (Uri, String) -> Unit,
-    onOpenVault: () -> Unit,
+    onOpenVault: (String) -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
     onOpenTransferSettings: () -> Unit,
@@ -107,26 +103,23 @@ fun VaultShelfShell(
             VaultShelfDestination.SETTINGS,
         )
     }
-    val initialPage = destinations
-        .indexOfFirst { it.name == initialDestinationName }
-        .takeIf { it >= 0 }
-        ?: 0
-    val pagerState = rememberPagerState(initialPage = initialPage) { destinations.size }
-    val scope = rememberCoroutineScope()
+    val initialDestination = destinations
+        .firstOrNull { it.name == initialDestinationName }
+        ?: VaultShelfDestination.HOME
+    var selectedName by rememberSaveable { mutableStateOf(initialDestination.name) }
+    val selected = destinations.firstOrNull { it.name == selectedName }
+        ?: VaultShelfDestination.HOME
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    val selected = destinations[pagerState.currentPage]
 
     fun navigateTo(destination: VaultShelfDestination) {
-        val page = destinations.indexOf(destination)
-        if (page >= 0) {
-            scope.launch { pagerState.animateVaultShelfPageTo(page) }
+        if (destination in destinations) {
+            selectedName = destination.name
         }
     }
 
     LaunchedEffect(initialDestinationName) {
-        val requestedPage = destinations.indexOfFirst { it.name == initialDestinationName }
-        if (requestedPage >= 0 && requestedPage != pagerState.currentPage) {
-            pagerState.animateVaultShelfPageTo(requestedPage)
+        destinations.firstOrNull { it.name == initialDestinationName }?.let { requested ->
+            selectedName = requested.name
         }
     }
 
@@ -144,7 +137,7 @@ fun VaultShelfShell(
                                 if (returnToFiles) onReturnToFiles()
                                 else navigateTo(destination)
                             }
-                            VaultShelfDestination.VAULT -> onOpenVault()
+                            VaultShelfDestination.VAULT -> onOpenVault(selected.name)
                             else -> navigateTo(destination)
                         }
                     },
@@ -152,14 +145,14 @@ fun VaultShelfShell(
             }
         },
     ) { innerPadding ->
-        HorizontalPager(
-            state = pagerState,
-            userScrollEnabled = false,
+        VaultShelfDirectionalContent(
+            targetState = selected,
+            indexOf = { it.ordinal },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-        ) { page ->
-            when (destinations[page]) {
+        ) { destination ->
+            when (destination) {
                 VaultShelfDestination.HOME -> HomeScreen(
                     libraryRepository = libraryRepository,
                     modifier = Modifier.fillMaxSize(),
@@ -168,7 +161,7 @@ fun VaultShelfShell(
                         else navigateTo(VaultShelfDestination.FILES)
                     },
                     onOpenLibrary = { navigateTo(VaultShelfDestination.LIBRARY) },
-                    onOpenVault = onOpenVault,
+                    onOpenVault = { onOpenVault(VaultShelfDestination.HOME.name) },
                 )
 
                 VaultShelfDestination.LIBRARY -> LibraryScreen(

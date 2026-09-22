@@ -203,8 +203,14 @@ class FileDispatchActivity : ComponentActivity() {
                     }
                 }
             }
-            finish()
+            finishBridge()
         }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun finishBridge() {
+        finish()
+        overridePendingTransition(0, 0)
     }
 
     override fun onDestroy() {

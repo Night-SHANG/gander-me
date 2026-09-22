@@ -1,5 +1,3 @@
-@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-
 package com.arjun.gander.vault
 
 import android.content.Context
@@ -27,8 +25,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -80,7 +76,7 @@ import com.arjun.gander.ui.library.ShelfSort
 import com.arjun.gander.ui.library.ShelfViewMode
 import com.arjun.gander.ui.library.filterAndSortShelfItems
 import com.arjun.gander.ui.shell.QuickActionTile
-import com.arjun.gander.ui.shell.animateVaultShelfPageTo
+import com.arjun.gander.ui.shell.VaultShelfDirectionalContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -109,7 +105,7 @@ fun VaultModeShell(
     libraryStore: VaultLibraryStore,
     externalRevision: Int,
     onOpenFile: (VaultFileItem) -> Unit,
-    onOpenFiles: () -> Unit,
+    onOpenFiles: (String) -> Unit,
     onExportLibraryToVaultFiles: (List<VaultLibraryEntry>) -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
@@ -121,14 +117,13 @@ fun VaultModeShell(
     bottomBarVisible: Boolean = true,
 ) {
     val destinations = remember { VaultModeDestination.entries.toList() }
-    val initialPage = destinations
-        .indexOfFirst { it.name == initialDestinationName }
-        .takeIf { it >= 0 }
-        ?: 0
-    val pagerState = rememberPagerState(initialPage = initialPage) { destinations.size }
-    val scope = rememberCoroutineScope()
+    val initialDestination = destinations
+        .firstOrNull { it.name == initialDestinationName }
+        ?: VaultModeDestination.HOME
+    var selectedName by rememberSaveable { mutableStateOf(initialDestination.name) }
     var revision by remember { mutableIntStateOf(0) }
-    val selected = destinations[pagerState.currentPage]
+    val selected = destinations.firstOrNull { it.name == selectedName }
+        ?: VaultModeDestination.HOME
     val bottomDestination = when (selected) {
         VaultModeDestination.HOME -> VaultBottomDestination.HOME
         VaultModeDestination.LIBRARY -> VaultBottomDestination.LIBRARY
@@ -137,16 +132,12 @@ fun VaultModeShell(
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     fun navigateTo(destination: VaultModeDestination) {
-        val page = destinations.indexOf(destination)
-        if (page >= 0) {
-            scope.launch { pagerState.animateVaultShelfPageTo(page) }
-        }
+        selectedName = destination.name
     }
 
     LaunchedEffect(initialDestinationName) {
-        val requestedPage = destinations.indexOfFirst { it.name == initialDestinationName }
-        if (requestedPage >= 0 && requestedPage != pagerState.currentPage) {
-            pagerState.animateVaultShelfPageTo(requestedPage)
+        destinations.firstOrNull { it.name == initialDestinationName }?.let { requested ->
+            selectedName = requested.name
         }
     }
 
@@ -163,7 +154,7 @@ fun VaultModeShell(
                                 navigateTo(VaultModeDestination.HOME)
                             VaultBottomDestination.LIBRARY ->
                                 navigateTo(VaultModeDestination.LIBRARY)
-                            VaultBottomDestination.FILES -> onOpenFiles()
+                            VaultBottomDestination.FILES -> onOpenFiles(bottomDestination.name)
                             VaultBottomDestination.SETTINGS ->
                                 navigateTo(VaultModeDestination.SETTINGS)
                         }
@@ -172,20 +163,26 @@ fun VaultModeShell(
             }
         },
     ) { innerPadding ->
-        HorizontalPager(
-            state = pagerState,
-            userScrollEnabled = false,
+        VaultShelfDirectionalContent(
+            targetState = selected,
+            indexOf = {
+                when (it) {
+                    VaultModeDestination.HOME -> VaultBottomDestination.HOME.ordinal
+                    VaultModeDestination.LIBRARY -> VaultBottomDestination.LIBRARY.ordinal
+                    VaultModeDestination.SETTINGS -> VaultBottomDestination.SETTINGS.ordinal
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-        ) { page ->
-            when (destinations[page]) {
+        ) { destination ->
+            when (destination) {
                 VaultModeDestination.HOME -> VaultHomeScreen(
                     volumeName = volumeName,
                     libraryStore = libraryStore,
                     revision = revision + externalRevision,
                     onOpenLibrary = { navigateTo(VaultModeDestination.LIBRARY) },
-                    onOpenFiles = onOpenFiles,
+                    onOpenFiles = { onOpenFiles(VaultBottomDestination.HOME.name) },
                     onOpenExternalDestination = onOpenExternalDestination,
                     onOpenBook = { entry ->
                         libraryStore.markOpened(entry.id)
@@ -224,7 +221,7 @@ fun VaultModeShell(
                             revision += 1
                         }
                     },
-                    onOpenFiles = onOpenFiles,
+                    onOpenFiles = { onOpenFiles(VaultBottomDestination.LIBRARY.name) },
                     onExportToVaultFiles = onExportLibraryToVaultFiles,
                     onRevision = { revision += 1 },
                     modifier = Modifier.fillMaxSize(),

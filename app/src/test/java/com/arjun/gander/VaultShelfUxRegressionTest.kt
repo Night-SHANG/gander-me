@@ -229,7 +229,7 @@ class VaultShelfUxRegressionTest {
         assertThat(gitmodules).contains("third_party/droidfs")
         assertThat(gitmodules).contains("https://github.com/hardcore-sushi/DroidFS.git")
         assertThat(activity).contains("VaultVolumeActivity")
-        assertThat(shell).contains("VaultShelfDestination.VAULT -> onOpenVault()")
+        assertThat(shell).contains("VaultShelfDestination.VAULT -> onOpenVault(selected.name)")
         assertThat(droidFsBuild).contains("../third_party/droidfs/app/src/main/java")
         assertThat(droidFsBuild).contains("\"CRYFS_DISABLED\", \"true\"")
         assertThat(droidFsBuild).contains("\"GOCRYPTFS_DISABLED\", \"false\"")
@@ -1668,7 +1668,7 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun vaultNavigationUsesFourTabsPagerAndSettingsSwitchDoesNotStackOldVaults() {
+    fun vaultNavigationUsesDirectFourTabMotionAndSettingsSwitchDoesNotStackOldVaults() {
         val vaultBar = File(
             repo,
             "app/src/main/java/com/arjun/gander/vault/VaultBottomBar.kt",
@@ -1687,12 +1687,13 @@ class VaultShelfUxRegressionTest {
         ).readText()
 
         assertThat(vaultBar).doesNotContain("SWITCH(")
-        assertThat(vaultShell).contains("HorizontalPager(")
-        assertThat(vaultShell).contains("userScrollEnabled = false")
-        assertThat(vaultShell).contains("pagerState.animateVaultShelfPageTo(page)")
-        assertThat(vaultShell).contains("VaultBottomDestination.FILES -> onOpenFiles()")
+        assertThat(vaultShell).contains("VaultShelfDirectionalContent(")
+        assertThat(vaultShell).doesNotContain("HorizontalPager(")
+        assertThat(vaultShell).doesNotContain("animateScrollToPage")
+        assertThat(vaultShell).contains("VaultBottomDestination.FILES -> onOpenFiles(bottomDestination.name)")
         assertThat(vaultShell).contains("onSwitchVault = onSwitchVault")
-        assertThat(vaultFiles).doesNotContain("openVaultSwitcher")
+        assertThat(vaultFiles).contains("VaultShelfNavigationRelay.navigateVault")
+        assertThat(vaultFiles).doesNotContain("openVaultShell(")
         assertThat(vaultMode).contains("showVaultSwitchDialog")
         assertThat(vaultMode).contains("setSingleChoiceItems")
         assertThat(vaultMode).contains("switchVolumeOpener.openVolume")
@@ -1700,7 +1701,7 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
-    fun topLevelNavigationUsesFixedBarsAndFlClashStylePagerSwitching() {
+    fun topLevelNavigationSlidesDirectlyToTargetWithoutShowingIntermediateTabs() {
         val mainShell = File(
             repo,
             "app/src/main/java/com/arjun/gander/ui/shell/VaultShelfShell.kt",
@@ -1715,22 +1716,21 @@ class VaultShelfUxRegressionTest {
         ).readText()
 
         listOf(mainShell, vaultShell).forEach { source ->
-            assertThat(source).contains("HorizontalPager(")
-            assertThat(source).contains("userScrollEnabled = false")
-            assertThat(source).contains("animateVaultShelfPageTo")
-            assertThat(source).contains("pagerState.animateVaultShelfPageTo(requestedPage)")
-            assertThat(source).doesNotContain("pagerState.scrollToPage(requestedPage)")
-            assertThat(source).doesNotContain("AnimatedContent(")
-            assertThat(source).doesNotContain("Crossfade(")
-            assertThat(source).doesNotContain("scaleIn(")
+            assertThat(source).contains("VaultShelfDirectionalContent(")
+            assertThat(source).doesNotContain("HorizontalPager(")
+            assertThat(source).doesNotContain("rememberPagerState")
+            assertThat(source).doesNotContain("animateVaultShelfPageTo")
+            assertThat(source).doesNotContain("animateScrollToPage")
         }
-        assertThat(motion).contains("animateScrollToPage")
+        assertThat(motion).contains("AnimatedContent(")
+        assertThat(motion).contains("slideInHorizontally")
+        assertThat(motion).contains("slideOutHorizontally")
+        assertThat(motion).contains("indexOf(targetState) > indexOf(initialState)")
         assertThat(motion).contains("VAULTSHELF_PAGE_TRANSITION_MS = 300")
         assertThat(motion).contains("CubicBezierEasing(0f, 0f, 0.58f, 1f)")
+        assertThat(motion).doesNotContain("PagerState")
+        assertThat(motion).doesNotContain("animateScrollToPage")
         assertThat(motion).contains("overridePendingTransition(0, 0)")
-        assertThat(motion).doesNotContain("AnimatedContent(")
-        assertThat(motion).doesNotContain("fadeIn(")
-        assertThat(motion).doesNotContain("fadeOut(")
     }
 
     @Test
@@ -1817,6 +1817,33 @@ class VaultShelfUxRegressionTest {
     }
 
     @Test
+    fun nestedExplorersAndVaultChooserKeepOneLogicalBottomNavigationFlow() {
+        val externalExplorer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/ExternalExplorerActivity.kt",
+        ).readText()
+        val vaultExplorer = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/files/VaultExplorerActivity.kt",
+        ).readText()
+        val chooser = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/vault/VaultVolumeActivity.kt",
+        ).readText()
+
+        assertThat(externalExplorer).contains("VaultShelfNavigationRelay.navigateExternal")
+        assertThat(externalExplorer).contains("EXTRA_VAULT_SHELL_ENTRY")
+        assertThat(externalExplorer).contains("VaultVolumeActivity.EXTRA_SOURCE_DESTINATION")
+        assertThat(externalExplorer).doesNotContain("private fun openShell(")
+        assertThat(vaultExplorer).contains("VaultShelfNavigationRelay.navigateVault")
+        assertThat(vaultExplorer).contains("animateToVaultDestination")
+        assertThat(vaultExplorer).doesNotContain("private fun openVaultShell(")
+        assertThat(chooser).contains("VaultShelfNavigationRelay.navigateExternal")
+        assertThat(chooser).contains("animatePageIn")
+        assertThat(chooser).contains("suppressVaultShelfWindowTransition")
+    }
+
+    @Test
     fun reusedShellActivitiesApplyRequestedDestinationImmediately() {
         val external = File(
             repo,
@@ -1856,7 +1883,11 @@ class VaultShelfUxRegressionTest {
 
         assertThat(preferences).contains("DEFAULT_PRIMARY = \"#F3F3F3\"")
         assertThat(preferences).contains("vaultshelf_reader_chrome_primary")
-        assertThat(settings).contains("reader_appearance_primary")
+        assertThat(settings).contains("reader_appearance_pick_color")
+        assertThat(settings).contains("ColorPickerDialog.TYPE_CUSTOM")
+        assertThat(settings).contains("ColorPickerDialog.newBuilder()")
+        assertThat(settings).doesNotContain("OutlinedTextField")
+        assertThat(settings).doesNotContain("reader_appearance_hex_hint")
         assertThat(settings).doesNotContain("reader_appearance_accent")
         assertThat(patch).contains("applyVaultShelfReaderChrome")
         assertThat(patch).contains("ColorUtils.isColorLight(primaryColor)")

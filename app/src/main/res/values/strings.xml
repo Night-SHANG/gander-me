@@ -289,8 +289,7 @@
     <string name="reader_appearance_entry_detail">Change the reader UI color that used to be brown. Reading text and page background remain controlled inside the reader.</string>
     <string name="reader_appearance_scope">This changes only Legado’s surrounding reader interface color. It does not change reading text, page background, progress colors, buttons, or Legado’s other original colors.</string>
     <string name="reader_appearance_primary">Reader interface main color</string>
-    <string name="reader_appearance_hex_hint">Hex color, for example #F3F3F3</string>
-    <string name="reader_appearance_invalid">Enter a 6-digit hex color such as #F3F3F3</string>
+    <string name="reader_appearance_pick_color">Choose reader interface color</string>
     <string name="reader_appearance_save">Save reader interface color</string>
     <string name="reader_appearance_reset">Restore VaultShelf soft-white default</string>
     <string name="reader_appearance_saved">Saved. It will be applied the next time the reader UI is created.</string>

@@ -59,7 +59,7 @@
             android:name=".FileDispatchActivity"
             android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
             android:exported="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            android:theme="@style/Theme.Gander.TransparentBridge">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -132,7 +132,8 @@
         <activity
             android:name=".files.VaultExplorerActivity"
             android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.Gander.ExplorerOverlay" />
 
         <activity
             android:name=".vault.VaultImportTargetActivity"
@@ -143,7 +144,7 @@
             android:name=".vault.VaultContentActivity"
             android:configChanges="fontScale|locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|layoutDirection|colorMode"
             android:exported="false"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+            android:theme="@style/Theme.Gander.TransparentBridge" />
 
         <activity
             android:name=".VaultShelfActivity"

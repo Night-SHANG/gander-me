@@ -62,13 +62,16 @@ class VaultShelfManifestTest {
         val manifest = MANIFEST.readText()
 
         assertThat(manifest).doesNotContain("@android:style/Theme.NoDisplay")
-        assertThat(manifest).contains("@android:style/Theme.Translucent.NoTitleBar")
+        assertThat(manifest).contains("@style/Theme.Gander.TransparentBridge")
+        assertThat(manifest).doesNotContain("@android:style/Theme.Translucent.NoTitleBar")
     }
 
     @Test
     fun externalExplorerKeepsBottomNavigationOutsideTheAnimatedContentShell() {
         val externalExplorer = activities().single { it.name == ".files.ExternalExplorerActivity" }
+        val vaultExplorer = activities().single { it.name == ".files.VaultExplorerActivity" }
         assertThat(externalExplorer.theme).isEqualTo("@style/Theme.Gander.ExplorerOverlay")
+        assertThat(vaultExplorer.theme).isEqualTo("@style/Theme.Gander.ExplorerOverlay")
 
         val layout = File("../app/src/main/res/layout/activity_explorer.xml").readText()
         val contentShell = layout.indexOf("@+id/vaultshelf_explorer_content_shell")
