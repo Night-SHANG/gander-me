@@ -19,7 +19,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.net.toUri
 import com.arjun.gander.files.ExternalExplorerActivity
-import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.library.session.ExternalShelfSession
 import com.arjun.gander.navigation.suppressTopLevelTransition
 import com.arjun.gander.ui.shell.VaultShelfShell
 import com.arjun.gander.transfer.TransferBehaviorSettingsActivity
@@ -46,7 +46,7 @@ import sushi.hardcore.droidfs.filesystems.EncryptedVolume
  */
 class VaultShelfActivity : AppCompatActivity() {
 
-    private var libraryRevision by mutableIntStateOf(0)
+    private lateinit var shelfSession: ExternalShelfSession
     private var requestedDestinationName by mutableStateOf("HOME")
     private var returnToFiles by mutableStateOf(false)
     private var navigationRequest by mutableIntStateOf(0)
@@ -54,15 +54,14 @@ class VaultShelfActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyNavigationIntent(intent)
-        val libraryRepository = LocalLibraryRepository(applicationContext)
+        shelfSession = ExternalShelfSession.get(applicationContext)
 
         val root = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 VaultShelfTheme {
                     VaultShelfShell(
-                        libraryRepository = libraryRepository,
-                        externalRevision = libraryRevision,
+                        session = shelfSession,
                         onOpenExternalFolder = ::openExternalFolder,
                         onOpenVault = ::openVault,
                         onOpenVaultSettings = {
@@ -156,7 +155,7 @@ class VaultShelfActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        libraryRevision += 1
+        shelfSession.refresh()
     }
 
     private fun openVault() {

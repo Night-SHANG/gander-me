@@ -1,11 +1,8 @@
 package com.arjun.gander.ui.shell
 
-import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.provider.DocumentsContract
-import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
@@ -40,14 +37,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,17 +66,18 @@ import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
+import com.arjun.gander.library.session.ExternalShelfSession
 import com.arjun.gander.library.createReaderLaunchPlan
 import com.arjun.gander.library.syncLegadoReaderProgress
 import com.arjun.gander.ui.library.LibraryScreen
+import com.arjun.gander.ui.state.RetainedContentHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
 fun VaultShelfShell(
-    libraryRepository: LibraryRepository,
-    externalRevision: Int,
+    session: ExternalShelfSession,
     onOpenExternalFolder: (Uri, String) -> Unit,
     onOpenVault: () -> Unit,
     onOpenVaultSettings: () -> Unit,
@@ -95,6 +92,8 @@ fun VaultShelfShell(
     returnToFiles: Boolean = false,
     onReturnToFiles: () -> Unit = {},
 ) {
+    val libraryRepository = session.repository
+    val tabStates = rememberSaveableStateHolder()
     val destinations = remember {
         listOf(
             VaultShelfDestination.HOME,
@@ -146,40 +145,53 @@ fun VaultShelfShell(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            when (selected) {
-                VaultShelfDestination.HOME -> HomeScreen(
-                    libraryRepository = libraryRepository,
-                    modifier = Modifier.fillMaxSize(),
-                    onOpenFiles = {
-                        if (returnToFiles) onReturnToFiles()
-                        else navigateTo(VaultShelfDestination.FILES)
-                    },
-                    onOpenLibrary = { navigateTo(VaultShelfDestination.LIBRARY) },
-                    onOpenVault = onOpenVault,
-                )
+            tabStates.SaveableStateProvider(selected.name) {
+                when (selected) {
+                    VaultShelfDestination.HOME -> RetainedContentHost(session.books) { books ->
+                        HomeScreen(
+                            libraryRepository = libraryRepository,
+                            books = books,
+                            onRefresh = session.books::refresh,
+                            modifier = Modifier.fillMaxSize(),
+                            onOpenFiles = {
+                                if (returnToFiles) onReturnToFiles()
+                                else navigateTo(VaultShelfDestination.FILES)
+                            },
+                            onOpenLibrary = { navigateTo(VaultShelfDestination.LIBRARY) },
+                            onOpenVault = onOpenVault,
+                        )
+                    }
 
-                VaultShelfDestination.LIBRARY -> LibraryScreen(
-                    repository = libraryRepository,
-                    externalRevision = externalRevision,
-                    onImportToVaultFiles = onImportBooksToVaultFiles,
-                    onImportToVaultLibrary = onImportBooksToVaultLibrary,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                    VaultShelfDestination.LIBRARY -> RetainedContentHost(session.books) { books ->
+                        LibraryScreen(
+                            repository = libraryRepository,
+                            books = books,
+                            onRefresh = session.books::refresh,
+                            onImportToVaultFiles = onImportBooksToVaultFiles,
+                            onImportToVaultLibrary = onImportBooksToVaultLibrary,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
 
-                VaultShelfDestination.FILES -> ExternalFilesScreen(
-                    onOpenFolder = onOpenExternalFolder,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                    VaultShelfDestination.FILES -> RetainedContentHost(session.folders) { roots ->
+                        ExternalFilesScreen(
+                            roots = roots,
+                            onRefresh = session.folders::refresh,
+                            onOpenFolder = onOpenExternalFolder,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
 
-                VaultShelfDestination.SETTINGS -> SettingsScreen(
-                    onOpenVaultSettings = onOpenVaultSettings,
-                    onOpenVaultBackup = onOpenVaultBackup,
-                    onOpenTransferSettings = onOpenTransferSettings,
-                    onOpenAbout = onOpenAbout,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                    VaultShelfDestination.SETTINGS -> SettingsScreen(
+                        onOpenVaultSettings = onOpenVaultSettings,
+                        onOpenVaultBackup = onOpenVaultBackup,
+                        onOpenTransferSettings = onOpenTransferSettings,
+                        onOpenAbout = onOpenAbout,
+                        modifier = Modifier.fillMaxSize(),
+                    )
 
-                VaultShelfDestination.VAULT -> Unit
+                    VaultShelfDestination.VAULT -> Unit
+                }
             }
         }
     }
@@ -187,27 +199,13 @@ fun VaultShelfShell(
 
 @Composable
 private fun ExternalFilesScreen(
+    roots: List<Pair<Uri, String>>,
+    onRefresh: () -> Unit,
     onOpenFolder: (Uri, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    var revision by rememberSaveable { mutableIntStateOf(0) }
     var pendingRemoveRoot by remember { mutableStateOf<Pair<Uri, String>?>(null) }
-    val roots by produceState<List<Pair<Uri, String>>>(
-        initialValue = emptyList(),
-        revision,
-    ) {
-        value = withContext(Dispatchers.IO) {
-            context.contentResolver.persistedUriPermissions
-                .asSequence()
-                .filter { it.isReadPermission && isTreeUri(it.uri) }
-                .map { permission ->
-                    permission.uri to readTreeLabel(context, permission.uri)
-                }
-                .sortedBy { (_, label) -> label.lowercase() }
-                .toList()
-        }
-    }
     val openTree = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
@@ -219,7 +217,7 @@ private fun ExternalFilesScreen(
                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
             }
-            revision += 1
+            onRefresh()
         }
     }
 
@@ -343,7 +341,7 @@ private fun ExternalFilesScreen(
                             )
                         }
                         pendingRemoveRoot = null
-                        revision += 1
+                        onRefresh()
                     },
                 ) {
                     Text(stringResource(R.string.vaultshelf_files_remove_access))
@@ -358,34 +356,11 @@ private fun ExternalFilesScreen(
     }
 }
 
-private fun isTreeUri(uri: Uri): Boolean =
-    runCatching { DocumentsContract.getTreeDocumentId(uri) }.isSuccess &&
-        uri.pathSegments.firstOrNull() == "tree"
-
-private fun readTreeLabel(context: Context, uri: Uri): String {
-    val documentId = runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
-        ?: return context.getString(R.string.vaultshelf_files_folder_fallback)
-    return runCatching {
-        context.contentResolver.query(
-            DocumentsContract.buildDocumentUriUsingTree(uri, documentId),
-            arrayOf(OpenableColumns.DISPLAY_NAME),
-            null,
-            null,
-            null,
-        )?.use { cursor ->
-            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
-        }
-    }.getOrNull()
-        ?.takeIf { it.isNotBlank() }
-        ?: documentId.substringAfterLast(':').ifBlank {
-            context.getString(R.string.vaultshelf_files_folder_fallback)
-        }
-}
-
 @Composable
 private fun HomeScreen(
     libraryRepository: LibraryRepository,
+    books: List<LibraryBook>,
+    onRefresh: () -> Unit,
     onOpenFiles: () -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenVault: () -> Unit,
@@ -393,18 +368,12 @@ private fun HomeScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var recentBooks by remember { mutableStateOf<List<LibraryBook>>(emptyList()) }
+    val recentBooks = remember(books) { books.filter { it.lastOpenedAtEpochMillis > 0L }.take(6) }
     var pendingLegadoBookId by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingLegadoBookUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun refreshRecent() {
-        scope.launch {
-            recentBooks = libraryRepository.listBooks()
-                .asSequence()
-                .filter { it.lastOpenedAtEpochMillis > 0L }
-                .take(6)
-                .toList()
-        }
+        onRefresh()
     }
 
     val readerLauncher = rememberLauncherForActivityResult(
@@ -448,10 +417,6 @@ private fun HomeScreen(
                 readerLauncher.launch(plan.intent)
             }
         }
-    }
-
-    LaunchedEffect(libraryRepository) {
-        refreshRecent()
     }
 
     Column(

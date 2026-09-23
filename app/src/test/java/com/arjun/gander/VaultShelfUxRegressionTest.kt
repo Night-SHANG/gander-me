@@ -32,8 +32,13 @@ class VaultShelfUxRegressionTest {
             "app/src/main/java/com/arjun/gander/VaultShelfActivity.kt",
         ).readText()
 
-        assertThat(shell).contains("VaultShelfDestination.FILES -> ExternalFilesScreen(")
-        assertThat(shell).contains("contentResolver.persistedUriPermissions")
+        val folders = File(
+            repo,
+            "app/src/main/java/com/arjun/gander/library/session/AuthorizedFolders.kt",
+        ).readText()
+        assertThat(shell).contains("VaultShelfDestination.FILES -> RetainedContentHost(session.folders)")
+        assertThat(shell).contains("ExternalFilesScreen(")
+        assertThat(folders).contains("contentResolver.persistedUriPermissions")
         assertThat(shell).contains("ActivityResultContracts.OpenDocumentTree()")
         assertThat(shell).contains("takePersistableUriPermission")
         assertThat(activity).contains("ExternalExplorerActivity")
@@ -1278,11 +1283,11 @@ class VaultShelfUxRegressionTest {
             "app/src/main/java/com/arjun/gander/ui/library/LibraryScreen.kt",
         ).readText()
 
-        assertThat(activity).contains("libraryRevision by mutableIntStateOf(0)")
-        assertThat(activity).contains("libraryRevision += 1")
-        assertThat(activity).contains("externalRevision = libraryRevision")
-        assertThat(shell).contains("externalRevision = externalRevision")
-        assertThat(library).contains("LaunchedEffect(repository, externalRevision)")
+        val resume = activity.substringAfter("override fun onResume()").substringBefore("private fun")
+        assertThat(resume).contains("shelfSession.refresh()")
+        assertThat(shell).contains("RetainedContentHost(session.books)")
+        assertThat(shell).contains("onRefresh = session.books::refresh")
+        assertThat(library).contains("LaunchedEffect(books)")
         assertThat(library).doesNotContain("onFailure {\n                importFailed = true")
     }
 

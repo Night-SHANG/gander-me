@@ -46,6 +46,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,6 +77,8 @@ import com.arjun.gander.ui.library.ShelfSort
 import com.arjun.gander.ui.library.ShelfViewMode
 import com.arjun.gander.ui.library.filterAndSortShelfItems
 import com.arjun.gander.ui.shell.QuickActionTile
+import com.arjun.gander.ui.state.RetainedContentHost
+import com.arjun.gander.vault.session.VaultShelfSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -100,9 +103,7 @@ private const val DEFAULT_VAULT_LIBRARY_GRID_COLUMNS = 3
 @Composable
 fun VaultModeShell(
     volumeName: String,
-    fileRepository: VaultFileRepository,
-    libraryStore: VaultLibraryStore,
-    externalRevision: Int,
+    session: VaultShelfSession,
     onOpenFile: (VaultFileItem) -> Unit,
     onOpenFiles: () -> Unit,
     onExportLibraryToVaultFiles: (List<VaultLibraryEntry>) -> Unit,
@@ -115,6 +116,10 @@ fun VaultModeShell(
     initialDestinationName: String = VaultModeDestination.HOME.name,
     navigationRequest: Int = 0,
 ) {
+    val fileRepository = session.fileRepository
+    val libraryStore = session.libraryStore
+    val scope = rememberCoroutineScope()
+    val tabStates = rememberSaveableStateHolder()
     val destinations = remember { VaultModeDestination.entries.toList() }
     val initialDestination = destinations
         .firstOrNull { it.name == initialDestinationName }
@@ -122,7 +127,6 @@ fun VaultModeShell(
     var selectedName by rememberSaveable(navigationRequest) {
         mutableStateOf(initialDestination.name)
     }
-    var revision by remember { mutableIntStateOf(0) }
     val selected = destinations.firstOrNull { it.name == selectedName }
         ?: VaultModeDestination.HOME
     val bottomDestination = when (selected) {
@@ -134,6 +138,25 @@ fun VaultModeShell(
 
     fun navigateTo(destination: VaultModeDestination) {
         selectedName = destination.name
+    }
+
+    fun openBook(entry: VaultLibraryEntry) {
+        scope.launch {
+            val item = withContext(Dispatchers.IO) {
+                libraryStore.markOpened(entry.id)
+                fileRepository.volume.getAttr(entry.path)?.let { stat ->
+                    VaultFileItem(
+                        name = File(entry.path).name,
+                        path = entry.path,
+                        sizeBytes = stat.size.coerceAtLeast(0L),
+                        modifiedAtEpochMillis = stat.mTime.coerceAtLeast(0L),
+                        isDirectory = false,
+                    )
+                }
+            }
+            session.books.refresh()
+            if (item != null) onOpenFile(item)
+        }
     }
 
     Scaffold(
@@ -163,66 +186,43 @@ fun VaultModeShell(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            when (selected) {
-                VaultModeDestination.HOME -> VaultHomeScreen(
-                    volumeName = volumeName,
-                    libraryStore = libraryStore,
-                    revision = revision + externalRevision,
-                    onOpenLibrary = { navigateTo(VaultModeDestination.LIBRARY) },
-                    onOpenFiles = onOpenFiles,
-                    onOpenExternalDestination = onOpenExternalDestination,
-                    onOpenBook = { entry ->
-                        libraryStore.markOpened(entry.id)
-                        fileRepository.volume.getAttr(entry.path)?.let { stat ->
-                            onOpenFile(
-                                VaultFileItem(
-                                    name = File(entry.path).name,
-                                    path = entry.path,
-                                    sizeBytes = stat.size.coerceAtLeast(0L),
-                                    modifiedAtEpochMillis = stat.mTime.coerceAtLeast(0L),
-                                    isDirectory = false,
-                                ),
-                            )
-                            revision += 1
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                )
+            tabStates.SaveableStateProvider(selected.name) {
+                when (selected) {
+                    VaultModeDestination.HOME -> RetainedContentHost(session.books) { books ->
+                        VaultHomeScreen(
+                            volumeName = volumeName,
+                            books = books,
+                            onOpenLibrary = { navigateTo(VaultModeDestination.LIBRARY) },
+                            onOpenFiles = onOpenFiles,
+                            onOpenExternalDestination = onOpenExternalDestination,
+                            onOpenBook = ::openBook,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
 
-                VaultModeDestination.LIBRARY -> VaultLibraryScreen(
-                    fileRepository = fileRepository,
-                    libraryStore = libraryStore,
-                    revision = revision + externalRevision,
-                    onOpen = { entry ->
-                        libraryStore.markOpened(entry.id)
-                        fileRepository.volume.getAttr(entry.path)?.let { stat ->
-                            onOpenFile(
-                                VaultFileItem(
-                                    name = File(entry.path).name,
-                                    path = entry.path,
-                                    sizeBytes = stat.size.coerceAtLeast(0L),
-                                    modifiedAtEpochMillis = stat.mTime.coerceAtLeast(0L),
-                                    isDirectory = false,
-                                ),
-                            )
-                            revision += 1
-                        }
-                    },
-                    onOpenFiles = onOpenFiles,
-                    onExportToVaultFiles = onExportLibraryToVaultFiles,
-                    onRevision = { revision += 1 },
-                    modifier = Modifier.fillMaxSize(),
-                )
+                    VaultModeDestination.LIBRARY -> RetainedContentHost(session.books) { books ->
+                        VaultLibraryScreen(
+                            fileRepository = fileRepository,
+                            libraryStore = libraryStore,
+                            books = books,
+                            onOpen = ::openBook,
+                            onOpenFiles = onOpenFiles,
+                            onExportToVaultFiles = onExportLibraryToVaultFiles,
+                            onRefresh = session.books::refresh,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
 
-                VaultModeDestination.SETTINGS -> VaultSettingsScreen(
-                    volumeName = volumeName,
-                    onSwitchVault = onSwitchVault,
-                    onOpenVaultSettings = onOpenVaultSettings,
-                    onOpenVaultBackup = onOpenVaultBackup,
-                    onLockVault = onLockVault,
-                    onOpenExternalDestination = onOpenExternalDestination,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                    VaultModeDestination.SETTINGS -> VaultSettingsScreen(
+                        volumeName = volumeName,
+                        onSwitchVault = onSwitchVault,
+                        onOpenVaultSettings = onOpenVaultSettings,
+                        onOpenVaultBackup = onOpenVaultBackup,
+                        onLockVault = onLockVault,
+                        onOpenExternalDestination = onOpenExternalDestination,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
     }
@@ -231,19 +231,14 @@ fun VaultModeShell(
 @Composable
 private fun VaultHomeScreen(
     volumeName: String,
-    libraryStore: VaultLibraryStore,
-    revision: Int,
+    books: List<VaultLibraryEntry>,
     onOpenLibrary: () -> Unit,
     onOpenFiles: () -> Unit,
     onOpenExternalDestination: (String) -> Unit,
     onOpenBook: (VaultLibraryEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var books by remember { mutableStateOf<List<VaultLibraryEntry>>(emptyList()) }
-    LaunchedEffect(revision) {
-        books = withContext(Dispatchers.IO) { libraryStore.listBooks() }
-    }
-    val recent = books.filter { it.lastOpenedAtEpochMillis > 0L }.take(6)
+    val recent = remember(books) { books.filter { it.lastOpenedAtEpochMillis > 0L }.take(6) }
 
     Column(
         modifier = modifier
@@ -380,11 +375,11 @@ private fun VaultHomeScreen(
 private fun VaultLibraryScreen(
     fileRepository: VaultFileRepository,
     libraryStore: VaultLibraryStore,
-    revision: Int,
+    books: List<VaultLibraryEntry>,
     onOpen: (VaultLibraryEntry) -> Unit,
     onOpenFiles: () -> Unit,
     onExportToVaultFiles: (List<VaultLibraryEntry>) -> Unit,
-    onRevision: () -> Unit,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -396,7 +391,6 @@ private fun VaultLibraryScreen(
             Context.MODE_PRIVATE,
         )
     }
-    var books by remember { mutableStateOf<List<VaultLibraryEntry>>(emptyList()) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var sortName by rememberSaveable { mutableStateOf(ShelfSort.LAST_ACTIVITY.name) }
     var viewModeName by rememberSaveable { mutableStateOf(ShelfViewMode.GRID.name) }
@@ -433,11 +427,7 @@ private fun VaultLibraryScreen(
     }
 
     fun refresh() {
-        scope.launch {
-            books = withContext(Dispatchers.IO) { libraryStore.listBooks() }
-            selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
-            onRevision()
-        }
+        onRefresh()
     }
 
     fun completeExternalTransfer(
@@ -490,8 +480,8 @@ private fun VaultLibraryScreen(
         }
     }
 
-    LaunchedEffect(revision) {
-        books = withContext(Dispatchers.IO) { libraryStore.listBooks() }
+    LaunchedEffect(books) {
+        selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
     }
 
     Column(modifier = modifier.fillMaxSize()) {

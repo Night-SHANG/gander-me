@@ -17,6 +17,7 @@ import com.arjun.gander.VaultShelfActivity
 import com.arjun.gander.files.VaultExplorerActivity
 import com.arjun.gander.navigation.suppressTopLevelTransition
 import com.arjun.gander.ui.theme.VaultShelfTheme
+import com.arjun.gander.vault.session.VaultShelfSession
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfFileRouter
 import java.util.ArrayList
@@ -33,7 +34,7 @@ class VaultModeActivity : BaseActivity() {
         applyCustomTheme = false
     }
 
-    private var libraryRevision by mutableIntStateOf(0)
+    private var shelfSession: VaultShelfSession? = null
     private var requestedDestinationName by mutableStateOf("HOME")
     private var returnToFiles by mutableStateOf(false)
     private var navigationRequest by mutableIntStateOf(0)
@@ -55,17 +56,15 @@ class VaultModeActivity : BaseActivity() {
         finishOnClose(volume)
         switchVolumeOpener = VolumeOpener(this)
 
-        val fileRepository = VaultFileRepository(applicationContext, volumeId)
-        val libraryStore = VaultLibraryStore(applicationContext, fileRepository)
+        val session = VaultShelfSession.get(applicationContext, volumeId)
+        shelfSession = session
         val root = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 VaultShelfTheme {
                     VaultModeShell(
                         volumeName = volumeName,
-                        fileRepository = fileRepository,
-                        libraryStore = libraryStore,
-                        externalRevision = libraryRevision,
+                        session = session,
                         initialDestinationName = requestedDestinationName,
                         navigationRequest = navigationRequest,
                         onOpenFile = { item ->
@@ -230,7 +229,7 @@ class VaultModeActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         VaultScreenshotPolicy.apply(this)
-        libraryRevision += 1
+        shelfSession?.books?.refresh()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

@@ -32,7 +32,6 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
@@ -103,8 +102,9 @@ internal enum class ShelfSort(@StringRes val labelRes: Int) {
 @Composable
 fun LibraryScreen(
     repository: LibraryRepository,
+    books: List<LibraryBook>,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
-    externalRevision: Int = 0,
     onImportToVaultFiles: ((List<LibraryBook>) -> Unit)? = null,
     onImportToVaultLibrary: ((List<LibraryBook>) -> Unit)? = null,
 ) {
@@ -114,8 +114,6 @@ fun LibraryScreen(
     val shelfPreferences = remember {
         context.getSharedPreferences(SHELF_UI_PREFERENCES, Context.MODE_PRIVATE)
     }
-    var books by remember { mutableStateOf<List<LibraryBook>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
     var viewModeName by rememberSaveable { mutableStateOf(ShelfViewMode.GRID.name) }
     var sortName by rememberSaveable { mutableStateOf(ShelfSort.LAST_ACTIVITY.name) }
@@ -142,12 +140,7 @@ fun LibraryScreen(
     }
 
     fun refresh() {
-        scope.launch {
-            loading = true
-            books = repository.listBooks()
-            selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
-            loading = false
-        }
+        onRefresh()
     }
 
     fun dismissTransientMessage() {
@@ -199,7 +192,7 @@ fun LibraryScreen(
                                 exported.forEach { repository.deleteBook(it) }
                             }
                             selectedIds = emptySet()
-                            books = repository.listBooks()
+                            refresh()
                         }
                         null -> exportedSourceIds = exported
                     }
@@ -288,7 +281,7 @@ fun LibraryScreen(
                         }
                     }.onFailure { failedCount += 1 }
                 }
-                books = repository.listBooks()
+                refresh()
                 when {
                     failedCount == uris.size -> {
                         showTransientMessage(
@@ -337,10 +330,8 @@ fun LibraryScreen(
         }
     }
 
-    LaunchedEffect(repository, externalRevision) {
-        books = repository.listBooks()
+    LaunchedEffect(books) {
         selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
-        loading = false
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -407,7 +398,6 @@ fun LibraryScreen(
         }
 
         when {
-            loading -> LoadingLibrary()
             books.isEmpty() -> EmptyLibrary(
                 onImport = {
                     dismissTransientMessage()
@@ -481,7 +471,7 @@ fun LibraryScreen(
             onConfirm = { title ->
                 scope.launch {
                     repository.renameBook(book.id, title)
-                    books = repository.listBooks()
+                    refresh()
                     bookToRename = null
                 }
             },
@@ -501,7 +491,7 @@ fun LibraryScreen(
                         onClick = {
                             scope.launch {
                                 repository.deleteBook(book.id)
-                                books = repository.listBooks()
+                                refresh()
                                 selectedIds = selectedIds - book.id
                                 bookToDelete = null
                             }
@@ -515,7 +505,7 @@ fun LibraryScreen(
                                 scope.launch {
                                     val sourceDeleted = repository.deleteOriginalSource(book.id)
                                     if (sourceDeleted) repository.deleteBook(book.id)
-                                    books = repository.listBooks()
+                                    refresh()
                                     selectedIds = selectedIds - book.id
                                     bookToDelete = null
                                 }
@@ -556,7 +546,7 @@ fun LibraryScreen(
                             scope.launch {
                                 selectedIds.forEach { repository.deleteBook(it) }
                                 selectedIds = emptySet()
-                                books = repository.listBooks()
+                                refresh()
                                 confirmBatchDelete = false
                             }
                         },
@@ -573,7 +563,7 @@ fun LibraryScreen(
                                         }
                                     }
                                     selectedIds = emptySet()
-                                    books = repository.listBooks()
+                                    refresh()
                                     confirmBatchDelete = false
                                 }
                             },
@@ -612,7 +602,7 @@ fun LibraryScreen(
                         scope.launch {
                             ids.forEach { repository.deleteBook(it) }
                             selectedIds = emptySet()
-                            books = repository.listBooks()
+                            refresh()
                         }
                     },
                 ) {
@@ -967,13 +957,6 @@ private fun SelectionAction(
             maxLines = 2,
             textAlign = TextAlign.Center,
         )
-    }
-}
-
-@Composable
-private fun LoadingLibrary() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
     }
 }
 
