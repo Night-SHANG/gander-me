@@ -60,7 +60,15 @@ suspend fun createReaderLaunchPlan(
         }
 
         BookFormat.MARKDOWN,
-        BookFormat.PDF -> {
+        BookFormat.PDF,
+        BookFormat.DOCX,
+        BookFormat.XLSX,
+        BookFormat.XLS,
+        BookFormat.XLSM,
+        BookFormat.XLSB,
+        BookFormat.CSV,
+        BookFormat.ODS,
+        BookFormat.PPTX -> {
             repository.updateProgress(book.id, book.readingOffset)
             ReaderLaunchPlan(
                 intent = Intent(context, ViewerActivity::class.java)

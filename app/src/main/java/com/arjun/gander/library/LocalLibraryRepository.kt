@@ -49,6 +49,14 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             BookFormat.PDF -> importPdf(uri)
             BookFormat.UMD -> importUmd(uri)
             BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW -> importMobi(uri, format)
+            BookFormat.DOCX,
+            BookFormat.XLSX,
+            BookFormat.XLS,
+            BookFormat.XLSM,
+            BookFormat.XLSB,
+            BookFormat.CSV,
+            BookFormat.ODS,
+            BookFormat.PPTX -> importDocument(uri, format)
         }
     }
 
@@ -94,6 +102,25 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
         attachLegado(importFile(uri, BookFormat.EPUB, "epub") { 0 })
     }
 
+    override suspend fun importDocument(
+        uri: Uri,
+        format: BookFormat,
+    ): LibraryBook = withContext(Dispatchers.IO) {
+        require(
+            format == BookFormat.DOCX ||
+                format == BookFormat.XLSX ||
+                format == BookFormat.XLS ||
+                format == BookFormat.XLSM ||
+                format == BookFormat.XLSB ||
+                format == BookFormat.CSV ||
+                format == BookFormat.ODS ||
+                format == BookFormat.PPTX
+        ) {
+            "Unsupported document format"
+        }
+        importFile(uri, format, BookFormat.extension(format)) { 0 }
+    }
+
     suspend fun importStream(
         displayName: String,
         format: BookFormat,
@@ -127,7 +154,15 @@ class LocalLibraryRepository(context: Context) : LibraryRepository {
             BookFormat.AZW3,
             BookFormat.AZW -> attachLegado(imported)
             BookFormat.MARKDOWN,
-            BookFormat.PDF -> imported
+            BookFormat.PDF,
+            BookFormat.DOCX,
+            BookFormat.XLSX,
+            BookFormat.XLS,
+            BookFormat.XLSM,
+            BookFormat.XLSB,
+            BookFormat.CSV,
+            BookFormat.ODS,
+            BookFormat.PPTX -> imported
         }
     }
 

@@ -3,26 +3,38 @@ package com.arjun.gander.files
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import android.view.Menu
 import android.view.MenuItem
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.arjun.gander.BookReadingPositions
 import com.arjun.gander.Positions
 import com.arjun.gander.R
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.navigation.suppressTopLevelTransition
+import com.arjun.gander.transfer.TransferBehaviorPreferences
+import com.arjun.gander.transfer.TransferRoute
+import com.arjun.gander.transfer.TransferSourceDecision
+import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.EncryptedVolumeInputStream
 import com.arjun.gander.vault.VaultImportTargetActivity
 import com.arjun.gander.vault.VaultLibraryEntry
 import com.arjun.gander.vault.VaultLibraryStore
-import com.arjun.gander.vault.VaultModeActivity
+import com.arjun.gander.vault.VaultSecurityPolicy
+import com.arjun.gander.vault.VaultBottomBar
+import com.arjun.gander.vault.VaultBottomDestination
+import com.arjun.gander.vault.VaultExitCoordinator
 import com.arjun.gander.vault.VaultFileRepository
-import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.arjun.gander.vault.VaultModeActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.VaultShelfProgressStore
-import java.util.ArrayList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,8 +47,6 @@ import sushi.hardcore.droidfs.file_operations.TaskResult
  * Vault-file variant of DroidFS Explorer with VaultShelf navigation and four-zone transfers.
  */
 class VaultExplorerActivity : ExplorerActivity() {
-
-    private var bottomNavigation: BottomNavigationView? = null
 
     private lateinit var vaultFiles: VaultFileRepository
     private lateinit var vaultLibrary: VaultLibraryStore
@@ -56,6 +66,11 @@ class VaultExplorerActivity : ExplorerActivity() {
         vaultFiles = VaultFileRepository(applicationContext, volumeId)
         vaultLibrary = VaultLibraryStore(applicationContext, vaultFiles)
         configureBottomNavigation()
+    }
+
+    protected override fun onRootBackPressed(): Boolean {
+        VaultExitCoordinator.confirmExit(this)
+        return true
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -93,12 +108,20 @@ class VaultExplorerActivity : ExplorerActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_export_external -> {
-                pendingExport = selectedElements()
-                if (pendingExport.isNotEmpty()) exportDirectory.launch(null)
+                if (!VaultSecurityPolicy.allowPlaintextExport(this)) {
+                    Toast.makeText(this, R.string.vault_export_blocked, Toast.LENGTH_SHORT).show()
+                } else {
+                    pendingExport = selectedElements()
+                    if (pendingExport.isNotEmpty()) exportDirectory.launch(null)
+                }
                 true
             }
             R.id.action_add_to_external_library -> {
-                importSelectedIntoExternalLibrary()
+                if (!VaultSecurityPolicy.allowPlaintextExport(this)) {
+                    Toast.makeText(this, R.string.vault_export_blocked, Toast.LENGTH_SHORT).show()
+                } else {
+                    importSelectedIntoExternalLibrary()
+                }
                 true
             }
             R.id.action_add_to_vault_library -> {
@@ -139,19 +162,28 @@ class VaultExplorerActivity : ExplorerActivity() {
                 result.showErrorAlertDialog(this@VaultExplorerActivity)
                 return@launch
             }
-            MaterialAlertDialogBuilder(this@VaultExplorerActivity)
-                .setTitle(R.string.vault_transfer_done_title)
-                .setMessage(R.string.vault_transfer_delete_file_source_question)
-                .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
-                    promptDeleteVaultFileSources(
-                        selected,
-                        allowLinkedLibraryCleanup = true,
-                    )
-                }
-                .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
-                    unselectAll()
-                }
-                .show()
+            when (
+                TransferBehaviorPreferences.automaticDecision(
+                    this@VaultExplorerActivity,
+                    TransferRoute.VAULT_FILES_TO_EXTERNAL_FILES,
+                )
+            ) {
+                TransferSourceDecision.KEEP -> unselectAll()
+                TransferSourceDecision.DELETE -> lifecycleScope.launch { deleteElements(selected) }
+                null -> MaterialAlertDialogBuilder(this@VaultExplorerActivity)
+                    .setTitle(R.string.vault_transfer_done_title)
+                    .setMessage(R.string.vault_transfer_delete_file_source_question)
+                    .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
+                        promptDeleteVaultFileSources(
+                            selected,
+                            allowLinkedLibraryCleanup = true,
+                        )
+                    }
+                    .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
+                        unselectAll()
+                    }
+                    .show()
+            }
         }
     }
 
@@ -193,25 +225,34 @@ class VaultExplorerActivity : ExplorerActivity() {
             if (imported.isEmpty()) {
                 showTransferFailed()
             } else {
-                MaterialAlertDialogBuilder(this@VaultExplorerActivity)
-                    .setTitle(R.string.vault_transfer_done_title)
-                    .setMessage(
-                        resources.getQuantityString(
-                            R.plurals.vault_transfer_vault_files_to_external_library_done,
-                            imported.size,
-                            imported.size,
-                        ),
+                when (
+                    TransferBehaviorPreferences.automaticDecision(
+                        this@VaultExplorerActivity,
+                        TransferRoute.VAULT_FILES_TO_EXTERNAL_LIBRARY,
                     )
-                    .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
-                        promptDeleteVaultFileSources(
-                            imported,
-                            allowLinkedLibraryCleanup = true,
+                ) {
+                    TransferSourceDecision.KEEP -> unselectAll()
+                    TransferSourceDecision.DELETE -> lifecycleScope.launch { deleteElements(imported) }
+                    null -> MaterialAlertDialogBuilder(this@VaultExplorerActivity)
+                        .setTitle(R.string.vault_transfer_done_title)
+                        .setMessage(
+                            resources.getQuantityString(
+                                R.plurals.vault_transfer_vault_files_to_external_library_done,
+                                imported.size,
+                                imported.size,
+                            ),
                         )
-                    }
-                    .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
-                        unselectAll()
-                    }
-                    .show()
+                        .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
+                            promptDeleteVaultFileSources(
+                                imported,
+                                allowLinkedLibraryCleanup = true,
+                            )
+                        }
+                        .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
+                            unselectAll()
+                        }
+                        .show()
+                }
             }
         }
     }
@@ -234,22 +275,31 @@ class VaultExplorerActivity : ExplorerActivity() {
             if (imported.isEmpty()) {
                 showTransferFailed()
             } else {
-                MaterialAlertDialogBuilder(this@VaultExplorerActivity)
-                    .setTitle(R.string.vault_transfer_done_title)
-                    .setMessage(
-                        resources.getQuantityString(
-                            R.plurals.vault_transfer_vault_files_to_vault_library_done,
-                            imported.size,
-                            imported.size,
-                        ),
+                when (
+                    TransferBehaviorPreferences.automaticDecision(
+                        this@VaultExplorerActivity,
+                        TransferRoute.VAULT_FILES_TO_VAULT_LIBRARY,
                     )
-                    .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
-                        lifecycleScope.launch { deleteElements(imported) }
-                    }
-                    .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
-                        unselectAll()
-                    }
-                    .show()
+                ) {
+                    TransferSourceDecision.KEEP -> unselectAll()
+                    TransferSourceDecision.DELETE -> lifecycleScope.launch { deleteElements(imported) }
+                    null -> MaterialAlertDialogBuilder(this@VaultExplorerActivity)
+                        .setTitle(R.string.vault_transfer_done_title)
+                        .setMessage(
+                            resources.getQuantityString(
+                                R.plurals.vault_transfer_vault_files_to_vault_library_done,
+                                imported.size,
+                                imported.size,
+                            ),
+                        )
+                        .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
+                            lifecycleScope.launch { deleteElements(imported) }
+                        }
+                        .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
+                            unselectAll()
+                        }
+                        .show()
+                }
             }
         }
     }
@@ -386,36 +436,32 @@ class VaultExplorerActivity : ExplorerActivity() {
     }
 
     private fun configureBottomNavigation() {
-        val nav = findViewById<BottomNavigationView>(R.id.vaultshelf_explorer_bottom_nav)
-        bottomNavigation = nav
+        val nav = findViewById<ComposeView>(R.id.vaultshelf_explorer_bottom_nav)
         nav.isVisible = true
-        nav.menu.findItem(R.id.vaultshelf_nav_vault_item)?.isVisible = false
-        nav.selectedItemId = R.id.vaultshelf_nav_files_item
-        nav.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.vaultshelf_nav_files_item -> true
-                R.id.vaultshelf_nav_home_item -> {
-                    openVaultShell("HOME")
-                    false
-                }
-                R.id.vaultshelf_nav_library_item -> {
-                    openVaultShell("LIBRARY")
-                    false
-                }
-                R.id.vaultshelf_nav_settings_item -> {
-                    openVaultShell("SETTINGS")
-                    false
-                }
-                else -> false
+        ViewCompat.setOnApplyWindowInsetsListener(nav) { view, insets ->
+            view.isVisible = !insets.isVisible(WindowInsetsCompat.Type.ime())
+            insets
+        }
+        ViewCompat.requestApplyInsets(nav)
+        nav.setViewCompositionStrategy(
+            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
+        )
+        nav.setContent {
+            VaultShelfTheme {
+                VaultBottomBar(
+                    selected = VaultBottomDestination.FILES,
+                    onSelected = { destination ->
+                        when (destination) {
+                            VaultBottomDestination.FILES -> Unit
+                            VaultBottomDestination.HOME,
+                            VaultBottomDestination.LIBRARY,
+                            VaultBottomDestination.SETTINGS ->
+                                openVaultShell(destination.name)
+                        }
+                    },
+                )
             }
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        bottomNavigation?.menu
-            ?.findItem(R.id.vaultshelf_nav_files_item)
-            ?.isChecked = true
     }
 
     private fun openVaultShell(destination: String) {
@@ -427,9 +473,9 @@ class VaultExplorerActivity : ExplorerActivity() {
                     intent.getStringExtra("volumeName").orEmpty(),
                 )
                 .putExtra(VaultModeActivity.EXTRA_INITIAL_DESTINATION, destination)
-                .putExtra(VaultModeActivity.EXTRA_RETURN_TO_FILES, true)
-                .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                .putExtra(VaultModeActivity.EXTRA_RETURN_TO_FILES, true),
         )
-        overridePendingTransition(0, 0)
+        suppressTopLevelTransition()
     }
+
 }

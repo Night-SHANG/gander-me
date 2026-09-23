@@ -8,7 +8,15 @@ enum class BookFormat {
     UMD,
     MOBI,
     AZW3,
-    AZW;
+    AZW,
+    DOCX,
+    XLSX,
+    XLS,
+    XLSM,
+    XLSB,
+    CSV,
+    ODS,
+    PPTX;
 
     companion object {
         fun fromFileName(name: String): BookFormat? =
@@ -21,6 +29,14 @@ enum class BookFormat {
                 "mobi" -> MOBI
                 "azw3" -> AZW3
                 "azw" -> AZW
+                "docx" -> DOCX
+                "xlsx" -> XLSX
+                "xls" -> XLS
+                "xlsm" -> XLSM
+                "xlsb" -> XLSB
+                "csv" -> CSV
+                "ods" -> ODS
+                "pptx" -> PPTX
                 else -> null
             }
 
@@ -34,6 +50,14 @@ enum class BookFormat {
                 MOBI -> "mobi"
                 AZW3 -> "azw3"
                 AZW -> "azw"
+                DOCX -> "docx"
+                XLSX -> "xlsx"
+                XLS -> "xls"
+                XLSM -> "xlsm"
+                XLSB -> "xlsb"
+                CSV -> "csv"
+                ODS -> "ods"
+                PPTX -> "pptx"
             }
     }
 }
@@ -77,6 +101,28 @@ data class LibraryBook(
             BookFormat.MOBI,
             BookFormat.AZW3,
             BookFormat.AZW -> (publicationProgression ?: 0f).coerceIn(0f, 1f)
+
+            BookFormat.DOCX,
+            BookFormat.XLSX,
+            BookFormat.XLS,
+            BookFormat.XLSM,
+            BookFormat.XLSB,
+            BookFormat.CSV,
+            BookFormat.ODS,
+            BookFormat.PPTX -> (publicationProgression ?: 0f).coerceIn(0f, 1f)
+        }
+
+    val showsReadingProgress: Boolean
+        get() = when (format) {
+            BookFormat.DOCX,
+            BookFormat.XLSX,
+            BookFormat.XLS,
+            BookFormat.XLSM,
+            BookFormat.XLSB,
+            BookFormat.CSV,
+            BookFormat.ODS,
+            BookFormat.PPTX -> false
+            else -> true
         }
 
     val progressPercent: Int

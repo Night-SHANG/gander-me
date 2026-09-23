@@ -32,13 +32,15 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,6 +60,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -75,18 +78,21 @@ import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
 import com.arjun.gander.library.createReaderLaunchPlan
 import com.arjun.gander.library.syncLegadoReaderProgress
+import com.arjun.gander.transfer.TransferBehaviorPreferences
+import com.arjun.gander.transfer.TransferRoute
+import com.arjun.gander.transfer.TransferSourceDecision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.ArrayList
 
-private enum class ShelfViewMode { GRID, LIST }
+internal enum class ShelfViewMode { GRID, LIST }
 
 private const val SHELF_UI_PREFERENCES = "vaultshelf_library_ui"
 private const val PREF_GRID_COLUMNS = "grid_columns"
 private const val DEFAULT_GRID_COLUMNS = 3
 
-private enum class ShelfSort(@StringRes val labelRes: Int) {
+internal enum class ShelfSort(@StringRes val labelRes: Int) {
     LAST_ACTIVITY(R.string.vaultshelf_library_sort_recent),
     TITLE(R.string.vaultshelf_library_sort_title),
     ADDED(R.string.vaultshelf_library_sort_added),
@@ -96,19 +102,19 @@ private enum class ShelfSort(@StringRes val labelRes: Int) {
 @Composable
 fun LibraryScreen(
     repository: LibraryRepository,
+    books: List<LibraryBook>,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
-    externalRevision: Int = 0,
     onImportToVaultFiles: ((List<LibraryBook>) -> Unit)? = null,
     onImportToVaultLibrary: ((List<LibraryBook>) -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val shelfPreferences = remember {
         context.getSharedPreferences(SHELF_UI_PREFERENCES, Context.MODE_PRIVATE)
     }
-    var books by remember { mutableStateOf<List<LibraryBook>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    var importFailed by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     var viewModeName by rememberSaveable { mutableStateOf(ShelfViewMode.GRID.name) }
     var sortName by rememberSaveable { mutableStateOf(ShelfSort.LAST_ACTIVITY.name) }
     var gridColumns by rememberSaveable {
@@ -134,11 +140,20 @@ fun LibraryScreen(
     }
 
     fun refresh() {
+        onRefresh()
+    }
+
+    fun dismissTransientMessage() {
+        snackbarHostState.currentSnackbarData?.dismiss()
+    }
+
+    fun showTransientMessage(message: String) {
         scope.launch {
-            loading = true
-            books = repository.listBooks()
-            selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
-            loading = false
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Long,
+            )
         }
     }
 
@@ -154,16 +169,42 @@ fun LibraryScreen(
         val ids = exportBookIds
         exportBookIds = emptyList()
         if (rootUri != null && ids.isNotEmpty()) {
+            dismissTransientMessage()
             scope.launch {
                 val selectedBooks = books.filter { it.id in ids }
                 val exported = withContext(Dispatchers.IO) {
                     exportLibraryBooksToTree(context, repository, selectedBooks, rootUri)
                 }
                 if (exported.isEmpty()) {
-                    importFailed = true
+                    showTransientMessage(
+                        resources.getString(R.string.vaultshelf_library_export_failed),
+                    )
                 } else {
-                    exportedSourceIds = exported
-                    if (exported.size != selectedBooks.size) importFailed = true
+                    when (
+                        TransferBehaviorPreferences.automaticDecision(
+                            context,
+                            TransferRoute.EXTERNAL_LIBRARY_TO_EXTERNAL_FILES,
+                        )
+                    ) {
+                        TransferSourceDecision.KEEP -> selectedIds = emptySet()
+                        TransferSourceDecision.DELETE -> {
+                            withContext(Dispatchers.IO) {
+                                exported.forEach { repository.deleteBook(it) }
+                            }
+                            selectedIds = emptySet()
+                            refresh()
+                        }
+                        null -> exportedSourceIds = exported
+                    }
+                    if (exported.size != selectedBooks.size) {
+                        showTransientMessage(
+                            resources.getString(
+                                R.string.vaultshelf_library_export_partial,
+                                exported.size,
+                                selectedBooks.size - exported.size,
+                            ),
+                        )
+                    }
                 }
             }
         }
@@ -201,9 +242,9 @@ fun LibraryScreen(
         contract = ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
         if (uris.isNotEmpty()) {
-            importFailed = false
+            dismissTransientMessage()
             scope.launch {
-                var failed = false
+                var failedCount = 0
                 uris.forEach { uri ->
                     runCatching {
                         val persistFlags =
@@ -228,17 +269,41 @@ fun LibraryScreen(
                             BookFormat.UMD -> repository.importUmd(uri)
                             BookFormat.MOBI, BookFormat.AZW3, BookFormat.AZW ->
                                 repository.importMobi(uri, format)
+                            BookFormat.DOCX,
+                            BookFormat.XLSX,
+                            BookFormat.XLS,
+                            BookFormat.XLSM,
+                            BookFormat.XLSB,
+                            BookFormat.CSV,
+                            BookFormat.ODS,
+                            BookFormat.PPTX -> repository.importDocument(uri, format)
                             null -> error("Unsupported library format")
                         }
-                    }.onFailure { failed = true }
+                    }.onFailure { failedCount += 1 }
                 }
-                books = repository.listBooks()
-                importFailed = failed
+                refresh()
+                when {
+                    failedCount == uris.size -> {
+                        showTransientMessage(
+                            resources.getString(R.string.vaultshelf_library_import_failed),
+                        )
+                    }
+                    failedCount > 0 -> {
+                        showTransientMessage(
+                            resources.getString(
+                                R.string.vaultshelf_library_import_partial,
+                                uris.size - failedCount,
+                                failedCount,
+                            ),
+                        )
+                    }
+                }
             }
         }
     }
 
     fun openBook(book: LibraryBook) {
+        dismissTransientMessage()
         scope.launch {
             runCatching {
                 createReaderLaunchPlan(context, repository, book)
@@ -265,13 +330,12 @@ fun LibraryScreen(
         }
     }
 
-    LaunchedEffect(repository, externalRevision) {
-        books = repository.listBooks()
+    LaunchedEffect(books) {
         selectedIds = selectedIds.intersect(books.mapTo(mutableSetOf()) { it.id })
-        loading = false
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
         if (selectedIds.isNotEmpty()) {
             SelectionHeader(
                 selectedCount = selectedIds.size,
@@ -285,6 +349,7 @@ fun LibraryScreen(
                     }
                 },
                 onExportToFiles = {
+                    dismissTransientMessage()
                     exportBookIds = selectedIds.toList()
                     exportLauncher.launch(null)
                 },
@@ -325,23 +390,19 @@ fun LibraryScreen(
                     gridColumns = columns.coerceIn(2, 6)
                     shelfPreferences.edit { putInt(PREF_GRID_COLUMNS, gridColumns) }
                 },
-                onImport = { importLauncher.launch(IMPORT_MIME_TYPES) },
-            )
-        }
-
-        if (importFailed) {
-            Text(
-                text = stringResource(R.string.vaultshelf_library_import_failed),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                onImport = {
+                    dismissTransientMessage()
+                    importLauncher.launch(IMPORT_MIME_TYPES)
+                },
             )
         }
 
         when {
-            loading -> LoadingLibrary()
             books.isEmpty() -> EmptyLibrary(
-                onImport = { importLauncher.launch(IMPORT_MIME_TYPES) },
+                onImport = {
+                    dismissTransientMessage()
+                    importLauncher.launch(IMPORT_MIME_TYPES)
+                },
                 modifier = Modifier.padding(16.dp),
             )
 
@@ -393,6 +454,14 @@ fun LibraryScreen(
                 }
             }
         }
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        )
     }
 
     bookToRename?.let { book ->
@@ -402,7 +471,7 @@ fun LibraryScreen(
             onConfirm = { title ->
                 scope.launch {
                     repository.renameBook(book.id, title)
-                    books = repository.listBooks()
+                    refresh()
                     bookToRename = null
                 }
             },
@@ -422,7 +491,7 @@ fun LibraryScreen(
                         onClick = {
                             scope.launch {
                                 repository.deleteBook(book.id)
-                                books = repository.listBooks()
+                                refresh()
                                 selectedIds = selectedIds - book.id
                                 bookToDelete = null
                             }
@@ -436,7 +505,7 @@ fun LibraryScreen(
                                 scope.launch {
                                     val sourceDeleted = repository.deleteOriginalSource(book.id)
                                     if (sourceDeleted) repository.deleteBook(book.id)
-                                    books = repository.listBooks()
+                                    refresh()
                                     selectedIds = selectedIds - book.id
                                     bookToDelete = null
                                 }
@@ -477,7 +546,7 @@ fun LibraryScreen(
                             scope.launch {
                                 selectedIds.forEach { repository.deleteBook(it) }
                                 selectedIds = emptySet()
-                                books = repository.listBooks()
+                                refresh()
                                 confirmBatchDelete = false
                             }
                         },
@@ -494,7 +563,7 @@ fun LibraryScreen(
                                         }
                                     }
                                     selectedIds = emptySet()
-                                    books = repository.listBooks()
+                                    refresh()
                                     confirmBatchDelete = false
                                 }
                             },
@@ -533,7 +602,7 @@ fun LibraryScreen(
                         scope.launch {
                             ids.forEach { repository.deleteBook(it) }
                             selectedIds = emptySet()
-                            books = repository.listBooks()
+                            refresh()
                         }
                     },
                 ) {
@@ -566,7 +635,9 @@ fun LibraryScreen(
                             Formatter.formatShortFileSize(context, book.sizeBytes),
                         ),
                     )
-                    Text(stringResource(R.string.vaultshelf_library_progress, book.progressPercent))
+                    if (book.showsReadingProgress) {
+                        Text(stringResource(R.string.vaultshelf_library_progress, book.progressPercent))
+                    }
                 }
             },
             confirmButton = {
@@ -578,35 +649,54 @@ fun LibraryScreen(
     }
 }
 
-private fun filterAndSortBooks(
-    books: List<LibraryBook>,
+internal fun <T> filterAndSortShelfItems(
+    items: List<T>,
     query: String,
     sort: ShelfSort,
-): List<LibraryBook> {
+    title: (T) -> String,
+    addedAtEpochMillis: (T) -> Long,
+    lastOpenedAtEpochMillis: (T) -> Long,
+    progressFraction: (T) -> Float,
+): List<T> {
     val normalizedQuery = query.trim()
     val filtered = if (normalizedQuery.isEmpty()) {
-        books
+        items
     } else {
-        books.filter { it.title.contains(normalizedQuery, ignoreCase = true) }
+        items.filter { title(it).contains(normalizedQuery, ignoreCase = true) }
     }
 
     return when (sort) {
         ShelfSort.LAST_ACTIVITY -> filtered.sortedWith(
-            compareByDescending<LibraryBook> {
-                if (it.lastOpenedAtEpochMillis > 0L) it.lastOpenedAtEpochMillis else it.addedAtEpochMillis
-            }.thenBy { it.title.lowercase() },
+            compareByDescending<T> {
+                val lastOpened = lastOpenedAtEpochMillis(it)
+                if (lastOpened > 0L) lastOpened else addedAtEpochMillis(it)
+            }.thenBy { title(it).lowercase() },
         )
-        ShelfSort.TITLE -> filtered.sortedBy { it.title.lowercase() }
-        ShelfSort.ADDED -> filtered.sortedByDescending { it.addedAtEpochMillis }
+        ShelfSort.TITLE -> filtered.sortedBy { title(it).lowercase() }
+        ShelfSort.ADDED -> filtered.sortedByDescending { addedAtEpochMillis(it) }
         ShelfSort.PROGRESS -> filtered.sortedWith(
-            compareByDescending<LibraryBook> { it.progressFraction }
-                .thenByDescending { it.lastOpenedAtEpochMillis },
+            compareByDescending<T> { progressFraction(it) }
+                .thenByDescending { lastOpenedAtEpochMillis(it) },
         )
     }
 }
 
+private fun filterAndSortBooks(
+    books: List<LibraryBook>,
+    query: String,
+    sort: ShelfSort,
+): List<LibraryBook> = filterAndSortShelfItems(
+    items = books,
+    query = query,
+    sort = sort,
+    title = { it.title },
+    addedAtEpochMillis = { it.addedAtEpochMillis },
+    lastOpenedAtEpochMillis = { it.lastOpenedAtEpochMillis },
+    progressFraction = { it.progressFraction },
+)
+
 @Composable
-private fun ShelfHeader(
+internal fun ShelfHeader(
     bookCount: Int,
     visibleCount: Int,
     searchQuery: String,
@@ -618,6 +708,10 @@ private fun ShelfHeader(
     gridColumns: Int,
     onGridColumnsChange: (Int) -> Unit,
     onImport: () -> Unit,
+    titleOverride: String? = null,
+    countOverride: String? = null,
+    actionOverride: String? = null,
+    availableSorts: List<ShelfSort> = ShelfSort.entries,
 ) {
     var sortMenuExpanded by remember { mutableStateOf(false) }
     var gridMenuExpanded by remember { mutableStateOf(false) }
@@ -635,12 +729,12 @@ private fun ShelfHeader(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = stringResource(R.string.vaultshelf_library_title),
+                    text = titleOverride ?: stringResource(R.string.vaultshelf_library_title),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = if (searchQuery.isBlank()) {
+                    text = countOverride ?: if (searchQuery.isBlank()) {
                         stringResource(R.string.vaultshelf_library_book_count, bookCount)
                     } else {
                         pluralStringResource(
@@ -659,7 +753,7 @@ private fun ShelfHeader(
                 shape = RoundedCornerShape(10.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp),
             ) {
-                Text(stringResource(R.string.vaultshelf_library_import_short))
+                Text(actionOverride ?: stringResource(R.string.vaultshelf_library_import_short))
             }
         }
 
@@ -689,7 +783,7 @@ private fun ShelfHeader(
                     expanded = sortMenuExpanded,
                     onDismissRequest = { sortMenuExpanded = false },
                 ) {
-                    ShelfSort.entries.forEach { item ->
+                    availableSorts.forEach { item ->
                         DropdownMenuItem(
                             text = { Text(stringResource(item.labelRes)) },
                             onClick = {
@@ -867,13 +961,6 @@ private fun SelectionAction(
 }
 
 @Composable
-private fun LoadingLibrary() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
-    }
-}
-
-@Composable
 private fun EmptyLibrary(
     onImport: () -> Unit,
     modifier: Modifier = Modifier,
@@ -995,12 +1082,14 @@ private fun BookGridItem(
                     modifier = Modifier.align(Alignment.TopEnd),
                 )
             }
-            LinearProgressIndicator(
-                progress = { book.progressFraction },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter),
-            )
+            if (book.showsReadingProgress) {
+                LinearProgressIndicator(
+                    progress = { book.progressFraction },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter),
+                )
+            }
         }
         Text(
             text = book.title,
@@ -1013,11 +1102,15 @@ private fun BookGridItem(
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            text = stringResource(
-                R.string.vaultshelf_library_grid_meta,
-                book.format.name,
-                book.progressPercent,
-            ),
+            text = if (book.showsReadingProgress) {
+                stringResource(
+                    R.string.vaultshelf_library_grid_meta,
+                    book.format.name,
+                    book.progressPercent,
+                )
+            } else {
+                book.format.name
+            },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -1088,19 +1181,25 @@ private fun BookListItem(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = stringResource(
-                        R.string.vaultshelf_library_list_meta,
-                        book.format.name,
-                        sizeLabel,
-                        book.progressPercent,
-                    ),
+                    text = if (book.showsReadingProgress) {
+                        stringResource(
+                            R.string.vaultshelf_library_list_meta,
+                            book.format.name,
+                            sizeLabel,
+                            book.progressPercent,
+                        )
+                    } else {
+                        "${book.format.name} · $sizeLabel"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                LinearProgressIndicator(
-                    progress = { book.progressFraction },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (book.showsReadingProgress) {
+                    LinearProgressIndicator(
+                        progress = { book.progressFraction },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             if (selected) {
                 Text(
@@ -1199,7 +1298,7 @@ private fun GeneratedBookCover(book: LibraryBook) {
 }
 
 @Composable
-private fun BookMenuButton(
+internal fun BookMenuButton(
     onOpen: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
@@ -1336,6 +1435,14 @@ private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
         "mobi" -> return BookFormat.MOBI
         "azw3" -> return BookFormat.AZW3
         "azw" -> return BookFormat.AZW
+        "docx" -> return BookFormat.DOCX
+        "xlsx" -> return BookFormat.XLSX
+        "xls" -> return BookFormat.XLS
+        "xlsm" -> return BookFormat.XLSM
+        "xlsb" -> return BookFormat.XLSB
+        "csv" -> return BookFormat.CSV
+        "ods" -> return BookFormat.ODS
+        "pptx" -> return BookFormat.PPTX
     }
 
     return when (context.contentResolver.getType(uri)?.lowercase()) {
@@ -1345,6 +1452,14 @@ private fun detectBookFormat(context: Context, uri: Uri): BookFormat? {
         "application/mobi", "application/x-mobipocket-ebook" -> BookFormat.MOBI
         "application/azw3", "application/x-mobi8-ebook" -> BookFormat.AZW3
         "application/azw" -> BookFormat.AZW
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> BookFormat.DOCX
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> BookFormat.XLSX
+        "application/vnd.ms-excel" -> BookFormat.XLS
+        "application/vnd.ms-excel.sheet.macroenabled.12" -> BookFormat.XLSM
+        "application/vnd.ms-excel.sheet.binary.macroenabled.12" -> BookFormat.XLSB
+        "text/csv" -> BookFormat.CSV
+        "application/vnd.oasis.opendocument.spreadsheet" -> BookFormat.ODS
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> BookFormat.PPTX
         "text/plain" -> BookFormat.TXT
         else -> null
     }

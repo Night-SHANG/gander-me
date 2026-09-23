@@ -56,6 +56,16 @@
         <item name="windowBackgroundColor">?attr/colorSurface</item>
     </style>
 
+    <style name="Theme.Gander.TransparentBridge" parent="Theme.Gander">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+    </style>
+
     <style name="ShapeAppearance.Gander.Thumb" parent="">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">12dp</item>

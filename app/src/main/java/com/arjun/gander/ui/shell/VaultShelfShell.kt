@@ -1,11 +1,8 @@
 package com.arjun.gander.ui.shell
 
-import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.provider.DocumentsContract
-import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
@@ -18,18 +15,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -38,14 +37,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,9 +53,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,130 +66,146 @@ import com.arjun.gander.library.BookCoverStyle
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LibraryRepository
+import com.arjun.gander.library.session.ExternalShelfSession
 import com.arjun.gander.library.createReaderLaunchPlan
 import com.arjun.gander.library.syncLegadoReaderProgress
 import com.arjun.gander.ui.library.LibraryScreen
+import com.arjun.gander.ui.state.RetainedContentHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private enum class VaultShelfDestination(
-    @StringRes val labelRes: Int,
-    @DrawableRes val iconRes: Int,
-) {
-    HOME(R.string.vaultshelf_nav_home, R.drawable.ic_vaultshelf_home),
-    LIBRARY(R.string.vaultshelf_nav_library, R.drawable.ic_vaultshelf_library),
-    FILES(R.string.vaultshelf_nav_files, R.drawable.ic_vaultshelf_files),
-    VAULT(R.string.vaultshelf_nav_vault, R.drawable.ic_vaultshelf_vault),
-    SETTINGS(R.string.vaultshelf_nav_settings, R.drawable.ic_vaultshelf_settings),
-}
-
 @Composable
 fun VaultShelfShell(
-    libraryRepository: LibraryRepository,
-    externalRevision: Int,
+    session: ExternalShelfSession,
     onOpenExternalFolder: (Uri, String) -> Unit,
     onOpenVault: () -> Unit,
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
+    onOpenTransferSettings: () -> Unit,
     onImportBooksToVaultFiles: (List<LibraryBook>) -> Unit,
     onImportBooksToVaultLibrary: (List<LibraryBook>) -> Unit,
     onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
     initialDestinationName: String = VaultShelfDestination.HOME.name,
+    navigationRequest: Int = 0,
     returnToFiles: Boolean = false,
     onReturnToFiles: () -> Unit = {},
 ) {
-    var selectedName by rememberSaveable {
-        mutableStateOf(
-            VaultShelfDestination.entries
-                .firstOrNull { it.name == initialDestinationName && it != VaultShelfDestination.VAULT }
-                ?.name
-                ?: VaultShelfDestination.HOME.name,
+    val libraryRepository = session.repository
+    val tabStates = rememberSaveableStateHolder()
+    val destinations = remember {
+        listOf(
+            VaultShelfDestination.HOME,
+            VaultShelfDestination.LIBRARY,
+            VaultShelfDestination.FILES,
+            VaultShelfDestination.SETTINGS,
         )
     }
-    val selected = VaultShelfDestination.entries
-        .firstOrNull { it.name == selectedName }
+    val initialDestination = destinations
+        .firstOrNull { it.name == initialDestinationName }
         ?: VaultShelfDestination.HOME
+    var selectedName by rememberSaveable(navigationRequest) {
+        mutableStateOf(initialDestination.name)
+    }
+    val selected = destinations.firstOrNull { it.name == selectedName }
+        ?: VaultShelfDestination.HOME
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+
+    fun navigateTo(destination: VaultShelfDestination) {
+        if (destination in destinations) {
+            selectedName = destination.name
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            FluentBottomBar(
-                selected = selected,
-                onSelected = { destination ->
-                    when (destination) {
-                        VaultShelfDestination.FILES -> {
-                            if (returnToFiles) onReturnToFiles()
-                            else selectedName = destination.name
+            if (!imeVisible) {
+                VaultShelfBottomBar(
+                    destinations = VaultShelfExternalDestinations,
+                    selected = selected,
+                    onSelected = { destination ->
+                        when (destination) {
+                            VaultShelfDestination.FILES -> {
+                                if (returnToFiles) onReturnToFiles()
+                                else navigateTo(destination)
+                            }
+                            VaultShelfDestination.VAULT -> onOpenVault()
+                            else -> navigateTo(destination)
                         }
-                        VaultShelfDestination.VAULT -> onOpenVault()
-                        else -> selectedName = destination.name
-                    }
-                },
-            )
+                    },
+                )
+            }
         },
     ) { innerPadding ->
-        when (selected) {
-            VaultShelfDestination.HOME -> HomeScreen(
-                libraryRepository = libraryRepository,
-                modifier = Modifier.padding(innerPadding),
-                onOpenFiles = {
-                    if (returnToFiles) onReturnToFiles()
-                    else selectedName = VaultShelfDestination.FILES.name
-                },
-                onOpenLibrary = { selectedName = VaultShelfDestination.LIBRARY.name },
-                onOpenVault = onOpenVault,
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
+            tabStates.SaveableStateProvider(selected.name) {
+                when (selected) {
+                    VaultShelfDestination.HOME -> RetainedContentHost(session.books) { books ->
+                        HomeScreen(
+                            libraryRepository = libraryRepository,
+                            books = books,
+                            onRefresh = session.books::refresh,
+                            modifier = Modifier.fillMaxSize(),
+                            onOpenFiles = {
+                                if (returnToFiles) onReturnToFiles()
+                                else navigateTo(VaultShelfDestination.FILES)
+                            },
+                            onOpenLibrary = { navigateTo(VaultShelfDestination.LIBRARY) },
+                            onOpenVault = onOpenVault,
+                        )
+                    }
 
-            VaultShelfDestination.LIBRARY -> LibraryScreen(
-                repository = libraryRepository,
-                externalRevision = externalRevision,
-                onImportToVaultFiles = onImportBooksToVaultFiles,
-                onImportToVaultLibrary = onImportBooksToVaultLibrary,
-                modifier = Modifier.padding(innerPadding),
-            )
+                    VaultShelfDestination.LIBRARY -> RetainedContentHost(session.books) { books ->
+                        LibraryScreen(
+                            repository = libraryRepository,
+                            books = books,
+                            onRefresh = session.books::refresh,
+                            onImportToVaultFiles = onImportBooksToVaultFiles,
+                            onImportToVaultLibrary = onImportBooksToVaultLibrary,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
 
-            VaultShelfDestination.FILES -> ExternalFilesScreen(
-                onOpenFolder = onOpenExternalFolder,
-                modifier = Modifier.padding(innerPadding),
-            )
+                    VaultShelfDestination.FILES -> RetainedContentHost(session.folders) { roots ->
+                        ExternalFilesScreen(
+                            roots = roots,
+                            onRefresh = session.folders::refresh,
+                            onOpenFolder = onOpenExternalFolder,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
 
-            VaultShelfDestination.VAULT -> Unit
+                    VaultShelfDestination.SETTINGS -> SettingsScreen(
+                        onOpenVaultSettings = onOpenVaultSettings,
+                        onOpenVaultBackup = onOpenVaultBackup,
+                        onOpenTransferSettings = onOpenTransferSettings,
+                        onOpenAbout = onOpenAbout,
+                        modifier = Modifier.fillMaxSize(),
+                    )
 
-            VaultShelfDestination.SETTINGS -> SettingsScreen(
-                onOpenVaultSettings = onOpenVaultSettings,
-                onOpenVaultBackup = onOpenVaultBackup,
-                onOpenAbout = onOpenAbout,
-                modifier = Modifier.padding(innerPadding),
-            )
+                    VaultShelfDestination.VAULT -> Unit
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun ExternalFilesScreen(
+    roots: List<Pair<Uri, String>>,
+    onRefresh: () -> Unit,
     onOpenFolder: (Uri, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    var revision by rememberSaveable { mutableIntStateOf(0) }
-    val roots by produceState<List<Pair<Uri, String>>>(
-        initialValue = emptyList(),
-        revision,
-    ) {
-        value = withContext(Dispatchers.IO) {
-            context.contentResolver.persistedUriPermissions
-                .asSequence()
-                .filter { it.isReadPermission && isTreeUri(it.uri) }
-                .map { permission ->
-                    permission.uri to readTreeLabel(context, permission.uri)
-                }
-                .sortedBy { (_, label) -> label.lowercase() }
-                .toList()
-        }
-    }
+    var pendingRemoveRoot by remember { mutableStateOf<Pair<Uri, String>?>(null) }
     val openTree = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
@@ -203,7 +217,7 @@ private fun ExternalFilesScreen(
                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
             }
-            revision += 1
+            onRefresh()
         }
     }
 
@@ -282,21 +296,7 @@ private fun ExternalFilesScreen(
                             )
                         }
                         TextButton(
-                            onClick = {
-                                runCatching {
-                                    context.contentResolver.releasePersistableUriPermission(
-                                        uri,
-                                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                                    )
-                                }.recoverCatching {
-                                    context.contentResolver.releasePersistableUriPermission(
-                                        uri,
-                                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                                    )
-                                }
-                                revision += 1
-                            },
+                            onClick = { pendingRemoveRoot = uri to label },
                         ) {
                             Text(stringResource(R.string.vaultshelf_files_remove_access))
                         }
@@ -312,36 +312,55 @@ private fun ExternalFilesScreen(
             Text(stringResource(R.string.vaultshelf_files_add_folder))
         }
     }
-}
 
-private fun isTreeUri(uri: Uri): Boolean =
-    runCatching { DocumentsContract.getTreeDocumentId(uri) }.isSuccess &&
-        uri.pathSegments.firstOrNull() == "tree"
-
-private fun readTreeLabel(context: Context, uri: Uri): String {
-    val documentId = runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
-        ?: return context.getString(R.string.vaultshelf_files_folder_fallback)
-    return runCatching {
-        context.contentResolver.query(
-            DocumentsContract.buildDocumentUriUsingTree(uri, documentId),
-            arrayOf(OpenableColumns.DISPLAY_NAME),
-            null,
-            null,
-            null,
-        )?.use { cursor ->
-            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
-        }
-    }.getOrNull()
-        ?.takeIf { it.isNotBlank() }
-        ?: documentId.substringAfterLast(':').ifBlank {
-            context.getString(R.string.vaultshelf_files_folder_fallback)
-        }
+    pendingRemoveRoot?.let { (uri, label) ->
+        AlertDialog(
+            onDismissRequest = { pendingRemoveRoot = null },
+            title = { Text(stringResource(R.string.vaultshelf_files_remove_access_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.vaultshelf_files_remove_access_message,
+                        label,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.contentResolver.releasePersistableUriPermission(
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                            )
+                        }.recoverCatching {
+                            context.contentResolver.releasePersistableUriPermission(
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                            )
+                        }
+                        pendingRemoveRoot = null
+                        onRefresh()
+                    },
+                ) {
+                    Text(stringResource(R.string.vaultshelf_files_remove_access))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemoveRoot = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
 }
 
 @Composable
 private fun HomeScreen(
     libraryRepository: LibraryRepository,
+    books: List<LibraryBook>,
+    onRefresh: () -> Unit,
     onOpenFiles: () -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenVault: () -> Unit,
@@ -349,18 +368,12 @@ private fun HomeScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var recentBooks by remember { mutableStateOf<List<LibraryBook>>(emptyList()) }
+    val recentBooks = remember(books) { books.filter { it.lastOpenedAtEpochMillis > 0L }.take(6) }
     var pendingLegadoBookId by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingLegadoBookUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun refreshRecent() {
-        scope.launch {
-            recentBooks = libraryRepository.listBooks()
-                .asSequence()
-                .filter { it.lastOpenedAtEpochMillis > 0L }
-                .take(6)
-                .toList()
-        }
+        onRefresh()
     }
 
     val readerLauncher = rememberLauncherForActivityResult(
@@ -404,10 +417,6 @@ private fun HomeScreen(
                 readerLauncher.launch(plan.intent)
             }
         }
-    }
-
-    LaunchedEffect(libraryRepository) {
-        refreshRecent()
     }
 
     Column(
@@ -508,15 +517,15 @@ private fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 QuickActionTile(
-                    titleRes = R.string.vaultshelf_open_documents,
-                    iconRes = R.drawable.ic_vaultshelf_files,
-                    onClick = onOpenFiles,
-                    modifier = Modifier.weight(1f),
-                )
-                QuickActionTile(
                     titleRes = R.string.vaultshelf_library_card,
                     iconRes = R.drawable.ic_vaultshelf_library,
                     onClick = onOpenLibrary,
+                    modifier = Modifier.weight(1f),
+                )
+                QuickActionTile(
+                    titleRes = R.string.vaultshelf_open_documents,
+                    iconRes = R.drawable.ic_vaultshelf_files,
+                    onClick = onOpenFiles,
                     modifier = Modifier.weight(1f),
                 )
                 QuickActionTile(
@@ -603,16 +612,18 @@ private fun RecentBookCard(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
-            text = stringResource(R.string.vaultshelf_reader_progress, book.progressPercent),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (book.showsReadingProgress) {
+            Text(
+                text = stringResource(R.string.vaultshelf_reader_progress, book.progressPercent),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
 @Composable
-private fun QuickActionTile(
+internal fun QuickActionTile(
     @StringRes titleRes: Int,
     @DrawableRes iconRes: Int,
     onClick: () -> Unit,
@@ -652,6 +663,7 @@ private fun QuickActionTile(
 private fun SettingsScreen(
     onOpenVaultSettings: () -> Unit,
     onOpenVaultBackup: () -> Unit,
+    onOpenTransferSettings: () -> Unit,
     onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -681,6 +693,13 @@ private fun SettingsScreen(
             detailRes = R.string.vaultshelf_settings_backup_detail,
             iconRes = R.drawable.ic_vaultshelf_vault,
             onClick = onOpenVaultBackup,
+        )
+
+        SettingsEntry(
+            titleRes = R.string.transfer_settings_title,
+            detailRes = R.string.transfer_settings_entry_detail,
+            iconRes = R.drawable.ic_vaultshelf_files,
+            onClick = onOpenTransferSettings,
         )
 
         SettingsEntry(
@@ -762,65 +781,6 @@ private fun StatusPill(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
         )
-    }
-}
-
-@Composable
-private fun FluentBottomBar(
-    selected: VaultShelfDestination,
-    onSelected: (VaultShelfDestination) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 6.dp,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            VaultShelfDestination.entries.forEach { destination ->
-                val isSelected = selected == destination
-                val contentColor = if (isSelected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            else Color.Transparent,
-                        )
-                        .selectable(
-                            selected = isSelected,
-                            onClick = { onSelected(destination) },
-                            role = Role.Tab,
-                        )
-                        .padding(horizontal = 3.dp, vertical = 7.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Icon(
-                        painter = painterResource(destination.iconRes),
-                        contentDescription = null,
-                        tint = contentColor,
-                        modifier = Modifier.size(22.dp),
-                    )
-                    Text(
-                        text = stringResource(destination.labelRes),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = contentColor,
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
     }
 }
 

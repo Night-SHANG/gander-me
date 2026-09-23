@@ -345,6 +345,19 @@ class VaultLibraryStore(
         writeEntries(entries)
     }
 
+    @Synchronized
+    fun rename(id: String, title: String): VaultLibraryEntry? {
+        val normalized = title.trim()
+        if (normalized.isEmpty()) return null
+        val entries = migrateLegacyEntries(readEntries()).toMutableList()
+        val index = entries.indexOfFirst { it.id == id }
+        if (index < 0) return null
+        val updated = entries[index].copy(title = normalized)
+        entries[index] = updated
+        writeEntries(entries)
+        return updated
+    }
+
     fun importExternalLibraryBook(book: LibraryBook, sourceFile: File): VaultLibraryEntry {
         require(sourceFile.isFile)
         val entries = migrateLegacyEntries(readEntries()).toMutableList()

@@ -1,5 +1,6 @@
 package com.arjun.gander.vault
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -7,9 +8,14 @@ import androidx.lifecycle.lifecycleScope
 import com.arjun.gander.BookReadingPositions
 import com.arjun.gander.Positions
 import com.arjun.gander.R
+import com.arjun.gander.VaultShelfActivity
+import com.arjun.gander.files.ExternalExplorerActivity
 import com.arjun.gander.library.BookFormat
 import com.arjun.gander.library.LibraryBook
 import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.transfer.TransferBehaviorPreferences
+import com.arjun.gander.transfer.TransferRoute
+import com.arjun.gander.transfer.TransferSourceDecision
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.vaultshelf.droidfs.SafVolume
@@ -54,6 +60,9 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
     }
     private val targetLibrary: Boolean by lazy {
         intent.getBooleanExtra(EXTRA_TARGET_LIBRARY, false)
+    }
+    private val sourceVolumeName: String by lazy {
+        intent.getStringExtra(EXTRA_SOURCE_VOLUME_NAME).orEmpty()
     }
 
     private lateinit var vaultFiles: VaultFileRepository
@@ -229,24 +238,38 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
             if (exported.isEmpty()) {
                 showTransferFailed()
             } else {
-                MaterialAlertDialogBuilder(this@VaultImportTargetActivity)
-                    .setTitle(R.string.vault_transfer_done_title)
-                    .setMessage(
-                        resources.getQuantityString(
-                            R.plurals.vault_transfer_vault_library_to_files_done,
-                            exported.size,
-                            exported.size,
-                        ),
+                when (
+                    TransferBehaviorPreferences.automaticDecision(
+                        this@VaultImportTargetActivity,
+                        TransferRoute.VAULT_LIBRARY_TO_VAULT_FILES,
                     )
-                    .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            exported.forEach { id -> vaultLibrary.remove(id) }
-                            finish()
-                        }
+                ) {
+                    TransferSourceDecision.KEEP -> finishToSource()
+                    TransferSourceDecision.DELETE -> lifecycleScope.launch(Dispatchers.IO) {
+                        exported.forEach { id -> vaultLibrary.remove(id) }
+                        withContext(Dispatchers.Main) { finishToSource() }
                     }
-                    .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ -> finish() }
-                    .setCancelable(false)
-                    .show()
+                    null -> MaterialAlertDialogBuilder(this@VaultImportTargetActivity)
+                        .setTitle(R.string.vault_transfer_done_title)
+                        .setMessage(
+                            resources.getQuantityString(
+                                R.plurals.vault_transfer_vault_library_to_files_done,
+                                exported.size,
+                                exported.size,
+                            ),
+                        )
+                        .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                exported.forEach { id -> vaultLibrary.remove(id) }
+                                withContext(Dispatchers.Main) { finishToSource() }
+                            }
+                        }
+                        .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
+                            finishToSource()
+                        }
+                        .setCancelable(false)
+                        .show()
+                }
             }
         }
     }
@@ -367,22 +390,42 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
         topLevel: List<OperationFile>,
         matchedBooks: List<LibraryBook>,
     ) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.vault_transfer_done_title)
-            .setMessage(R.string.vault_transfer_delete_file_source_question)
-            .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
-                deleteVolumeSources(topLevel, matchedBooks)
-            }
-            .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ -> finish() }
-            .setCancelable(false)
-            .show()
+        val route = if (targetLibrary) {
+            TransferRoute.EXTERNAL_FILES_TO_VAULT_LIBRARY
+        } else {
+            TransferRoute.EXTERNAL_FILES_TO_VAULT_FILES
+        }
+        when (TransferBehaviorPreferences.automaticDecision(this, route)) {
+            TransferSourceDecision.KEEP -> finishToSource()
+            TransferSourceDecision.DELETE -> deleteVolumeSources(
+                topLevel,
+                matchedBooks,
+                allowLinkedLibraryPrompt = false,
+            )
+            null -> MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.vault_transfer_done_title)
+                .setMessage(R.string.vault_transfer_delete_file_source_question)
+                .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
+                    deleteVolumeSources(
+                        topLevel,
+                        matchedBooks,
+                        allowLinkedLibraryPrompt = true,
+                    )
+                }
+                .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
+                    finishToSource()
+                }
+                .setCancelable(false)
+                .show()
+        }
     }
 
     private fun deleteVolumeSources(
         topLevel: List<OperationFile>,
         matchedBooks: List<LibraryBook>,
+        allowLinkedLibraryPrompt: Boolean,
     ) {
-        val sourceVolume = app.volumeManager.getVolume(sourceVolumeId) ?: return finish()
+        val sourceVolume = app.volumeManager.getVolume(sourceVolumeId) ?: return finishToSource()
         val sourceElements = topLevel.mapNotNull { operation ->
             val stat = sourceVolume.getAttr(operation.srcPath) ?: return@mapNotNull null
             ExplorerElement(
@@ -395,11 +438,19 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
         lifecycleScope.launch {
             val failedItem = fileOperationService.removeElements(sourceVolumeId, sourceElements)
             if (failedItem != null) {
-                finish()
+                finishToSource()
                 return@launch
             }
             if (matchedBooks.isEmpty()) {
-                finish()
+                finishToSource()
+            } else if (!allowLinkedLibraryPrompt) {
+                withContext(Dispatchers.IO) {
+                    val repository = LocalLibraryRepository(applicationContext)
+                    matchedBooks.forEach { book ->
+                        repository.detachOriginalSource(book.id)
+                    }
+                }
+                finishToSource()
             } else {
                 MaterialAlertDialogBuilder(this@VaultImportTargetActivity)
                     .setTitle(R.string.vault_transfer_linked_library_title)
@@ -416,7 +467,7 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
                             matchedBooks.forEach { book ->
                                 runCatching { repository.deleteBook(book.id) }
                             }
-                            finish()
+                            withContext(Dispatchers.Main) { finishToSource() }
                         }
                     }
                     .setNegativeButton(R.string.vault_transfer_keep_linked_library) { _, _ ->
@@ -425,7 +476,7 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
                             matchedBooks.forEach { book ->
                                 repository.detachOriginalSource(book.id)
                             }
-                            finish()
+                            withContext(Dispatchers.Main) { finishToSource() }
                         }
                     }
                     .setCancelable(false)
@@ -435,25 +486,40 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
     }
 
     private fun promptExternalLibrarySourceChoice(importedIds: List<String>) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.vault_transfer_done_title)
-            .setMessage(
-                resources.getQuantityString(
-                    R.plurals.vault_transfer_external_library_done,
-                    importedIds.size,
-                    importedIds.size,
-                ),
-            )
-            .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val repository = LocalLibraryRepository(applicationContext)
-                    importedIds.forEach { id -> runCatching { repository.deleteBook(id) } }
-                    finish()
-                }
+        val route = if (targetLibrary) {
+            TransferRoute.EXTERNAL_LIBRARY_TO_VAULT_LIBRARY
+        } else {
+            TransferRoute.EXTERNAL_LIBRARY_TO_VAULT_FILES
+        }
+        when (TransferBehaviorPreferences.automaticDecision(this, route)) {
+            TransferSourceDecision.KEEP -> finishToSource()
+            TransferSourceDecision.DELETE -> lifecycleScope.launch(Dispatchers.IO) {
+                val repository = LocalLibraryRepository(applicationContext)
+                importedIds.forEach { id -> runCatching { repository.deleteBook(id) } }
+                withContext(Dispatchers.Main) { finishToSource() }
             }
-            .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ -> finish() }
-            .setCancelable(false)
-            .show()
+            null -> MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.vault_transfer_done_title)
+                .setMessage(
+                    resources.getQuantityString(
+                        R.plurals.vault_transfer_external_library_done,
+                        importedIds.size,
+                        importedIds.size,
+                    ),
+                )
+                .setPositiveButton(R.string.vault_transfer_delete_source) { _, _ ->
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val repository = LocalLibraryRepository(applicationContext)
+                        importedIds.forEach { id -> runCatching { repository.deleteBook(id) } }
+                        withContext(Dispatchers.Main) { finishToSource() }
+                    }
+                }
+                .setNegativeButton(R.string.vault_transfer_keep_source) { _, _ ->
+                    finishToSource()
+                }
+                .setCancelable(false)
+                .show()
+        }
     }
 
     private fun migrateContentProgressToVault(sourceFile: File, destinationPath: String) {
@@ -486,11 +552,43 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
         }
     }
 
+    private fun finishToSource() {
+        when {
+            sourceLibraryIds.isNotEmpty() -> {
+                startActivity(
+                    Intent(this, VaultShelfActivity::class.java)
+                        .putExtra(VaultShelfActivity.EXTRA_INITIAL_DESTINATION, "LIBRARY")
+                        .addFlags(
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                                Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                        ),
+                )
+                overridePendingTransition(0, 0)
+            }
+            sourceVolumeId >= 0 -> {
+                startActivity(
+                    Intent(this, ExternalExplorerActivity::class.java)
+                        .putExtra("volumeId", sourceVolumeId)
+                        .putExtra("volumeName", sourceVolumeName)
+                        .putExtra(VaultShelfActivity.EXTRA_PLAIN_VOLUME, true)
+                        .addFlags(
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                                Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                        ),
+                )
+                overridePendingTransition(0, 0)
+            }
+        }
+        finish()
+    }
+
     private fun showTransferFailed() {
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.error)
             .setMessage(R.string.vault_transfer_failed)
-            .setPositiveButton(R.string.ok) { _, _ -> finish() }
+            .setPositiveButton(R.string.ok) { _, _ -> finishToSource() }
             .show()
     }
 
@@ -528,5 +626,6 @@ class VaultImportTargetActivity : BaseExplorerActivity() {
         const val EXTRA_SOURCE_TYPES = "vaultshelf.source_types"
         const val EXTRA_SOURCE_LIBRARY_IDS = "vaultshelf.source_library_ids"
         const val EXTRA_SOURCE_VAULT_LIBRARY_IDS = "vaultshelf.source_vault_library_ids"
+        const val EXTRA_SOURCE_VOLUME_NAME = "vaultshelf.source_volume_name"
     }
 }

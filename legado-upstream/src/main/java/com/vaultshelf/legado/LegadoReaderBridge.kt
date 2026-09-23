@@ -18,6 +18,7 @@ import com.script.rhino.ReadOnlyJavaObject
 import com.script.rhino.RhinoScriptEngine
 import com.script.rhino.RhinoWrapFactory
 import io.legado.app.constant.AppConst
+import io.legado.app.constant.PreferKey
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
@@ -130,7 +131,13 @@ object LegadoReaderBridge {
         appContext.injectAsAppCtx()
 
         if (!initialized.compareAndSet(false, true)) return
-        ensureVaultShelfReadingPreset()
+        // The separate VaultShelf reader-chrome setting was removed. Clear any value
+        // written by development builds so a hidden preference cannot keep affecting Legado.
+        appContext.defaultSharedPreferences
+            .edit()
+            .remove("vaultshelf_reader_chrome_primary")
+            .apply()
+        ensureVaultShelfReadingPreset(appContext)
         val configuration = Configuration(appContext.resources.configuration)
         var observedNightMode = configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
 
@@ -214,25 +221,36 @@ object LegadoReaderBridge {
     }
 
     /**
-     * Add VaultShelf's softer light reading palette without shifting Legado's persisted
-     * preset indexes. Existing users keep their current style; the extra preset is appended.
+     * Keep VaultShelf's softer light reading palette available without shifting Legado's
+     * persisted preset indexes. When Legado has no saved reading-style preference yet,
+     * VaultShelf uses this existing preset as the product default.
      */
-    private fun ensureVaultShelfReadingPreset() {
-        if (ReadBookConfig.configList.any { it.name == VAULTSHELF_SOFT_WHITE_PRESET }) return
-        ReadBookConfig.configList.add(
-            ReadBookConfig.Config(
-                name = VAULTSHELF_SOFT_WHITE_PRESET,
-                bgStr = "#F3F3F3",
-                bgStrNight = "#202020",
-                textColor = "#1B1B1B",
-                textColorNight = "#F5F5F5",
-                textAccentColor = "#005FB8",
-                textAccentColorNight = "#60CDFF",
-                bgType = 0,
-                bgTypeNight = 0,
-            ),
-        )
-        ReadBookConfig.save()
+    private fun ensureVaultShelfReadingPreset(context: Context) {
+        var index = ReadBookConfig.configList.indexOfFirst {
+            it.name == VAULTSHELF_SOFT_WHITE_PRESET
+        }
+        if (index < 0) {
+            ReadBookConfig.configList.add(
+                ReadBookConfig.Config(
+                    name = VAULTSHELF_SOFT_WHITE_PRESET,
+                    bgStr = "#F3F3F3",
+                    bgStrNight = "#202020",
+                    textColor = "#1B1B1B",
+                    textColorNight = "#F5F5F5",
+                    textAccentColor = "#005FB8",
+                    textAccentColorNight = "#60CDFF",
+                    bgType = 0,
+                    bgTypeNight = 0,
+                ),
+            )
+            index = ReadBookConfig.configList.lastIndex
+            ReadBookConfig.save()
+        }
+
+        val preferences = context.defaultSharedPreferences
+        if (!preferences.contains(PreferKey.readStyleSelect)) {
+            ReadBookConfig.readStyleSelect = index
+        }
     }
 
     private fun createReadAloudChannel(context: Context) {

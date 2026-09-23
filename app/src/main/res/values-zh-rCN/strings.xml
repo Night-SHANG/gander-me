@@ -80,24 +80,24 @@
     <string name="vaultshelf_action_browse_files">浏览文件</string>
 
     <string name="vaultshelf_library_title">书库</string>
-    <string name="vaultshelf_library_import_book">导入书籍</string>
+    <string name="vaultshelf_library_import_book">添加文件</string>
     <string name="vaultshelf_library_import_short">导入</string>
-    <string name="vaultshelf_library_import_failed">无法导入这本书。VaultShelf 当前支持 TXT、EPUB、UMD、PDF、MOBI、AZW3、AZW 和 Markdown。</string>
+    <string name="vaultshelf_library_import_failed">无法将这个文件加入书库。VaultShelf 支持的电子书和文档均可加入，包括 TXT、EPUB、UMD、PDF、MOBI、AZW3、AZW、Markdown、DOCX、PPTX、XLSX、XLS、XLSM、XLSB、CSV 和 ODS。</string>
     <string name="vaultshelf_library_empty_title">书库还是空的</string>
-    <string name="vaultshelf_library_empty_detail">导入支持的本地电子书或 Markdown 文件后，就可以建立只保存在设备上的阅读书架。</string>
+    <string name="vaultshelf_library_empty_detail">支持的本地电子书和文档都可以加入这里，作为可搜索的本机书库。</string>
     <string name="vaultshelf_library_progress">已读 %1$d%%</string>
-    <string name="vaultshelf_library_continue_reading">继续阅读</string>
-    <string name="vaultshelf_library_book_count">书籍 · %1$d</string>
+    <string name="vaultshelf_library_continue_reading">打开 / 继续</string>
+    <string name="vaultshelf_library_book_count">项目 · %1$d</string>
     <string name="vaultshelf_library_view_grid">网格</string>
     <plurals name="vaultshelf_library_grid_columns">
         <item quantity="other">%1$d 列</item>
     </plurals>
     <string name="vaultshelf_library_view_list">列表</string>
-    <string name="vaultshelf_library_rename">重命名</string>
+    <string name="vaultshelf_library_rename">重命名项目</string>
     <string name="vaultshelf_library_rename_title">重命名书籍</string>
     <string name="vaultshelf_library_rename_label">书名</string>
     <string name="vaultshelf_library_rename_confirm">保存</string>
-    <string name="vaultshelf_library_info">书籍信息</string>
+    <string name="vaultshelf_library_info">详情</string>
     <string name="vaultshelf_library_info_format">格式：%1$s</string>
     <string name="vaultshelf_library_info_size">大小：%1$s</string>
     <string name="vaultshelf_library_delete">从书库删除</string>
@@ -154,14 +154,18 @@
 
     <string name="vault_mode_title">加密保险库</string>
     <string name="vault_home_recent">最近阅读</string>
-    <string name="vault_home_recent_empty">从保险库打开过的书会显示在这里。</string>
+    <string name="vault_home_recent_empty">从保险库书库打开过的内容会显示在这里。</string>
     <string name="vault_library_title">保险库书库</string>
     <string name="vault_library_empty">保险库书库还是空的</string>
-    <string name="vault_library_empty_detail">保险库里的 TXT、PDF 等不会自动进入书库。请从“文件”页手动加入。</string>
+    <string name="vault_library_empty_detail">保险库里支持的电子书和文档不会自动进入书库，请从“文件”页手动加入。</string>
     <string name="vault_library_add_from_files">从保险库文件加入</string>
     <string name="vault_settings_title">保险库设置</string>
     <string name="vault_settings_security">安全与保险库行为</string>
     <string name="vault_settings_backup">导出 / 恢复备份</string>
+    <string name="vault_switch_volume">切换保险库</string>
+    <string name="vault_exit_title">退出保险库？</string>
+    <string name="vault_exit_message">确定退出保险库并返回外部页面吗？</string>
+    <string name="vault_exit_confirm">退出保险库</string>
     <string name="vault_settings_lock">锁定保险库</string>
     <string name="vault_return_external_home">返回外部首页</string>
     <string name="vault_open_failed">暂时无法打开这个文件。</string>
@@ -169,7 +173,7 @@
 
 
     <plurals name="vault_library_count">
-        <item quantity="other">%1$d 本</item>
+        <item quantity="other">%1$d 项</item>
     </plurals>
 
     <string name="vaultshelf_files_title">文件</string>
@@ -240,5 +244,24 @@
     <plurals name="vault_transfer_vault_library_to_external_files_done">
         <item quantity="other">%1$d 本保险库书籍已经导出到外部文件。是否删除保险库书库来源？</item>
     </plurals>
+
+    <string name="transfer_settings_title">传输与来源处理</string>
+    <string name="transfer_settings_entry_detail">为四个区域之间的每条传输路径预设完成后保留还是删除来源。</string>
+    <string name="transfer_settings_auto_title">自动处理传输后的来源</string>
+    <string name="transfer_settings_auto_summary">默认关闭。开启后，传输成功将按下方规则自动处理来源，不再每次询问。</string>
+    <string name="transfer_settings_routes_title">各传输路径默认行为</string>
+    <string name="transfer_source_keep">传输完成后：保留来源</string>
+    <string name="transfer_source_delete">传输完成后：删除来源</string>
+    <string name="transfer_route_label">%1$s → %2$s</string>
+    <string name="transfer_zone_external_files">外部文件</string>
+    <string name="transfer_zone_external_library">外部书库</string>
+    <string name="transfer_zone_vault_files">保险库文件</string>
+    <string name="transfer_zone_vault_library">保险库书库</string>
+    <string name="vault_export_blocked">当前禁止将保险库明文导出。请先在“保险库安全设置”中开启“允许导出文件”。</string>
+    <string name="vaultshelf_files_remove_access_title">移除文件夹授权？</string>
+    <string name="vaultshelf_files_remove_access_message">VaultShelf 将不再显示已授权文件夹“%1$s”，但不会删除文件夹中的任何文件。</string>
+    <string name="vaultshelf_library_import_partial">部分文件导入失败。成功：%1$d · 失败：%2$d。</string>
+    <string name="vaultshelf_library_export_failed">无法导出选中的书籍。</string>
+    <string name="vaultshelf_library_export_partial">部分书籍导出失败。成功：%1$d · 失败：%2$d。</string>
 
 </resources>

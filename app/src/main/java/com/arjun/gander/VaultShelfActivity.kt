@@ -8,26 +8,30 @@ import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.addCallback
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.net.toUri
 import com.arjun.gander.files.ExternalExplorerActivity
-import com.arjun.gander.library.LocalLibraryRepository
+import com.arjun.gander.library.session.ExternalShelfSession
+import com.arjun.gander.navigation.suppressTopLevelTransition
 import com.arjun.gander.ui.shell.VaultShelfShell
+import com.arjun.gander.transfer.TransferBehaviorSettingsActivity
 import com.arjun.gander.ui.theme.VaultShelfTheme
 import com.arjun.gander.vault.VaultBackupActivity
 import com.arjun.gander.vault.VaultImportTargetActivity
+import com.arjun.gander.vault.VaultVolumeActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vaultshelf.droidfs.SafVolume
 import java.io.File
 import java.util.ArrayList
 import java.util.UUID
-import sushi.hardcore.droidfs.MainActivity as DroidFsMainActivity
 import sushi.hardcore.droidfs.SettingsActivity as DroidFsSettingsActivity
 import sushi.hardcore.droidfs.VolumeData
 import sushi.hardcore.droidfs.VolumeManagerApp
@@ -42,28 +46,24 @@ import sushi.hardcore.droidfs.filesystems.EncryptedVolume
  */
 class VaultShelfActivity : AppCompatActivity() {
 
-    private var libraryRevision by mutableIntStateOf(0)
+    private lateinit var shelfSession: ExternalShelfSession
+    private var requestedDestinationName by mutableStateOf("HOME")
+    private var returnToFiles by mutableStateOf(false)
+    private var navigationRequest by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val libraryRepository = LocalLibraryRepository(applicationContext)
-        val initialDestination =
-            intent.getStringExtra(EXTRA_INITIAL_DESTINATION).orEmpty().ifBlank { "HOME" }
-        val returnToFiles = intent.getBooleanExtra(EXTRA_RETURN_TO_FILES, false)
+        applyNavigationIntent(intent)
+        shelfSession = ExternalShelfSession.get(application)
 
         val root = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 VaultShelfTheme {
                     VaultShelfShell(
-                        libraryRepository = libraryRepository,
-                        externalRevision = libraryRevision,
+                        session = shelfSession,
                         onOpenExternalFolder = ::openExternalFolder,
-                        onOpenVault = {
-                            startActivity(
-                                Intent(this@VaultShelfActivity, DroidFsMainActivity::class.java),
-                            )
-                        },
+                        onOpenVault = ::openVault,
                         onOpenVaultSettings = {
                             startActivity(
                                 Intent(this@VaultShelfActivity, DroidFsSettingsActivity::class.java),
@@ -74,9 +74,17 @@ class VaultShelfActivity : AppCompatActivity() {
                                 Intent(this@VaultShelfActivity, VaultBackupActivity::class.java),
                             )
                         },
+                        onOpenTransferSettings = {
+                            startActivity(
+                                Intent(
+                                    this@VaultShelfActivity,
+                                    TransferBehaviorSettingsActivity::class.java,
+                                ),
+                            )
+                        },
                         onImportBooksToVaultFiles = { books ->
                             startActivity(
-                                Intent(this@VaultShelfActivity, DroidFsMainActivity::class.java)
+                                Intent(this@VaultShelfActivity, VaultVolumeActivity::class.java)
                                     .setAction(VaultImportTargetActivity.ACTION_IMPORT_TO_VAULT)
                                     .putStringArrayListExtra(
                                         VaultImportTargetActivity.EXTRA_SOURCE_LIBRARY_IDS,
@@ -90,7 +98,7 @@ class VaultShelfActivity : AppCompatActivity() {
                         },
                         onImportBooksToVaultLibrary = { books ->
                             startActivity(
-                                Intent(this@VaultShelfActivity, DroidFsMainActivity::class.java)
+                                Intent(this@VaultShelfActivity, VaultVolumeActivity::class.java)
                                     .setAction(
                                         VaultImportTargetActivity.ACTION_IMPORT_TO_VAULT_LIBRARY,
                                     )
@@ -105,11 +113,12 @@ class VaultShelfActivity : AppCompatActivity() {
                             )
                         },
                         onOpenAbout = ::showAbout,
-                        initialDestinationName = initialDestination,
+                        initialDestinationName = requestedDestinationName,
+                        navigationRequest = navigationRequest,
                         returnToFiles = returnToFiles,
                         onReturnToFiles = {
                             finish()
-                            overridePendingTransition(0, 0)
+                            suppressTopLevelTransition()
                         },
                         modifier = Modifier.safeDrawingPadding(),
                     )
@@ -117,11 +126,41 @@ class VaultShelfActivity : AppCompatActivity() {
             }
         }
         setContentView(root)
+        onBackPressedDispatcher.addCallback(this) {
+            if (returnToFiles) {
+                finish()
+                suppressTopLevelTransition()
+            } else {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        applyNavigationIntent(intent)
+        navigationRequest += 1
+    }
+
+    private fun applyNavigationIntent(intent: Intent) {
+        requestedDestinationName =
+            intent.getStringExtra(EXTRA_INITIAL_DESTINATION).orEmpty().ifBlank { "HOME" }
+        returnToFiles = intent.getBooleanExtra(EXTRA_RETURN_TO_FILES, false)
     }
 
     override fun onResume() {
         super.onResume()
-        libraryRevision += 1
+        shelfSession.refresh()
+    }
+
+    private fun openVault() {
+        startActivity(
+            Intent(this, VaultVolumeActivity::class.java)
+                .putExtra(EXTRA_VAULT_SHELL_ENTRY, true),
+        )
+        suppressTopLevelTransition()
     }
 
     private fun openExternalFolder(treeUri: Uri, label: String) {
@@ -144,10 +183,9 @@ class VaultShelfActivity : AppCompatActivity() {
                 Intent(this, ExternalExplorerActivity::class.java)
                     .putExtra("volumeId", volumeId)
                     .putExtra("volumeName", label)
-                    .putExtra(EXTRA_PLAIN_VOLUME, true)
-                    .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION),
+                    .putExtra(EXTRA_PLAIN_VOLUME, true),
             )
-            overridePendingTransition(0, 0)
+            suppressTopLevelTransition()
             true
         }.getOrDefault(false)
         if (!opened) {
@@ -221,6 +259,7 @@ class VaultShelfActivity : AppCompatActivity() {
         const val EXTRA_INITIAL_DESTINATION = "vaultshelf.initial_destination"
         const val EXTRA_RETURN_TO_FILES = "vaultshelf.return_to_files"
         const val EXTRA_PLAIN_VOLUME = "vaultshelf.plain_volume"
+        const val EXTRA_VAULT_SHELL_ENTRY = "vaultshelf.shell_entry"
         private const val LICENCES_ASSET = "licences.md"
     }
 }

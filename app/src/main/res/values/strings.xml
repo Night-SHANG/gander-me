@@ -84,25 +84,25 @@
     <string name="vaultshelf_action_browse_files">Browse files</string>
 
     <string name="vaultshelf_library_title">Library</string>
-    <string name="vaultshelf_library_import_book">Import book</string>
+    <string name="vaultshelf_library_import_book">Add file</string>
     <string name="vaultshelf_library_import_short">Import</string>
-    <string name="vaultshelf_library_import_failed">This book could not be imported. VaultShelf currently accepts TXT, EPUB, UMD, PDF, MOBI, AZW3, AZW, and Markdown.</string>
+    <string name="vaultshelf_library_import_failed">This file could not be added to the library. VaultShelf accepts its supported ebooks and documents, including TXT, EPUB, UMD, PDF, MOBI, AZW3, AZW, Markdown, DOCX, PPTX, XLSX, XLS, XLSM, XLSB, CSV, and ODS.</string>
     <string name="vaultshelf_library_empty_title">Your library is empty</string>
-    <string name="vaultshelf_library_empty_detail">Import a supported local ebook or Markdown file to start a private on-device reading shelf.</string>
+    <string name="vaultshelf_library_empty_detail">Add any supported local ebook or document to build a searchable on-device library.</string>
     <string name="vaultshelf_library_progress">Read %1$d%%</string>
-    <string name="vaultshelf_library_continue_reading">Continue reading</string>
-    <string name="vaultshelf_library_book_count">Books · %1$d</string>
+    <string name="vaultshelf_library_continue_reading">Open / continue</string>
+    <string name="vaultshelf_library_book_count">Items · %1$d</string>
     <string name="vaultshelf_library_view_grid">Grid</string>
     <plurals name="vaultshelf_library_grid_columns">
         <item quantity="one">%1$d column</item>
         <item quantity="other">%1$d columns</item>
     </plurals>
     <string name="vaultshelf_library_view_list">List</string>
-    <string name="vaultshelf_library_rename">Rename</string>
+    <string name="vaultshelf_library_rename">Rename item</string>
     <string name="vaultshelf_library_rename_title">Rename book</string>
     <string name="vaultshelf_library_rename_label">Book title</string>
     <string name="vaultshelf_library_rename_confirm">Save</string>
-    <string name="vaultshelf_library_info">Book info</string>
+    <string name="vaultshelf_library_info">Details</string>
     <string name="vaultshelf_library_info_format">Format: %1$s</string>
     <string name="vaultshelf_library_info_size">Size: %1$s</string>
     <string name="vaultshelf_library_delete">Delete from library</string>
@@ -164,14 +164,18 @@
 
     <string name="vault_mode_title">Encrypted vault</string>
     <string name="vault_home_recent">Recently read</string>
-    <string name="vault_home_recent_empty">Books you open from the vault will appear here.</string>
+    <string name="vault_home_recent_empty">Items you open from the vault library will appear here.</string>
     <string name="vault_library_title">Vault library</string>
-    <string name="vault_library_empty">No books in this vault library</string>
-    <string name="vault_library_empty_detail">Files in the vault are not added automatically. Add a supported document from the Files tab.</string>
+    <string name="vault_library_empty">No items in this vault library</string>
+    <string name="vault_library_empty_detail">Supported ebooks and documents in the vault are not added automatically. Add them from the Files tab.</string>
     <string name="vault_library_add_from_files">Add from vault files</string>
     <string name="vault_settings_title">Vault settings</string>
     <string name="vault_settings_security">Security and vault behavior</string>
     <string name="vault_settings_backup">Export / restore backup</string>
+    <string name="vault_switch_volume">Switch vault</string>
+    <string name="vault_exit_title">Exit vault?</string>
+    <string name="vault_exit_message">Exit the vault and return to the external app?</string>
+    <string name="vault_exit_confirm">Exit vault</string>
     <string name="vault_settings_lock">Lock vault</string>
     <string name="vault_return_external_home">Return to external home</string>
     <string name="vault_open_failed">This file cannot be opened.</string>
@@ -179,8 +183,8 @@
 
 
     <plurals name="vault_library_count">
-        <item quantity="one">%1$d book</item>
-        <item quantity="other">%1$d books</item>
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
     </plurals>
 
     <string name="vaultshelf_files_title">Files</string>
@@ -264,5 +268,24 @@
         <item quantity="one">%1$d vault-library book was exported to external files. Delete the vault-library source?</item>
         <item quantity="other">%1$d vault-library books were exported to external files. Delete the vault-library sources?</item>
     </plurals>
+
+    <string name="transfer_settings_title">Transfer and source handling</string>
+    <string name="transfer_settings_entry_detail">Choose whether each successful transfer keeps or deletes its source.</string>
+    <string name="transfer_settings_auto_title">Automatically handle sources after transfer</string>
+    <string name="transfer_settings_auto_summary">Off by default. When enabled, successful transfers use the rules below instead of asking each time.</string>
+    <string name="transfer_settings_routes_title">Per-route defaults</string>
+    <string name="transfer_source_keep">Keep source</string>
+    <string name="transfer_source_delete">Delete source</string>
+    <string name="transfer_route_label">%1$s → %2$s</string>
+    <string name="transfer_zone_external_files">External files</string>
+    <string name="transfer_zone_external_library">External library</string>
+    <string name="transfer_zone_vault_files">Vault files</string>
+    <string name="transfer_zone_vault_library">Vault library</string>
+    <string name="vault_export_blocked">Vault plaintext export is disabled. Enable “Allow exporting files” in Vault security settings first.</string>
+    <string name="vaultshelf_files_remove_access_title">Remove folder access?</string>
+    <string name="vaultshelf_files_remove_access_message">VaultShelf will stop showing the authorized folder “%1$s”. The files themselves will not be deleted.</string>
+    <string name="vaultshelf_library_import_partial">Some files could not be imported. Imported: %1$d · Failed: %2$d.</string>
+    <string name="vaultshelf_library_export_failed">The selected book(s) could not be exported.</string>
+    <string name="vaultshelf_library_export_partial">Some books could not be exported. Exported: %1$d · Failed: %2$d.</string>
 
 </resources>
