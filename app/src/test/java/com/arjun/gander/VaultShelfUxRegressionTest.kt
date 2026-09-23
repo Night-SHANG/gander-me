@@ -1779,8 +1779,10 @@ class VaultShelfUxRegressionTest {
         assertThat(exit).contains("vault_exit_title")
         assertThat(exit).contains("vault_exit_confirm")
         assertThat(exit).contains("Intent.FLAG_ACTIVITY_CLEAR_TOP")
-        assertThat(exit).contains("EXTRA_PRESERVE_DESTINATION")
-        assertThat(external).contains("EXTRA_PRESERVE_DESTINATION")
+        assertThat(exit).contains("EXTRA_INITIAL_DESTINATION, \"HOME\"")
+        assertThat(exit).contains("EXTRA_RETURN_TO_FILES, false")
+        assertThat(exit).doesNotContain("EXTRA_PRESERVE_DESTINATION")
+        assertThat(external).doesNotContain("EXTRA_PRESERVE_DESTINATION")
     }
 
     @Test

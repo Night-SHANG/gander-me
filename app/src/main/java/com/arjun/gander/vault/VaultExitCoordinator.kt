@@ -23,7 +23,8 @@ internal object VaultExitCoordinator {
     private fun exitToExternal(activity: Activity) {
         activity.startActivity(
             Intent(activity, VaultShelfActivity::class.java)
-                .putExtra(VaultShelfActivity.EXTRA_PRESERVE_DESTINATION, true)
+                .putExtra(VaultShelfActivity.EXTRA_INITIAL_DESTINATION, "HOME")
+                .putExtra(VaultShelfActivity.EXTRA_RETURN_TO_FILES, false)
                 .addFlags(
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
                         Intent.FLAG_ACTIVITY_SINGLE_TOP,

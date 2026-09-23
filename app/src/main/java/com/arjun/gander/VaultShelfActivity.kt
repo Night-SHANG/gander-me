@@ -141,13 +141,10 @@ class VaultShelfActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         applyNavigationIntent(intent)
-        if (!intent.getBooleanExtra(EXTRA_PRESERVE_DESTINATION, false)) {
-            navigationRequest += 1
-        }
+        navigationRequest += 1
     }
 
     private fun applyNavigationIntent(intent: Intent) {
-        if (intent.getBooleanExtra(EXTRA_PRESERVE_DESTINATION, false)) return
         requestedDestinationName =
             intent.getStringExtra(EXTRA_INITIAL_DESTINATION).orEmpty().ifBlank { "HOME" }
         returnToFiles = intent.getBooleanExtra(EXTRA_RETURN_TO_FILES, false)
@@ -263,7 +260,6 @@ class VaultShelfActivity : AppCompatActivity() {
         const val EXTRA_RETURN_TO_FILES = "vaultshelf.return_to_files"
         const val EXTRA_PLAIN_VOLUME = "vaultshelf.plain_volume"
         const val EXTRA_VAULT_SHELL_ENTRY = "vaultshelf.shell_entry"
-        const val EXTRA_PRESERVE_DESTINATION = "vaultshelf.preserve_destination"
         private const val LICENCES_ASSET = "licences.md"
     }
 }

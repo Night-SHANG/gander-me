@@ -21,6 +21,8 @@ tabs must not recreate an empty data source or replace loaded content with a spi
 - In the vault shell, system Back always asks for exit confirmation, including when
   the shell was opened from the file explorer. `EXTRA_RETURN_TO_FILES` applies only
   to the explicit Files shortcut, which restores the retained explorer and directory.
+- Confirming vault exit always selects external Home and resets the external shell's
+  return-to-files flag. The exit destination does not depend on the entry tab.
 
 ## Rendering and refresh
 
