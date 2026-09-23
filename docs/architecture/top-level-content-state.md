@@ -18,6 +18,9 @@ tabs must not recreate an empty data source or replace loaded content with a spi
   Mutations still use the existing repositories and request a fresh snapshot afterward.
 - Compose `SaveableStateHolder` saves per-tab UI state such as scroll/search, while the
   session owns data. Reader, settings and explorer Activity navigation stays separate.
+- In the vault shell, system Back always asks for exit confirmation, including when
+  the shell was opened from the file explorer. `EXTRA_RETURN_TO_FILES` applies only
+  to the explicit Files shortcut, which restores the retained explorer and directory.
 
 ## Rendering and refresh
 

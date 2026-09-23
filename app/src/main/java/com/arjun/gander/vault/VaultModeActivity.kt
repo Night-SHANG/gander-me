@@ -153,12 +153,8 @@ class VaultModeActivity : BaseActivity() {
         }
         setContentView(root)
         onBackPressedDispatcher.addCallback(this) {
-            if (returnToFiles) {
-                finish()
-                suppressTopLevelTransition()
-            } else {
-                VaultExitCoordinator.confirmExit(this@VaultModeActivity)
-            }
+            // A tab's origin only controls the Files shortcut, never the vault exit boundary.
+            VaultExitCoordinator.confirmExit(this@VaultModeActivity)
         }
     }
 
