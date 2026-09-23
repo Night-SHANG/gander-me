@@ -54,7 +54,7 @@ class VaultShelfActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyNavigationIntent(intent)
-        shelfSession = ExternalShelfSession.get(applicationContext)
+        shelfSession = ExternalShelfSession.get(application)
 
         val root = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
